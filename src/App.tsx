@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useTheme } from "./context/ThemeContext";
 import { useScrollPosition } from "./hooks/useScrollPosition";
 import { usePageTransition } from "./hooks/usePageTransition";
+import { useAuth } from "./hooks/useAuth";
 import type { NavigateFn } from "./types";
 import { Navbar } from "./components/layout/Navbar";
 import { MobileDrawer } from "./components/layout/MobileDrawer";
 import { Footer } from "./components/layout/Footer";
 import { ClientLoader } from "./components/loaders/ClientLoader";
+import { AdminLoader } from "./components/loaders/AdminLoader";
 import { HomePage } from "./pages/HomePage";
 import { ServicesPage } from "./pages/ServicesPage";
 import { GalleryPage } from "./pages/GalleryPage";
@@ -18,20 +20,23 @@ export default function App() {
   const { t, isDark } = useTheme();
   const scrolled = useScrollPosition();
   const { page, navigate: rawNavigate, pageLoading } = usePageTransition();
+  const { isAuthenticated, loading: authLoading, signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminAuth, setAdminAuth] = useState(false);
 
   const navigate: NavigateFn = (p) => {
     setMobileNavOpen(false);
     rawNavigate(p);
   };
 
-  if (isAdmin && !adminAuth) {
-    return <AdminLogin onLogin={() => setAdminAuth(true)} onBack={() => setIsAdmin(false)} />;
+  if (isAdmin && authLoading) {
+    return <AdminLoader />;
   }
-  if (isAdmin && adminAuth) {
-    return <AdminPanel onLogout={() => { setIsAdmin(false); setAdminAuth(false); }} />;
+  if (isAdmin && !isAuthenticated) {
+    return <AdminLogin onBack={() => setIsAdmin(false)} />;
+  }
+  if (isAdmin && isAuthenticated) {
+    return <AdminPanel onLogout={async () => { await signOut(); setIsAdmin(false); }} />;
   }
 
   return (

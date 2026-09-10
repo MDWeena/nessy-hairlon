@@ -2,34 +2,29 @@ import { useState } from "react";
 import { ArrowRight, ChevronLeft, X } from "lucide-react";
 import { LOGO_ICON } from "../assets/logos";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../hooks/useAuth";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 
 interface AdminLoginProps {
-  onLogin: () => void;
   onBack: () => void;
 }
 
-export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
+export function AdminLogin({ onBack }: AdminLoginProps) {
   const { t, isDark } = useTheme();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError("");
     if (!email || !password) { setError("Please fill in all fields"); return; }
     setLoading(true);
-    // Simulate auth check
-    setTimeout(() => {
-      if (email === "nessy@hairlon.com" && password === "admin") {
-        onLogin();
-      } else {
-        setError("Invalid email or password");
-      }
-      setLoading(false);
-    }, 800);
+    const { error: signInError } = await signIn(email, password);
+    if (signInError) setError("Invalid email or password");
+    setLoading(false);
   };
 
   return (
@@ -134,7 +129,7 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
           </GoldButton>
 
           <p style={{ fontSize: 11, color: t.textMuted, textAlign: "center", marginTop: 20 }}>
-            Demo credentials: nessy@hairlon.com / admin
+            Admin access is managed via Supabase Auth.
           </p>
         </div>
 

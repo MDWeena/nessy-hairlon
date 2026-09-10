@@ -1,15 +1,15 @@
 import { Star } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
+import { useTestimonials } from "../../hooks/useTestimonials";
 import { FadeIn } from "../ui/FadeIn";
-
-const REVIEWS = [
-  { name: "Amara O.", text: "I drove 3 hours to get my locs done. Worth every minute. She understands natural hair like no one else.", stars: 5 },
-  { name: "Chidinma E.", text: "My braids lasted 8 weeks and my scalp felt amazing the entire time. The treatments are top tier.", stars: 5 },
-  { name: "Bola A.", text: "Finally found someone who treats natural hair with the care it deserves. I won't go anywhere else.", stars: 5 },
-];
+import { LoadingNotice } from "../ui/LoadingNotice";
+import { ErrorNotice } from "../ui/ErrorNotice";
 
 export function Testimonials() {
   const { t } = useTheme();
+  const { testimonials, loading, error } = useTestimonials();
+  const visible = testimonials.filter(story => story.visible);
+
   return (
     <section style={{ padding: "72px 24px", maxWidth: 800, margin: "0 auto" }}>
       <FadeIn>
@@ -18,8 +18,12 @@ export function Testimonials() {
           The proof is in the braids
         </h2>
       </FadeIn>
-      {REVIEWS.map((review, i) => (
-        <FadeIn key={i} delay={0.1 * (i + 1)}>
+
+      {error && <ErrorNotice message={error} />}
+      {loading && <LoadingNotice label="Loading client stories…" />}
+
+      {!loading && visible.map((review, i) => (
+        <FadeIn key={review.id} delay={0.1 * (i + 1)}>
           <div style={{
             background: t.surface, padding: 28, borderRadius: 12, marginBottom: 16,
             borderLeft: `3px solid ${t.gold}`, border: `1px solid ${t.border}`,

@@ -1,21 +1,19 @@
 import { Scissors, ArrowRight, Upload } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
+import { useGallery } from "../hooks/useGallery";
 import type { NavigateFn } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
+import { LoadingNotice } from "../components/ui/LoadingNotice";
+import { ErrorNotice } from "../components/ui/ErrorNotice";
 
 interface GalleryPageProps {
   navigate: NavigateFn;
 }
 
-const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const STYLE_NAMES = [
-  "Goddess Locs", "Knotless Braids", "Fulani Braids", "Passion Twists",
-  "Feed-in Cornrows", "Butterfly Locs", "Bohemian Twists",
-];
-
 export function GalleryPage({ navigate }: GalleryPageProps) {
   const { t, isDark } = useTheme();
+  const { entries, loading, error } = useGallery();
 
   return (
     <section style={{ padding: "48px 24px 72px", maxWidth: 900, margin: "0 auto" }}>
@@ -27,26 +25,36 @@ export function GalleryPage({ navigate }: GalleryPageProps) {
         </p>
       </FadeIn>
 
+      {error && <ErrorNotice message={error} />}
+      {loading && <LoadingNotice label="Loading gallery…" />}
+
+      {!loading && (
+        <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-        {DAYS_OF_WEEK.map((day, i) => (
-          <FadeIn key={day} delay={0.06 * (i + 1)}>
+        {entries.map((entry, i) => (
+          <FadeIn key={entry.dayOfWeek} delay={0.06 * (i + 1)}>
             <div className="hover-lift" style={{
               background: t.surface, borderRadius: 16, overflow: "hidden",
               border: `1px solid ${t.border}`, cursor: "pointer",
             }}>
-              {/* Placeholder image area */}
+              {/* Image area — shows the uploaded style photo, or a placeholder */}
               <div style={{
-                height: 200, background: `linear-gradient(135deg, ${t.gold}20, ${t.gold}08)`,
+                height: 200,
+                background: entry.imageUrl
+                  ? `url(${entry.imageUrl}) center/cover no-repeat`
+                  : `linear-gradient(135deg, ${t.gold}20, ${t.gold}08)`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 position: "relative", overflow: "hidden",
               }}>
-                <div style={{
-                  width: 80, height: 80, borderRadius: "50%",
-                  background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}15)`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <Scissors size={28} color={t.gold} strokeWidth={1} />
-                </div>
+                {!entry.imageUrl && (
+                  <div style={{
+                    width: 80, height: 80, borderRadius: "50%",
+                    background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}15)`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Scissors size={28} color={t.gold} strokeWidth={1} />
+                  </div>
+                )}
                 {/* Day badge */}
                 <div style={{
                   position: "absolute", top: 12, left: 12,
@@ -54,11 +62,11 @@ export function GalleryPage({ navigate }: GalleryPageProps) {
                   backdropFilter: "blur(8px)", borderRadius: 20,
                   padding: "4px 14px", fontSize: 11, fontWeight: 600, color: t.gold,
                   border: `1px solid ${t.gold}30`,
-                }}>{day}</div>
+                }}>{entry.dayOfWeek}</div>
               </div>
               <div style={{ padding: "16px 20px" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{STYLE_NAMES[i]}</h3>
-                <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 12 }}>Featured style for {day}</p>
+                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{entry.styleName}</h3>
+                <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 12 }}>Featured style for {entry.dayOfWeek}</p>
                 <button onClick={() => navigate("book")} style={{
                   background: "none", border: "none", cursor: "pointer",
                   color: t.gold, fontSize: 13, fontWeight: 600, padding: 0,
@@ -84,6 +92,8 @@ export function GalleryPage({ navigate }: GalleryPageProps) {
           }}>Book with Custom Style <Upload size={16} /></GoldButton>
         </div>
       </FadeIn>
+        </>
+      )}
     </section>
   );
 }

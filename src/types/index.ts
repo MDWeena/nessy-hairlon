@@ -25,6 +25,7 @@ export interface Theme {
 export type ThemeMode = "light" | "dark" | "system";
 
 export interface ServiceItem {
+  id: string;
   name: string;
   price: string | null;
   priceRange?: string;
@@ -41,6 +42,7 @@ export interface ServiceCategory {
 export interface BookingDay {
   key: string;
   label: string;
+  date: string;
   slots: string[];
   slotCount: number;
 }
@@ -75,7 +77,7 @@ export interface ScheduleDay {
 }
 
 export interface Story {
-  id: number;
+  id: string;
   name: string;
   text: string;
   stars: number;

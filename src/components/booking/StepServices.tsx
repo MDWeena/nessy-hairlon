@@ -1,10 +1,11 @@
 import { Scissors, Upload, ChevronLeft } from "lucide-react";
-import { services } from "../../constants/services";
 import { useTheme } from "../../context/ThemeContext";
+import type { ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { ServiceCard } from "./ServiceCard";
 
 interface StepServicesProps {
+  allServices: ServiceItem[];
   selectedServices: string[];
   onToggleService: (name: string) => void;
   uploadMode: boolean;
@@ -13,9 +14,7 @@ interface StepServicesProps {
   onContinue: () => void;
 }
 
-const allSvc = services.flatMap(s => s.items);
-
-export function StepServices({ selectedServices, onToggleService, uploadMode, setUploadMode, onBack, onContinue }: StepServicesProps) {
+export function StepServices({ allServices, selectedServices, onToggleService, uploadMode, setUploadMode, onBack, onContinue }: StepServicesProps) {
   const { t } = useTheme();
 
   return (
@@ -41,7 +40,7 @@ export function StepServices({ selectedServices, onToggleService, uploadMode, se
 
         {!uploadMode ? (
           <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
-            {allSvc.map(s => (
+            {allServices.map(s => (
               <ServiceCard key={s.name} service={s} selected={selectedServices.includes(s.name)} onToggle={() => onToggleService(s.name)} />
             ))}
           </div>

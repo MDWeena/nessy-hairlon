@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, Image } from "lucide-react";
-import { services } from "../constants/services";
+import { useServices } from "../hooks/useServices";
 import { useTheme } from "../context/ThemeContext";
 import type { NavigateFn } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
+import { LoadingNotice } from "../components/ui/LoadingNotice";
+import { ErrorNotice } from "../components/ui/ErrorNotice";
 
 interface ServicesPageProps {
   navigate: NavigateFn;
@@ -12,7 +14,12 @@ interface ServicesPageProps {
 
 export function ServicesPage({ navigate }: ServicesPageProps) {
   const { t, isDark } = useTheme();
-  const [activeTab, setActiveTab] = useState(services[0].cat);
+  const { services, loading, error } = useServices();
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab === null && services.length > 0) setActiveTab(services[0].cat);
+  }, [activeTab, services]);
 
   return (
     <section style={{ padding: "48px 24px 72px", maxWidth: 800, margin: "0 auto" }}>
@@ -24,6 +31,11 @@ export function ServicesPage({ navigate }: ServicesPageProps) {
         </p>
       </FadeIn>
 
+      {error && <ErrorNotice message={error} />}
+      {loading && <LoadingNotice label="Loading services…" />}
+
+      {!loading && (
+        <>
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 32, background: t.bgAlt, borderRadius: 8, padding: 4, width: "fit-content" }}>
         {services.map(s => (
@@ -100,6 +112,8 @@ export function ServicesPage({ navigate }: ServicesPageProps) {
           }}>Start Booking</GoldButton>
         </div>
       </FadeIn>
+        </>
+      )}
     </section>
   );
 }

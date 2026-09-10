@@ -1,44 +1,87 @@
 import { useState } from "react";
 import { Star, X, Sparkles, Eye, Settings } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
-import type { Story } from "../../types";
+import { useTestimonials } from "../../hooks/useTestimonials";
 import { GoldButton } from "../ui/GoldButton";
-
-const INITIAL_STORIES: Story[] = [
-  { id: 1, name: "Amara O.", text: "I drove 3 hours to get my locs done. Worth every minute. She understands natural hair like no one else.", stars: 5, visible: true },
-  { id: 2, name: "Chidinma E.", text: "My braids lasted 8 weeks and my scalp felt amazing the entire time. The treatments are top tier.", stars: 5, visible: true },
-  { id: 3, name: "Bola A.", text: "Finally found someone who treats natural hair with the care it deserves. I won't go anywhere else.", stars: 5, visible: true },
-];
+import { LoadingNotice } from "../ui/LoadingNotice";
+import { ErrorNotice } from "../ui/ErrorNotice";
 
 export function ClientStories() {
   const { t } = useTheme();
-  const [stories, setStories] = useState<Story[]>(INITIAL_STORIES);
-  const [editing, setEditing] = useState<number | null>(null);
+  const { testimonials, loading, error, addTestimonial, updateTestimonial, toggleVisibility, deleteTestimonial } = useTestimonials();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", text: "", stars: 5 });
   const [adding, setAdding] = useState(false);
   const [newStory, setNewStory] = useState({ name: "", text: "", stars: 5 });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const toggleVisibility = (id: number) => {
-    setStories(prev => prev.map(s => s.id === id ? { ...s, visible: !s.visible } : s));
-  };
-
-  const deleteStory = (id: number) => {
-    setStories(prev => prev.filter(s => s.id !== id));
-  };
-
-  const addStory = () => {
-    if (!newStory.name || !newStory.text) return;
-    setStories(prev => [...prev, { ...newStory, id: Date.now(), visible: true }]);
-    setNewStory({ name: "", text: "", stars: 5 });
+  const startEdit = (id: string, name: string, text: string, stars: number) => {
+    setActionError(null);
     setAdding(false);
+    setEditing(id);
+    setEditDraft({ name, text, stars });
   };
+
+  const saveEdit = async (id: string) => {
+    setSaving(true);
+    setActionError(null);
+    try {
+      await updateTestimonial(id, { name: editDraft.name, text: editDraft.text, stars: editDraft.stars });
+      setEditing(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to save story");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleVisibility = async (id: string) => {
+    setActionError(null);
+    try {
+      await toggleVisibility(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update visibility");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this testimonial?")) return;
+    setActionError(null);
+    try {
+      await deleteTestimonial(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to delete story");
+    }
+  };
+
+  const addStory = async () => {
+    if (!newStory.name || !newStory.text) return;
+    setSaving(true);
+    setActionError(null);
+    try {
+      await addTestimonial(newStory);
+      setNewStory({ name: "", text: "", stars: 5 });
+      setAdding(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to add story");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <LoadingNotice label="Loading client stories…" />;
 
   return (
     <>
+      {error && <ErrorNotice message={error} />}
+      {actionError && <ErrorNotice message={actionError} />}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <p style={{ fontSize: 14, color: t.textSoft, maxWidth: 400 }}>
           Manage the testimonials shown on the homepage. Add reviews from WhatsApp, Instagram, or anywhere else.
         </p>
-        <GoldButton onClick={() => setAdding(!adding)} style={{
+        <GoldButton onClick={() => { setAdding(!adding); setEditing(null); }} style={{
           background: adding ? "transparent" : t.gold, color: adding ? t.gold : "#0A0A0A",
           border: adding ? `1px solid ${t.gold}` : "none",
           padding: "8px 20px", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: "pointer",
@@ -91,18 +134,18 @@ export function ClientStories() {
                   fontFamily: "inherit", resize: "vertical",
                 }} />
             </div>
-            <GoldButton onClick={addStory} style={{
+            <GoldButton onClick={addStory} disabled={saving} style={{
               background: t.gold, color: "#0A0A0A", border: "none",
               padding: "10px 24px", borderRadius: 6, fontSize: 13, fontWeight: 700,
-              cursor: "pointer", width: "fit-content",
-            }}>Add to Homepage</GoldButton>
+              cursor: saving ? "wait" : "pointer", width: "fit-content",
+            }}>{saving ? "Adding…" : "Add to Homepage"}</GoldButton>
           </div>
         </div>
       )}
 
       {/* Existing stories */}
       <div style={{ display: "grid", gap: 12 }}>
-        {stories.map(story => {
+        {testimonials.map(story => {
           const isEditing = editing === story.id;
           return (
             <div key={story.id} style={{
@@ -134,20 +177,20 @@ export function ClientStories() {
                 </div>
 
                 <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 16 }}>
-                  <button onClick={() => toggleVisibility(story.id)} title={story.visible ? "Hide from site" : "Show on site"} style={{
+                  <button onClick={() => handleToggleVisibility(story.id)} title={story.visible ? "Hide from site" : "Show on site"} style={{
                     background: story.visible ? t.goldBg : t.bgAlt,
                     border: `1px solid ${story.visible ? t.gold + "30" : t.border}`,
                     borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
                   }}>
                     <Eye size={14} color={story.visible ? t.gold : t.textMuted} />
                   </button>
-                  <button onClick={() => setEditing(isEditing ? null : story.id)} style={{
+                  <button onClick={() => isEditing ? setEditing(null) : startEdit(story.id, story.name, story.text, story.stars)} style={{
                     background: "none", border: `1px solid ${t.border}`,
                     borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
                   }}>
                     <Settings size={14} color={t.textMuted} />
                   </button>
-                  <button onClick={() => deleteStory(story.id)} style={{
+                  <button onClick={() => handleDelete(story.id)} style={{
                     background: "none", border: "1px solid #EF444430",
                     borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
                   }}>
@@ -162,7 +205,7 @@ export function ClientStories() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
                       <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Client Name</label>
-                      <input defaultValue={story.name} style={{
+                      <input value={editDraft.name} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} style={{
                         width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
                         background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
                       }} />
@@ -171,8 +214,8 @@ export function ClientStories() {
                       <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Rating</label>
                       <div style={{ display: "flex", gap: 4, padding: "6px 0" }}>
                         {[1, 2, 3, 4, 5].map(n => (
-                          <button key={n} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                            <Star size={18} fill={n <= story.stars ? t.gold : "transparent"} color={n <= story.stars ? t.gold : t.border} />
+                          <button key={n} onClick={() => setEditDraft({ ...editDraft, stars: n })} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                            <Star size={18} fill={n <= editDraft.stars ? t.gold : "transparent"} color={n <= editDraft.stars ? t.gold : t.border} />
                           </button>
                         ))}
                       </div>
@@ -180,17 +223,17 @@ export function ClientStories() {
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Their Words</label>
-                    <textarea defaultValue={story.text} rows={3} style={{
+                    <textarea value={editDraft.text} onChange={(e) => setEditDraft({ ...editDraft, text: e.target.value })} rows={3} style={{
                       width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
                       background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
                       fontFamily: "inherit", resize: "vertical",
                     }} />
                   </div>
-                  <GoldButton onClick={() => setEditing(null)} style={{
+                  <GoldButton onClick={() => saveEdit(story.id)} disabled={saving} style={{
                     background: t.gold, color: "#0A0A0A", border: "none",
                     padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", width: "fit-content",
-                  }}>Save Changes</GoldButton>
+                    cursor: saving ? "wait" : "pointer", width: "fit-content",
+                  }}>{saving ? "Saving…" : "Save Changes"}</GoldButton>
                 </div>
               )}
             </div>
@@ -198,7 +241,7 @@ export function ClientStories() {
         })}
       </div>
 
-      {stories.length === 0 && (
+      {testimonials.length === 0 && (
         <div style={{
           textAlign: "center", padding: 48, background: t.surface,
           borderRadius: 12, border: `1px solid ${t.border}`,

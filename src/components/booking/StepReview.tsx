@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { Eye, Calendar, Clock, Scissors, Image, DollarSign, ChevronLeft, Check } from "lucide-react";
-import { services } from "../../constants/services";
 import { useTheme } from "../../context/ThemeContext";
-import type { BookingDay } from "../../types";
+import { createBooking } from "../../hooks/useBookings";
+import type { BookingDay, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
+import { ErrorNotice } from "../ui/ErrorNotice";
 
 interface StepReviewProps {
+  allServices: ServiceItem[];
   selectedDay: BookingDay | null;
   selectedTime: string | null;
   selectedServices: string[];
@@ -13,10 +16,62 @@ interface StepReviewProps {
   onBack: () => void;
 }
 
-const allSvc = services.flatMap(s => s.items);
-
-export function StepReview({ selectedDay, selectedTime, selectedServices, uploadMode, onBack }: StepReviewProps) {
+export function StepReview({ allServices, selectedDay, selectedTime, selectedServices, uploadMode, onBack }: StepReviewProps) {
   const { t } = useTheme();
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleConfirm = async () => {
+    if (!selectedDay || !selectedTime) return;
+    setSubmitError(null);
+    if (!clientName.trim() || !clientPhone.trim()) {
+      setSubmitError("Please enter your name and phone number");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const serviceIds = selectedServices
+        .map(name => allServices.find(s => s.name === name)?.id)
+        .filter((id): id is string => Boolean(id));
+      await createBooking({
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        clientEmail: clientEmail.trim() || null,
+        bookingDate: selectedDay.date,
+        bookingTime: selectedTime,
+        serviceIds,
+        customStyleDescription: uploadMode && serviceIds.length === 0 ? "Custom style photo uploaded" : null,
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to submit booking");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <FadeIn>
+        <div style={{ background: t.surface, borderRadius: 16, padding: 40, textAlign: "center", border: `1px solid ${t.border}` }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: "50%", background: t.goldBg,
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+          }}>
+            <Check size={26} color={t.gold} />
+          </div>
+          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Booking request sent!</h3>
+          <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+            Nessy will review your request and confirm shortly. Transfer your deposit using the details below to secure your slot.
+          </p>
+        </div>
+      </FadeIn>
+    );
+  }
 
   return (
     <FadeIn>
@@ -41,7 +96,7 @@ export function StepReview({ selectedDay, selectedTime, selectedServices, upload
                   <Image size={16} /> Custom style photo uploaded — quote pending
                 </div>
               ) : selectedServices.map(name => {
-                const s = allSvc.find(x => x.name === name);
+                const s = allServices.find(x => x.name === name);
                 return (
                   <div key={name} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ fontSize: 14 }}>{name}</span>
@@ -49,6 +104,34 @@ export function StepReview({ selectedDay, selectedTime, selectedServices, upload
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+
+        {/* Contact details */}
+        <div style={{ background: t.surface, borderRadius: 16, padding: 28, marginBottom: 20, border: `1px solid ${t.border}` }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Your details</h3>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Full Name</label>
+              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Your name" style={{
+                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
+                background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
+              }} />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Phone Number</label>
+              <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="080..." style={{
+                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
+                background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
+              }} />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email (optional)</label>
+              <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="you@example.com" style={{
+                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
+                background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
+              }} />
             </div>
           </div>
         </div>
@@ -67,19 +150,21 @@ export function StepReview({ selectedDay, selectedTime, selectedServices, upload
           </div>
         </div>
 
+        {submitError && <ErrorNotice message={submitError} />}
+
         <div style={{ display: "flex", gap: 12 }}>
           <button onClick={onBack} style={{
             flex: 1, background: t.surface, color: t.text, border: `1px solid ${t.border}`,
             padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", borderRadius: 6,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}><ChevronLeft size={16} /> Back</button>
-          <GoldButton style={{
+          <GoldButton onClick={handleConfirm} disabled={submitting} style={{
             flex: 2, background: t.gold, color: "#0A0A0A", border: "none",
             padding: "14px", fontSize: 15, fontWeight: 700,
-            cursor: "pointer", borderRadius: 6, display: "flex",
+            cursor: submitting ? "wait" : "pointer", borderRadius: 6, display: "flex",
             alignItems: "center", justifyContent: "center", gap: 8,
           }}>
-            <Check size={18} /> Confirm Booking
+            <Check size={18} /> {submitting ? "Submitting…" : "Confirm Booking"}
           </GoldButton>
         </div>
       </div>

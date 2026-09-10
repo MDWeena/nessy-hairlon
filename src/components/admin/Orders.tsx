@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { fakeOrders } from "../../constants/orders";
 import { statusColors } from "../../constants/statusColors";
 import { useTheme } from "../../context/ThemeContext";
+import { useBookings } from "../../hooks/useBookings";
 import type { OrderStatus } from "../../types";
 import { StatusBadge } from "../ui/StatusBadge";
+import { LoadingNotice } from "../ui/LoadingNotice";
+import { ErrorNotice } from "../ui/ErrorNotice";
 
 type OrderFilter = "all" | OrderStatus;
 
@@ -11,11 +13,36 @@ const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "confirmed"];
 
 export function Orders() {
   const { t } = useTheme();
+  const { bookings, loading, error, setQuotedPrice } = useBookings();
   const [filter, setFilter] = useState<OrderFilter>("all");
-  const filtered = filter === "all" ? fakeOrders : fakeOrders.filter(o => o.status === filter);
+  const [quotingId, setQuotingId] = useState<string | null>(null);
+  const [quoteValue, setQuoteValue] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const filtered = filter === "all" ? bookings : bookings.filter(o => o.status === filter);
+
+  const startQuote = (id: string) => {
+    setActionError(null);
+    setQuotingId(id);
+    setQuoteValue("");
+  };
+
+  const submitQuote = async (id: string) => {
+    const price = parseInt(quoteValue, 10);
+    if (!price || price <= 0) { setActionError("Enter a valid price"); return; }
+    try {
+      await setQuotedPrice(id, price);
+      setQuotingId(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to set price");
+    }
+  };
+
+  if (loading) return <LoadingNotice label="Loading bookings…" />;
 
   return (
     <>
+      {error && <ErrorNotice message={error} />}
+      {actionError && <ErrorNotice message={actionError} />}
       <div style={{ display: "flex", gap: 6, marginBottom: 24, flexWrap: "wrap" }}>
         {FILTERS.map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
@@ -50,14 +77,37 @@ export function Orders() {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>{o.price || "—"}</span>
-              <StatusBadge status={o.status} />
-              {o.status === "pending_review" && (
-                <button style={{
-                  background: t.gold, color: "#0A0A0A", border: "none",
-                  padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700,
-                  cursor: "pointer",
-                }}>Set Price</button>
+              {quotingId === o.id ? (
+                <>
+                  <input
+                    type="number" value={quoteValue} onChange={(e) => setQuoteValue(e.target.value)}
+                    placeholder="₦ amount" autoFocus
+                    style={{
+                      width: 110, padding: "6px 10px", borderRadius: 6, border: `1px solid ${t.border}`,
+                      background: t.bgAlt, fontSize: 12, color: t.text, outline: "none",
+                    }}
+                  />
+                  <button onClick={() => submitQuote(o.id)} style={{
+                    background: t.gold, color: "#0A0A0A", border: "none",
+                    padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  }}>Save</button>
+                  <button onClick={() => setQuotingId(null)} style={{
+                    background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
+                    padding: "6px 12px", fontSize: 12, color: t.textSoft, cursor: "pointer",
+                  }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{o.price || "—"}</span>
+                  <StatusBadge status={o.status} />
+                  {o.status === "pending_review" && (
+                    <button onClick={() => startQuote(o.id)} style={{
+                      background: t.gold, color: "#0A0A0A", border: "none",
+                      padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                      cursor: "pointer",
+                    }}>Set Price</button>
+                  )}
+                </>
               )}
             </div>
           </div>

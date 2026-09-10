@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useTheme } from "../context/ThemeContext";
-import { useBookingDays } from "../hooks/useBookingDays";
+import { useServices } from "../hooks/useServices";
+import { useAvailability } from "../hooks/useAvailability";
 import { FadeIn } from "../components/ui/FadeIn";
+import { LoadingNotice } from "../components/ui/LoadingNotice";
+import { ErrorNotice } from "../components/ui/ErrorNotice";
 import { ProgressBar } from "../components/booking/ProgressBar";
 import { StepDateTime } from "../components/booking/StepDateTime";
 import { StepServices } from "../components/booking/StepServices";
@@ -9,13 +12,15 @@ import { StepReview } from "../components/booking/StepReview";
 
 export function BookingPage() {
   const { t } = useTheme();
+  const { services, loading: servicesLoading, error: servicesError } = useServices();
+  const { bookingDays, loading: availabilityLoading, error: availabilityError } = useAvailability();
   const [step, setStep] = useState(0);
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [uploadMode, setUploadMode] = useState(false);
 
-  const bookingDays = useBookingDays();
+  const allServices = services.flatMap(c => c.items);
   const selectedDay = selectedDayIdx !== null ? bookingDays[selectedDayIdx] : null;
 
   const toggleService = (name: string) => setSelectedServices(p => p.includes(name) ? p.filter(s => s !== name) : [...p, name]);
@@ -24,6 +29,9 @@ export function BookingPage() {
     setSelectedDayIdx(idx);
     setSelectedTime(null);
   };
+
+  const loading = servicesLoading || availabilityLoading;
+  const error = servicesError || availabilityError;
 
   return (
     <section style={{ padding: "48px 24px 72px", maxWidth: 680, margin: "0 auto" }}>
@@ -36,36 +44,46 @@ export function BookingPage() {
 
       <ProgressBar step={step} />
 
-      {step === 0 && (
-        <StepDateTime
-          bookingDays={bookingDays}
-          selectedDayIdx={selectedDayIdx}
-          onSelectDay={handleSelectDay}
-          selectedTime={selectedTime}
-          onSelectTime={setSelectedTime}
-          onContinue={() => setStep(1)}
-        />
-      )}
+      {error && <ErrorNotice message={error} />}
 
-      {step === 1 && (
-        <StepServices
-          selectedServices={selectedServices}
-          onToggleService={toggleService}
-          uploadMode={uploadMode}
-          setUploadMode={setUploadMode}
-          onBack={() => setStep(0)}
-          onContinue={() => setStep(2)}
-        />
-      )}
+      {loading ? (
+        <LoadingNotice label="Loading booking options…" />
+      ) : (
+        <>
+          {step === 0 && (
+            <StepDateTime
+              bookingDays={bookingDays}
+              selectedDayIdx={selectedDayIdx}
+              onSelectDay={handleSelectDay}
+              selectedTime={selectedTime}
+              onSelectTime={setSelectedTime}
+              onContinue={() => setStep(1)}
+            />
+          )}
 
-      {step === 2 && (
-        <StepReview
-          selectedDay={selectedDay}
-          selectedTime={selectedTime}
-          selectedServices={selectedServices}
-          uploadMode={uploadMode}
-          onBack={() => setStep(1)}
-        />
+          {step === 1 && (
+            <StepServices
+              allServices={allServices}
+              selectedServices={selectedServices}
+              onToggleService={toggleService}
+              uploadMode={uploadMode}
+              setUploadMode={setUploadMode}
+              onBack={() => setStep(0)}
+              onContinue={() => setStep(2)}
+            />
+          )}
+
+          {step === 2 && (
+            <StepReview
+              allServices={allServices}
+              selectedDay={selectedDay}
+              selectedTime={selectedTime}
+              selectedServices={selectedServices}
+              uploadMode={uploadMode}
+              onBack={() => setStep(1)}
+            />
+          )}
+        </>
       )}
     </section>
   );
