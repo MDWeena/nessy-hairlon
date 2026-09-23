@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { uploadImage } from "../lib/cloudinary";
 import type { Database } from "../types/database";
 
@@ -48,17 +49,20 @@ export function useGallery(): UseGalleryResult {
   }, [fetchGallery]);
 
   const updateStyleName = useCallback(async (dayOfWeek: string, styleName: string) => {
+    await assertAuthenticated();
     const { error: updateError } = await supabase.from("gallery")
       .update({ style_name: styleName, updated_at: new Date().toISOString() }).eq("day_of_week", dayOfWeek);
-    if (updateError) throw new Error(updateError.message);
+    if (updateError) await handleWriteError(updateError);
     await fetchGallery();
   }, [fetchGallery]);
 
   const uploadImageForDay = useCallback(async (dayOfWeek: string, file: File) => {
-    const imageUrl = await uploadImage(file);
+    await assertAuthenticated();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const imageUrl = await uploadImage(file, sessionData.session?.access_token);
     const { error: updateError } = await supabase.from("gallery")
       .update({ image_url: imageUrl, updated_at: new Date().toISOString() }).eq("day_of_week", dayOfWeek);
-    if (updateError) throw new Error(updateError.message);
+    if (updateError) await handleWriteError(updateError);
     await fetchGallery();
   }, [fetchGallery]);
 

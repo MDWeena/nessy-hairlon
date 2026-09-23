@@ -2,21 +2,24 @@ import { useState } from "react";
 import { statusColors } from "../../constants/statusColors";
 import { useTheme } from "../../context/ThemeContext";
 import { useBookings } from "../../hooks/useBookings";
-import type { OrderStatus } from "../../types";
+import type { OrderFilter } from "../../types";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 
-type OrderFilter = "all" | OrderStatus;
-
 const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "confirmed"];
 
-export function Orders() {
+interface OrdersProps {
+  initialFilter?: OrderFilter;
+}
+
+export function Orders({ initialFilter = "all" }: OrdersProps) {
   const { t } = useTheme();
-  const { bookings, loading, error, setQuotedPrice } = useBookings();
-  const [filter, setFilter] = useState<OrderFilter>("all");
+  const { bookings, loading, error, setQuotedPrice, updateBookingStatus } = useBookings();
+  const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState("");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const filtered = filter === "all" ? bookings : bookings.filter(o => o.status === filter);
 
@@ -34,6 +37,18 @@ export function Orders() {
       setQuotingId(null);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to set price");
+    }
+  };
+
+  const confirmBooking = async (id: string) => {
+    setActionError(null);
+    setConfirmingId(id);
+    try {
+      await updateBookingStatus(id, "confirmed");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to confirm booking");
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -63,17 +78,30 @@ export function Orders() {
             borderBottom: i < filtered.length - 1 ? `1px solid ${t.border}` : "none",
             transition: "background 0.2s",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: "50%",
-                background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}10)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 15, fontWeight: 700, color: t.gold,
-              }}>{o.client[0]}</div>
-              <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+              {o.customStyleUrl ? (
+                <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }} title="Open full photo">
+                  <img src={o.customStyleUrl} alt="Requested style" style={{
+                    width: 40, height: 40, borderRadius: "50%", objectFit: "cover", border: `1px solid ${t.gold}40`, cursor: "pointer",
+                  }} />
+                </a>
+              ) : (
+                <div style={{
+                  width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+                  background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}10)`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 15, fontWeight: 700, color: t.gold,
+                }}>{o.client[0]}</div>
+              )}
+              <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{o.client}</div>
                 <div style={{ fontSize: 12, color: t.textMuted }}>{o.service}</div>
                 <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{o.date} at {o.time}</div>
+                {o.customStyleDescription && (
+                  <div style={{ fontSize: 11, color: t.textSoft, marginTop: 4, fontStyle: "italic", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    "{o.customStyleDescription}"
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
@@ -106,6 +134,13 @@ export function Orders() {
                       padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700,
                       cursor: "pointer",
                     }}>Set Price</button>
+                  )}
+                  {o.status === "quoted" && (
+                    <button onClick={() => confirmBooking(o.id)} disabled={confirmingId === o.id} style={{
+                      background: t.gold, color: "#0A0A0A", border: "none",
+                      padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                      cursor: confirmingId === o.id ? "wait" : "pointer",
+                    }}>{confirmingId === o.id ? "Confirming…" : "Confirm"}</button>
                   )}
                 </>
               )}

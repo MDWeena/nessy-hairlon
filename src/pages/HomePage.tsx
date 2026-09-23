@@ -17,7 +17,7 @@ export function HomePage({ navigate }: HomePageProps) {
       <TrustBar />
       <WhyNessy />
       <HowItWorks />
-      <Testimonials />
+      <Testimonials navigate={navigate} />
       <CTASection navigate={navigate} />
     </>
   );

@@ -32,6 +32,7 @@ export interface ServiceItem {
   desc: string;
   duration: string;
   icon: LucideIcon;
+  imageUrl: string | null;
 }
 
 export interface ServiceCategory {
@@ -62,7 +63,11 @@ export interface Order {
   time: string;
   status: OrderStatus;
   price: string | null;
+  customStyleUrl: string | null;
+  customStyleDescription: string | null;
 }
+
+export type OrderFilter = "all" | OrderStatus;
 
 export interface StatusConfig {
   bg: string;
@@ -82,6 +87,8 @@ export interface Story {
   text: string;
   stars: number;
   visible: boolean;
+  reviewDate: string;
+  verified: boolean;
 }
 
 export type NavigateFn = (page: string) => void;

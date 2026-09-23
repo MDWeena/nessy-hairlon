@@ -1,11 +1,13 @@
-import { TrendingUp, Calendar, Clock, Scissors, Star, Image, Settings, LogOut } from "lucide-react";
+import { TrendingUp, Calendar, Clock, Scissors, Star, Image, Settings, LogOut, ExternalLink } from "lucide-react";
 import { LOGO_ICON } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
+import { useTestimonials } from "../../hooks/useTestimonials";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
 interface AdminSidebarProps {
   adminPage: string;
   onSwitchPage: (page: string) => void;
+  onViewSite: () => void;
   onLogout: () => void;
 }
 
@@ -19,14 +21,16 @@ const SIDEBAR_ITEMS = [
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
-export function AdminSidebar({ adminPage, onSwitchPage, onLogout }: AdminSidebarProps) {
+export function AdminSidebar({ adminPage, onSwitchPage, onViewSite, onLogout }: AdminSidebarProps) {
   const { t } = useTheme();
+  const { testimonials } = useTestimonials();
+  const pendingReviewCount = testimonials.filter(story => story.verified && !story.visible).length;
 
   return (
     <aside style={{
       width: 220, background: t.surface, borderRight: `1px solid ${t.border}`,
       padding: "20px 12px", display: "flex", flexDirection: "column",
-      position: "sticky", top: 0, height: "100vh",
+      height: "100vh", overflowY: "auto", boxSizing: "border-box", flexShrink: 0,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px 20px", borderBottom: `1px solid ${t.border}` }}>
         <img src={LOGO_ICON} alt="" style={{ width: 32, height: 32, borderRadius: "50%" }} />
@@ -45,6 +49,12 @@ export function AdminSidebar({ adminPage, onSwitchPage, onLogout }: AdminSidebar
             marginBottom: 2, transition: "all 0.2s ease",
           }}>
             <Icon size={16} strokeWidth={1.5} /> {label}
+            {key === "stories" && pendingReviewCount > 0 && (
+              <span style={{
+                marginLeft: "auto", background: t.gold, color: "#0A0A0A",
+                fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "1px 7px",
+              }}>{pendingReviewCount}</span>
+            )}
           </button>
         ))}
       </div>
@@ -54,12 +64,20 @@ export function AdminSidebar({ adminPage, onSwitchPage, onLogout }: AdminSidebar
         <ThemeToggle variant="sidebar" />
       </div>
 
+      <button onClick={onViewSite} style={{
+        display: "flex", alignItems: "center", gap: 8, width: "100%",
+        padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+        background: "transparent", color: t.textMuted, fontSize: 13,
+      }}>
+        <ExternalLink size={16} strokeWidth={1.5} /> View site
+      </button>
+
       <button onClick={onLogout} style={{
         display: "flex", alignItems: "center", gap: 8, width: "100%",
         padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
         background: "transparent", color: t.textMuted, fontSize: 13,
       }}>
-        <LogOut size={16} strokeWidth={1.5} /> Back to site
+        <LogOut size={16} strokeWidth={1.5} /> Sign Out
       </button>
     </aside>
   );

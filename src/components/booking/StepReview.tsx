@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Eye, Calendar, Clock, Scissors, Image, DollarSign, ChevronLeft, Check } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { createBooking } from "../../hooks/useBookings";
+import { shortBookingReference } from "../../lib/bookingReference";
 import type { BookingDay, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
@@ -13,17 +14,24 @@ interface StepReviewProps {
   selectedTime: string | null;
   selectedServices: string[];
   uploadMode: boolean;
+  customStyleUrl: string | null;
+  customStyleDescription: string;
   onBack: () => void;
 }
 
-export function StepReview({ allServices, selectedDay, selectedTime, selectedServices, uploadMode, onBack }: StepReviewProps) {
+export function StepReview({
+  allServices, selectedDay, selectedTime, selectedServices, uploadMode,
+  customStyleUrl, customStyleDescription, onBack,
+}: StepReviewProps) {
   const { t } = useTheme();
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [reference, setReference] = useState<string | null>(null);
+
+  const isCustom = !!customStyleUrl;
 
   const handleConfirm = async () => {
     if (!selectedDay || !selectedTime) return;
@@ -37,16 +45,17 @@ export function StepReview({ allServices, selectedDay, selectedTime, selectedSer
       const serviceIds = selectedServices
         .map(name => allServices.find(s => s.name === name)?.id)
         .filter((id): id is string => Boolean(id));
-      await createBooking({
+      const id = await createBooking({
         clientName: clientName.trim(),
         clientPhone: clientPhone.trim(),
         clientEmail: clientEmail.trim() || null,
         bookingDate: selectedDay.date,
         bookingTime: selectedTime,
         serviceIds,
-        customStyleDescription: uploadMode && serviceIds.length === 0 ? "Custom style photo uploaded" : null,
+        customStyleUrl,
+        customStyleDescription: customStyleDescription.trim() || (isCustom ? "Custom style photo uploaded" : null),
       });
-      setSubmitted(true);
+      setReference(shortBookingReference(id));
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to submit booking");
     } finally {
@@ -54,7 +63,7 @@ export function StepReview({ allServices, selectedDay, selectedTime, selectedSer
     }
   };
 
-  if (submitted) {
+  if (reference) {
     return (
       <FadeIn>
         <div style={{ background: t.surface, borderRadius: 16, padding: 40, textAlign: "center", border: `1px solid ${t.border}` }}>
@@ -64,10 +73,20 @@ export function StepReview({ allServices, selectedDay, selectedTime, selectedSer
           }}>
             <Check size={26} color={t.gold} />
           </div>
-          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Booking request sent!</h3>
-          <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
-            Nessy will review your request and confirm shortly. Transfer your deposit using the details below to secure your slot.
+          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+            {isCustom ? "Your booking request has been submitted!" : "Booking request sent!"}
+          </h3>
+          <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6, marginBottom: 20 }}>
+            {isCustom
+              ? "Nessy will review your style photo and send a quote within 24 hours."
+              : "Nessy will review your request and confirm shortly. Transfer your deposit using the details below to secure your slot."}
           </p>
+          <div style={{
+            display: "inline-block", background: t.goldBg, border: `1px solid ${t.gold}30`,
+            borderRadius: 8, padding: "10px 20px", fontSize: 13, color: t.textSoft,
+          }}>
+            Check your booking status anytime with reference: <strong style={{ color: t.gold }}>{reference}</strong>
+          </div>
         </div>
       </FadeIn>
     );
@@ -91,7 +110,26 @@ export function StepReview({ allServices, selectedDay, selectedTime, selectedSer
             </div>
             <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 14 }}>
               <span style={{ color: t.textMuted, fontSize: 14, display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}><Scissors size={14} /> Services</span>
-              {uploadMode && selectedServices.length === 0 ? (
+              {isCustom ? (
+                <div>
+                  <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: customStyleDescription ? 10 : 0 }}>
+                    <img src={customStyleUrl ?? undefined} alt="Requested style" style={{
+                      width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}`, flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <span style={{
+                        fontSize: 11, color: t.gold, background: t.goldBg,
+                        padding: "3px 10px", borderRadius: 12, fontWeight: 600,
+                        border: `1px solid ${t.gold}30`, display: "inline-flex", alignItems: "center", gap: 4,
+                      }}><Image size={11} /> Custom Style (quote pending)</span>
+                      <p style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>Nessy will review and send you a price within 24 hours</p>
+                    </div>
+                  </div>
+                  {customStyleDescription && (
+                    <p style={{ fontSize: 13, color: t.textSoft, fontStyle: "italic", paddingLeft: 68 }}>"{customStyleDescription}"</p>
+                  )}
+                </div>
+              ) : uploadMode && selectedServices.length === 0 ? (
                 <div style={{ background: t.goldBg, padding: 12, borderRadius: 8, fontSize: 13, color: t.gold, display: "flex", alignItems: "center", gap: 8 }}>
                   <Image size={16} /> Custom style photo uploaded — quote pending
                 </div>

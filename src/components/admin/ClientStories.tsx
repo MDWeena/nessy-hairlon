@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Star, X, Sparkles, Eye, Settings } from "lucide-react";
+import { Star, X, Sparkles, Eye, Settings, BadgeCheck, Check } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useTestimonials } from "../../hooks/useTestimonials";
 import { GoldButton } from "../ui/GoldButton";
@@ -52,6 +52,25 @@ export function ClientStories() {
       await deleteTestimonial(id);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to delete story");
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    setActionError(null);
+    try {
+      await toggleVisibility(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to approve review");
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    if (!window.confirm("Reject and delete this review?")) return;
+    setActionError(null);
+    try {
+      await deleteTestimonial(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to reject review");
     }
   };
 
@@ -143,16 +162,25 @@ export function ClientStories() {
         </div>
       )}
 
-      {/* Existing stories */}
+      {/* Existing stories — pending client-submitted reviews float to the top */}
       <div style={{ display: "grid", gap: 12 }}>
-        {testimonials.map(story => {
+        {[...testimonials].sort((a, b) => Number(b.verified && !b.visible) - Number(a.verified && !a.visible)).map(story => {
           const isEditing = editing === story.id;
+          const isPending = story.verified && !story.visible;
           return (
             <div key={story.id} style={{
               background: t.surface, borderRadius: 12, padding: "18px 20px",
-              border: `1px solid ${t.border}`,
-              opacity: story.visible ? 1 : 0.5, transition: "opacity 0.3s",
+              border: isPending ? `1px solid ${t.gold}` : `1px solid ${t.border}`,
+              boxShadow: isPending ? `0 0 0 3px ${t.gold}10` : undefined,
+              opacity: story.visible || isPending ? 1 : 0.5, transition: "opacity 0.3s",
             }}>
+              {isPending && (
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: t.gold, background: t.goldBg,
+                  padding: "3px 10px", borderRadius: 12, display: "inline-block", marginBottom: 12,
+                  border: `1px solid ${t.gold}30`,
+                }}>New — Approve?</div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -164,10 +192,20 @@ export function ClientStories() {
                       fontSize: 13, fontWeight: 700, color: t.gold, flexShrink: 0,
                     }}>{story.name[0]}</div>
                     <div>
-                      <span style={{ fontSize: 14, fontWeight: 700 }}>{story.name}</span>
-                      <div style={{ display: "flex", gap: 2, marginTop: 2 }}>
-                        {Array(story.stars).fill(0).map((_, j) => <Star key={j} size={11} fill={t.gold} color={t.gold} />)}
-                        {Array(5 - story.stars).fill(0).map((_, j) => <Star key={j} size={11} color={t.border} />)}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{story.name}</span>
+                        {story.verified && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, color: t.gold, display: "flex", alignItems: "center", gap: 2,
+                          }}><BadgeCheck size={11} /> Verified client</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                        <div style={{ display: "flex", gap: 2 }}>
+                          {Array(story.stars).fill(0).map((_, j) => <Star key={j} size={11} fill={t.gold} color={t.gold} />)}
+                          {Array(5 - story.stars).fill(0).map((_, j) => <Star key={j} size={11} color={t.border} />)}
+                        </div>
+                        <span style={{ fontSize: 11, color: t.textMuted }}>{story.reviewDate}</span>
                       </div>
                     </div>
                   </div>
@@ -176,28 +214,44 @@ export function ClientStories() {
                   </p>
                 </div>
 
-                <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 16 }}>
-                  <button onClick={() => handleToggleVisibility(story.id)} title={story.visible ? "Hide from site" : "Show on site"} style={{
-                    background: story.visible ? t.goldBg : t.bgAlt,
-                    border: `1px solid ${story.visible ? t.gold + "30" : t.border}`,
-                    borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
-                  }}>
-                    <Eye size={14} color={story.visible ? t.gold : t.textMuted} />
-                  </button>
-                  <button onClick={() => isEditing ? setEditing(null) : startEdit(story.id, story.name, story.text, story.stars)} style={{
-                    background: "none", border: `1px solid ${t.border}`,
-                    borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
-                  }}>
-                    <Settings size={14} color={t.textMuted} />
-                  </button>
-                  <button onClick={() => handleDelete(story.id)} style={{
-                    background: "none", border: "1px solid #EF444430",
-                    borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
-                  }}>
-                    <X size={14} color="#EF4444" />
-                  </button>
-                </div>
+                {!isPending && (
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 16 }}>
+                    <button onClick={() => handleToggleVisibility(story.id)} title={story.visible ? "Hide from site" : "Show on site"} style={{
+                      background: story.visible ? t.goldBg : t.bgAlt,
+                      border: `1px solid ${story.visible ? t.gold + "30" : t.border}`,
+                      borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
+                    }}>
+                      <Eye size={14} color={story.visible ? t.gold : t.textMuted} />
+                    </button>
+                    <button onClick={() => isEditing ? setEditing(null) : startEdit(story.id, story.name, story.text, story.stars)} style={{
+                      background: "none", border: `1px solid ${t.border}`,
+                      borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
+                    }}>
+                      <Settings size={14} color={t.textMuted} />
+                    </button>
+                    <button onClick={() => handleDelete(story.id)} style={{
+                      background: "none", border: "1px solid #EF444430",
+                      borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex",
+                    }}>
+                      <X size={14} color="#EF4444" />
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {isPending && (
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <GoldButton onClick={() => handleApprove(story.id)} style={{
+                    background: t.gold, color: "#0A0A0A", border: "none",
+                    padding: "7px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 6,
+                  }}><Check size={13} /> Approve</GoldButton>
+                  <button onClick={() => handleReject(story.id)} style={{
+                    background: "none", border: "1px solid #EF444440", borderRadius: 6,
+                    padding: "7px 16px", fontSize: 12, color: "#EF4444", cursor: "pointer", fontWeight: 600,
+                  }}>Reject</button>
+                </div>
+              )}
 
               {/* Edit form */}
               {isEditing && (

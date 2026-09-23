@@ -8,19 +8,20 @@ import { Navbar } from "./components/layout/Navbar";
 import { MobileDrawer } from "./components/layout/MobileDrawer";
 import { Footer } from "./components/layout/Footer";
 import { ClientLoader } from "./components/loaders/ClientLoader";
-import { AdminLoader } from "./components/loaders/AdminLoader";
 import { HomePage } from "./pages/HomePage";
 import { ServicesPage } from "./pages/ServicesPage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { BookingPage } from "./pages/BookingPage";
-import { AdminLogin } from "./pages/AdminLogin";
+import { TrackBookingPage } from "./pages/TrackBookingPage";
+import { LeaveReviewPage } from "./pages/LeaveReviewPage";
 import { AdminPanel } from "./pages/AdminPanel";
+import { WhatsAppButton } from "./components/ui/WhatsAppButton";
 
 export default function App() {
   const { t, isDark } = useTheme();
   const scrolled = useScrollPosition();
   const { page, navigate: rawNavigate, pageLoading } = usePageTransition();
-  const { isAuthenticated, loading: authLoading, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -29,14 +30,13 @@ export default function App() {
     rawNavigate(p);
   };
 
-  if (isAdmin && authLoading) {
-    return <AdminLoader />;
-  }
-  if (isAdmin && !isAuthenticated) {
-    return <AdminLogin onBack={() => setIsAdmin(false)} />;
-  }
-  if (isAdmin && isAuthenticated) {
-    return <AdminPanel onLogout={async () => { await signOut(); setIsAdmin(false); }} />;
+  if (isAdmin) {
+    return (
+      <AdminPanel
+        onViewSite={() => { setIsAdmin(false); navigate("home"); }}
+        onLogout={async () => { await signOut(); setIsAdmin(false); navigate("home"); }}
+      />
+    );
   }
 
   return (
@@ -63,10 +63,13 @@ export default function App() {
           {page === "services" && <ServicesPage navigate={navigate} />}
           {page === "gallery" && <GalleryPage navigate={navigate} />}
           {page === "book" && <BookingPage />}
+          {page === "track" && <TrackBookingPage navigate={navigate} />}
+          {page === "review" && <LeaveReviewPage />}
         </>
       )}
 
       <Footer navigate={navigate} onManageClick={() => setIsAdmin(true)} />
+      <WhatsAppButton />
     </div>
   );
 }

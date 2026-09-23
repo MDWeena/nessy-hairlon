@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import type { Database, Json } from "../types/database";
 
 type SettingsRow = Database["public"]["Tables"]["settings"]["Row"];
@@ -46,9 +47,10 @@ export function useSettings(): UseSettingsResult {
   }, [fetchSettings]);
 
   const updateSetting = useCallback(async (key: keyof SettingsMap, value: string | number) => {
+    await assertAuthenticated();
     const { error: upsertError } = await supabase.from("settings")
       .upsert({ key, value: value as Json }, { onConflict: "key" });
-    if (upsertError) throw new Error(upsertError.message);
+    if (upsertError) await handleWriteError(upsertError);
     await fetchSettings();
   }, [fetchSettings]);
 

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
+import { uploadImage } from "../lib/cloudinary";
 import { resolveIcon } from "../lib/icons";
 import type { ServiceCategory, ServiceItem } from "../types";
 import type { Database } from "../types/database";
@@ -20,6 +22,7 @@ function rowToServiceItem(row: ServiceRow): ServiceItem {
     desc: row.description,
     duration: row.duration,
     icon: resolveIcon(row.icon_name),
+    imageUrl: row.image_url,
   };
 }
 
@@ -45,6 +48,7 @@ export interface ServiceInput {
   priceRangeMin: number | null;
   priceRangeMax: number | null;
   iconName: string;
+  imageUrl?: string | null;
 }
 
 interface UseServicesResult {
@@ -55,6 +59,7 @@ interface UseServicesResult {
   addService: (input: ServiceInput) => Promise<void>;
   updateService: (id: string, input: Partial<ServiceInput>) => Promise<void>;
   deleteService: (id: string) => Promise<void>;
+  uploadServiceImage: (file: File) => Promise<string>;
 }
 
 export function useServices(): UseServicesResult {
@@ -83,6 +88,7 @@ export function useServices(): UseServicesResult {
   }, [fetchServices]);
 
   const addService = useCallback(async (input: ServiceInput) => {
+    await assertAuthenticated();
     const { error: insertError } = await supabase.from("services").insert({
       category: input.category,
       name: input.name,
@@ -92,12 +98,14 @@ export function useServices(): UseServicesResult {
       price_range_min: input.priceRangeMin,
       price_range_max: input.priceRangeMax,
       icon_name: input.iconName,
+      image_url: input.imageUrl ?? null,
     });
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) await handleWriteError(insertError);
     await fetchServices();
   }, [fetchServices]);
 
   const updateService = useCallback(async (id: string, input: Partial<ServiceInput>) => {
+    await assertAuthenticated();
     const patch: Database["public"]["Tables"]["services"]["Update"] = {};
     if (input.category !== undefined) patch.category = input.category;
     if (input.name !== undefined) patch.name = input.name;
@@ -107,17 +115,25 @@ export function useServices(): UseServicesResult {
     if (input.priceRangeMin !== undefined) patch.price_range_min = input.priceRangeMin;
     if (input.priceRangeMax !== undefined) patch.price_range_max = input.priceRangeMax;
     if (input.iconName !== undefined) patch.icon_name = input.iconName;
+    if (input.imageUrl !== undefined) patch.image_url = input.imageUrl;
 
     const { error: updateError } = await supabase.from("services").update(patch).eq("id", id);
-    if (updateError) throw new Error(updateError.message);
+    if (updateError) await handleWriteError(updateError);
     await fetchServices();
   }, [fetchServices]);
 
   const deleteService = useCallback(async (id: string) => {
+    await assertAuthenticated();
     const { error: deleteError } = await supabase.from("services").delete().eq("id", id);
-    if (deleteError) throw new Error(deleteError.message);
+    if (deleteError) await handleWriteError(deleteError);
     await fetchServices();
   }, [fetchServices]);
+
+  const uploadServiceImage = useCallback(async (file: File): Promise<string> => {
+    await assertAuthenticated();
+    const { data: sessionData } = await supabase.auth.getSession();
+    return uploadImage(file, sessionData.session?.access_token);
+  }, []);
 
   return {
     services: groupByCategory(rows),
@@ -127,5 +143,6 @@ export function useServices(): UseServicesResult {
     addService,
     updateService,
     deleteService,
+    uploadServiceImage,
   };
 }

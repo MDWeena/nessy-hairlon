@@ -1,4 +1,4 @@
-import type { OrderStatus, StatusConfig } from "../types";
+import type { OrderStatus, StatusConfig } from "../types/index.js";
 
 export const statusColors: Record<OrderStatus, StatusConfig> = {
   pending_review: { bg: "#FEF3C7", text: "#92400E", label: "Needs Review" },

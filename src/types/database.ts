@@ -16,6 +16,7 @@ export interface Database {
           price_range_min: number | null;
           price_range_max: number | null;
           icon_name: string;
+          image_url: string | null;
           sort_order: number;
           created_at: string;
         };
@@ -29,6 +30,7 @@ export interface Database {
           price_range_min?: number | null;
           price_range_max?: number | null;
           icon_name: string;
+          image_url?: string | null;
           sort_order?: number;
           created_at?: string;
         };
@@ -116,6 +118,9 @@ export interface Database {
           is_visible: boolean;
           sort_order: number;
           created_at: string;
+          review_date: string;
+          booking_id: string | null;
+          is_verified: boolean;
         };
         Insert: {
           id?: string;
@@ -125,8 +130,33 @@ export interface Database {
           is_visible?: boolean;
           sort_order?: number;
           created_at?: string;
+          review_date?: string;
+          booking_id?: string | null;
+          is_verified?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["testimonials"]["Insert"]>;
+        Relationships: [];
+      };
+      booking_reminders: {
+        Row: {
+          id: string;
+          booking_id: string;
+          reminder_type: string;
+          scheduled_for: string;
+          sent_at: string | null;
+          channel: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          reminder_type: string;
+          scheduled_for: string;
+          sent_at?: string | null;
+          channel?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["booking_reminders"]["Insert"]>;
         Relationships: [];
       };
       gallery: {
@@ -162,8 +192,45 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Views: {
+      public_booking_slots: {
+        Row: {
+          booking_date: string;
+          booking_time: string;
+          status: BookingStatus;
+        };
+        Relationships: [];
+      };
+    };
+    Functions: {
+      lookup_bookings: {
+        Args: { p_reference?: string | null; p_phone?: string | null };
+        Returns: {
+          id: string;
+          client_name: string;
+          booking_date: string;
+          booking_time: string;
+          status: BookingStatus;
+          quoted_price: number | null;
+          service_ids: string[];
+          custom_style_url: string | null;
+          custom_style_description: string | null;
+          created_at: string;
+        }[];
+      };
+      reschedule_booking: {
+        Args: { p_reference: string; p_phone: string; p_new_date: string; p_new_time: string };
+        Returns: undefined;
+      };
+      cancel_booking: {
+        Args: { p_reference: string; p_phone: string };
+        Returns: undefined;
+      };
+      submit_review: {
+        Args: { p_reference: string; p_phone: string; p_stars: number; p_review_text: string };
+        Returns: string;
+      };
+    };
     Enums: Record<string, never>;
   };
 }

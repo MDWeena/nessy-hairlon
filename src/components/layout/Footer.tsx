@@ -25,8 +25,8 @@ export function Footer({ navigate, onManageClick }: FooterProps) {
         </div>
         <div>
           <h4 style={{ color: "#ccc", fontSize: 13, fontWeight: 700, marginBottom: 16, letterSpacing: 0.5 }}>Quick links</h4>
-          {["Home", "Services", "Book Now"].map(l => (
-            <button key={l} onClick={() => navigate(l === "Book Now" ? "book" : l.toLowerCase())} style={{
+          {["Home", "Services", "Book Now", "Track Booking"].map(l => (
+            <button key={l} onClick={() => navigate(l === "Book Now" ? "book" : l === "Track Booking" ? "track" : l.toLowerCase())} style={{
               display: "block", background: "none", border: "none", color: "#888",
               cursor: "pointer", fontSize: 13, padding: "4px 0", marginBottom: 4,
               transition: "color 0.2s",

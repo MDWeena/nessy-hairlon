@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
+import { Sparkles, Upload, X } from "lucide-react";
 import { useServices } from "../../hooks/useServices";
 import type { ServiceInput } from "../../hooks/useServices";
 import { useTheme } from "../../context/ThemeContext";
@@ -14,24 +14,81 @@ interface ServiceDraft {
   price: string;
   minPrice: string;
   maxPrice: string;
+  imageUrl: string | null;
 }
 
-const EMPTY_DRAFT: ServiceDraft = { name: "", duration: "", description: "", price: "", minPrice: "", maxPrice: "" };
+const EMPTY_DRAFT: ServiceDraft = { name: "", duration: "", description: "", price: "", minPrice: "", maxPrice: "", imageUrl: null };
+
+interface ServiceImageFieldProps {
+  imageUrl: string | null;
+  uploading: boolean;
+  onChoose: () => void;
+  onRemove: () => void;
+}
+
+function ServiceImageField({ imageUrl, uploading, onChoose, onRemove }: ServiceImageFieldProps) {
+  const { t } = useTheme();
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Photo</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {imageUrl ? (
+          <img src={imageUrl} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}` }} />
+        ) : (
+          <div style={{
+            width: 48, height: 48, borderRadius: 8, background: t.bgAlt, border: `1px dashed ${t.border}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}><Upload size={16} color={t.textMuted} /></div>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={onChoose} disabled={uploading} style={{
+            background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
+            padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: uploading ? "wait" : "pointer", color: t.gold,
+          }}>{uploading ? "Uploading…" : imageUrl ? "Change" : "Upload"}</button>
+          {imageUrl && (
+            <button type="button" onClick={onRemove} style={{
+              background: "none", border: "1px solid #EF444440", borderRadius: 6,
+              padding: "6px 10px", fontSize: 12, color: "#EF4444", cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+            }}><X size={12} /> Remove</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ServicesManager() {
   const { t } = useTheme();
-  const { services, loading, error, addService, updateService, deleteService } = useServices();
+  const { services, loading, error, addService, updateService, deleteService, uploadServiceImage } = useServices();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingCategory, setAddingCategory] = useState<string | null>(null);
   const [draft, setDraft] = useState<ServiceDraft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const startEdit = (id: string, hasFixedPrice: boolean, current: ServiceDraft) => {
     setActionError(null);
     setAddingCategory(null);
     setEditingId(id);
     setDraft({ ...current, price: hasFixedPrice ? current.price : "", minPrice: hasFixedPrice ? "" : current.minPrice, maxPrice: hasFixedPrice ? "" : current.maxPrice });
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingImage(true);
+    setActionError(null);
+    try {
+      const url = await uploadServiceImage(file);
+      setDraft(d => ({ ...d, imageUrl: url }));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const startAdd = (category: string) => {
@@ -52,7 +109,7 @@ export function ServicesManager() {
     setActionError(null);
     try {
       const input: Partial<ServiceInput> = {
-        name: draft.name, duration: draft.duration, description: draft.description,
+        name: draft.name, duration: draft.duration, description: draft.description, imageUrl: draft.imageUrl,
       };
       if (hasFixedPrice) {
         input.price = draft.price;
@@ -86,6 +143,7 @@ export function ServicesManager() {
         priceRangeMin: isFixedPrice ? null : (draft.minPrice ? parseInt(draft.minPrice, 10) : null),
         priceRangeMax: isFixedPrice ? null : (draft.maxPrice ? parseInt(draft.maxPrice, 10) : null),
         iconName: isFixedPrice ? "Heart" : "Sparkles",
+        imageUrl: draft.imageUrl,
       });
       setAddingCategory(null);
     } catch (err) {
@@ -109,6 +167,7 @@ export function ServicesManager() {
 
   return (
     <>
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageChange} />
       {error && <ErrorNotice message={error} />}
       {actionError && <ErrorNotice message={actionError} />}
       {services.map(cat => {
@@ -153,6 +212,7 @@ export function ServicesManager() {
                           price: s.price ?? "",
                           minPrice: s.priceRange ? s.priceRange.split("–")[0].replace(/[^\d]/g, "") : "",
                           maxPrice: s.priceRange ? s.priceRange.split("–")[1].replace(/[^\d]/g, "") : "",
+                          imageUrl: s.imageUrl,
                         })} style={{
                           background: isEditing ? t.goldBg : "none", border: `1px solid ${isEditing ? t.gold : t.border}`, borderRadius: 6,
                           padding: "5px 10px", fontSize: 12, color: isEditing ? t.gold : t.textSoft, cursor: "pointer", fontWeight: isEditing ? 600 : 400,
@@ -185,6 +245,11 @@ export function ServicesManager() {
                             background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
                           }} />
                         </div>
+                        <ServiceImageField
+                          imageUrl={draft.imageUrl} uploading={uploadingImage}
+                          onChoose={() => fileInputRef.current?.click()}
+                          onRemove={() => setDraft(d => ({ ...d, imageUrl: null }))}
+                        />
                         {hasFixedPrice ? (
                           <div>
                             <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Fixed Price</label>
@@ -253,6 +318,11 @@ export function ServicesManager() {
                         background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
                       }} />
                     </div>
+                    <ServiceImageField
+                      imageUrl={draft.imageUrl} uploading={uploadingImage}
+                      onChoose={() => fileInputRef.current?.click()}
+                      onRemove={() => setDraft(d => ({ ...d, imageUrl: null }))}
+                    />
                     {cat.cat === "Treatments" ? (
                       <div>
                         <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Fixed Price</label>

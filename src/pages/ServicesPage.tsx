@@ -59,12 +59,19 @@ export function ServicesPage({ navigate }: ServicesPageProps) {
               border: `1px solid ${t.border}`, cursor: "default",
             }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: 10, background: t.goldBg, flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <s.icon size={18} color={t.gold} strokeWidth={1.5} />
-                </div>
+                {s.imageUrl ? (
+                  <img src={s.imageUrl} alt="" style={{
+                    width: 48, height: 48, borderRadius: 10, objectFit: "cover", flexShrink: 0,
+                    border: `1px solid ${t.border}`,
+                  }} />
+                ) : (
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10, background: t.goldBg, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <s.icon size={18} color={t.gold} strokeWidth={1.5} />
+                  </div>
+                )}
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{s.name}</div>
                   <div style={{ fontSize: 13, color: t.textMuted }}>{s.desc}</div>

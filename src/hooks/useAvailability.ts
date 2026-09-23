@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
+import { addDays, toISODateString } from "../lib/date";
 import type { BookingDay } from "../types";
 
 const DAY_KEYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -22,24 +24,11 @@ export interface AvailabilityDay {
   slots: AvailabilitySlot[];
 }
 
-function toISODateString(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function formatHourLabel(hour: number): string {
+export function formatHourLabel(hour: number): string {
   return `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-function hourFromLabel(label: string): number | null {
+export function hourFromLabel(label: string): number | null {
   const match = label.match(/^(\d{1,2}):00\s(AM|PM)$/);
   if (!match) return null;
   let hour = parseInt(match[1], 10);
@@ -58,6 +47,8 @@ interface UseAvailabilityResult {
   unblockDay: (date: Date) => Promise<void>;
   blockSlot: (date: Date, hour: number) => Promise<void>;
   unblockSlot: (date: Date, hour: number) => Promise<void>;
+  openDay: (dayKey: string, startHour: number, endHour: number) => Promise<void>;
+  closeDay: (dayKey: string) => Promise<void>;
 }
 
 export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
@@ -76,8 +67,10 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
     const [scheduleRes, blockedRes, bookingsRes] = await Promise.all([
       supabase.from("schedule_defaults").select("*"),
       supabase.from("blocked_slots").select("*").gte("date", rangeStart).lte("date", rangeEnd),
-      supabase.from("bookings").select("booking_date, booking_time, status")
-        .gte("booking_date", rangeStart).lte("booking_date", rangeEnd).neq("status", "cancelled"),
+      // public_booking_slots exposes only booking_date/booking_time/status (no client PII),
+      // so this works for anon (client booking flow) and authenticated (admin) alike.
+      supabase.from("public_booking_slots").select("booking_date, booking_time, status")
+        .gte("booking_date", rangeStart).lte("booking_date", rangeEnd),
     ]);
 
     if (scheduleRes.error) { setError(scheduleRes.error.message); setLoading(false); return; }
@@ -140,26 +133,46 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
   }, [fetchAvailability]);
 
   const blockDay = useCallback(async (date: Date) => {
+    await assertAuthenticated();
     const { error: insertError } = await supabase.from("blocked_slots").insert({ date: toISODateString(date), hour: null });
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) await handleWriteError(insertError);
     await fetchAvailability();
   }, [fetchAvailability]);
 
   const unblockDay = useCallback(async (date: Date) => {
+    await assertAuthenticated();
     const { error: deleteError } = await supabase.from("blocked_slots").delete().eq("date", toISODateString(date)).is("hour", null);
-    if (deleteError) throw new Error(deleteError.message);
+    if (deleteError) await handleWriteError(deleteError);
     await fetchAvailability();
   }, [fetchAvailability]);
 
   const blockSlot = useCallback(async (date: Date, hour: number) => {
+    await assertAuthenticated();
     const { error: insertError } = await supabase.from("blocked_slots").insert({ date: toISODateString(date), hour });
-    if (insertError) throw new Error(insertError.message);
+    if (insertError) await handleWriteError(insertError);
     await fetchAvailability();
   }, [fetchAvailability]);
 
   const unblockSlot = useCallback(async (date: Date, hour: number) => {
+    await assertAuthenticated();
     const { error: deleteError } = await supabase.from("blocked_slots").delete().eq("date", toISODateString(date)).eq("hour", hour);
-    if (deleteError) throw new Error(deleteError.message);
+    if (deleteError) await handleWriteError(deleteError);
+    await fetchAvailability();
+  }, [fetchAvailability]);
+
+  const openDay = useCallback(async (dayKey: string, startHour: number, endHour: number) => {
+    await assertAuthenticated();
+    const { error: updateError } = await supabase.from("schedule_defaults")
+      .update({ is_open: true, start_hour: startHour, end_hour: endHour }).eq("day_key", dayKey);
+    if (updateError) await handleWriteError(updateError);
+    await fetchAvailability();
+  }, [fetchAvailability]);
+
+  const closeDay = useCallback(async (dayKey: string) => {
+    await assertAuthenticated();
+    const { error: updateError } = await supabase.from("schedule_defaults")
+      .update({ is_open: false }).eq("day_key", dayKey);
+    if (updateError) await handleWriteError(updateError);
     await fetchAvailability();
   }, [fetchAvailability]);
 
@@ -174,5 +187,5 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
     })
     .filter(d => d.slotCount > 0);
 
-  return { days, bookingDays, loading, error, refetch: fetchAvailability, blockDay, unblockDay, blockSlot, unblockSlot };
+  return { days, bookingDays, loading, error, refetch: fetchAvailability, blockDay, unblockDay, blockSlot, unblockSlot, openDay, closeDay };
 }

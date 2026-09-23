@@ -18,9 +18,16 @@ export function ServiceCard({ service, selected, onToggle }: ServiceCardProps) {
       background: selected ? t.goldBg : t.surface,
       textAlign: "left", transition: "all 0.2s",
     }}>
-      <div>
-        <div style={{ fontWeight: 600, fontSize: 14, color: t.text }}>{service.name}</div>
-        <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>{service.desc}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        {service.imageUrl ? (
+          <img src={service.imageUrl} alt="" style={{
+            width: 40, height: 40, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}`, flexShrink: 0,
+          }} />
+        ) : null}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: t.text }}>{service.name}</div>
+          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>{service.desc}</div>
+        </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 12, flexShrink: 0 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: service.price ? t.text : t.gold }}>{service.price || service.priceRange || "Quote"}</span>

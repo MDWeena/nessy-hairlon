@@ -6,6 +6,7 @@ import { FadeIn } from "../components/ui/FadeIn";
 import { LoadingNotice } from "../components/ui/LoadingNotice";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
 import { ProgressBar } from "../components/booking/ProgressBar";
+import { StepClientHistory } from "../components/booking/StepClientHistory";
 import { StepDateTime } from "../components/booking/StepDateTime";
 import { StepServices } from "../components/booking/StepServices";
 import { StepReview } from "../components/booking/StepReview";
@@ -14,11 +15,19 @@ export function BookingPage() {
   const { t } = useTheme();
   const { services, loading: servicesLoading, error: servicesError } = useServices();
   const { bookingDays, loading: availabilityLoading, error: availabilityError } = useAvailability();
+  const [historyResolved, setHistoryResolved] = useState(false);
   const [step, setStep] = useState(0);
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [uploadMode, setUploadMode] = useState(false);
+  const [customStyleUrl, setCustomStyleUrl] = useState<string | null>(null);
+  const [customStyleDescription, setCustomStyleDescription] = useState("");
+
+  const handleBookAgain = (serviceNames: string[]) => {
+    setSelectedServices(serviceNames.filter(name => services.flatMap(c => c.items).some(s => s.name === name)));
+    setHistoryResolved(true);
+  };
 
   const allServices = services.flatMap(c => c.items);
   const selectedDay = selectedDayIdx !== null ? bookingDays[selectedDayIdx] : null;
@@ -42,14 +51,19 @@ export function BookingPage() {
         </h2>
       </FadeIn>
 
-      <ProgressBar step={step} />
-
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
         <LoadingNotice label="Loading booking options…" />
+      ) : !historyResolved ? (
+        <StepClientHistory
+          onContinueFresh={() => setHistoryResolved(true)}
+          onBookAgain={handleBookAgain}
+        />
       ) : (
         <>
+          <ProgressBar step={step} />
+
           {step === 0 && (
             <StepDateTime
               bookingDays={bookingDays}
@@ -68,6 +82,11 @@ export function BookingPage() {
               onToggleService={toggleService}
               uploadMode={uploadMode}
               setUploadMode={setUploadMode}
+              customStyleUrl={customStyleUrl}
+              onPhotoUploaded={setCustomStyleUrl}
+              onPhotoRemoved={() => setCustomStyleUrl(null)}
+              customStyleDescription={customStyleDescription}
+              onDescriptionChange={setCustomStyleDescription}
               onBack={() => setStep(0)}
               onContinue={() => setStep(2)}
             />
@@ -80,6 +99,8 @@ export function BookingPage() {
               selectedTime={selectedTime}
               selectedServices={selectedServices}
               uploadMode={uploadMode}
+              customStyleUrl={customStyleUrl}
+              customStyleDescription={customStyleDescription}
               onBack={() => setStep(1)}
             />
           )}

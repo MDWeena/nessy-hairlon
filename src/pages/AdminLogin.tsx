@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, ChevronLeft, X } from "lucide-react";
 import { LOGO_ICON } from "../assets/logos";
 import { useTheme } from "../context/ThemeContext";
@@ -10,20 +10,85 @@ interface AdminLoginProps {
   onBack: () => void;
 }
 
+const RATE_LIMIT_KEY = "nessy_admin_login_attempts";
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000;
+
+interface AttemptRecord {
+  count: number;
+  lockedUntil: number | null;
+}
+
+function readAttempts(): AttemptRecord {
+  try {
+    const raw = localStorage.getItem(RATE_LIMIT_KEY);
+    if (!raw) return { count: 0, lockedUntil: null };
+    return JSON.parse(raw) as AttemptRecord;
+  } catch {
+    return { count: 0, lockedUntil: null };
+  }
+}
+
+function writeAttempts(record: AttemptRecord) {
+  try { localStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(record)); } catch { /* ignore */ }
+}
+
+function clearAttempts() {
+  try { localStorage.removeItem(RATE_LIMIT_KEY); } catch { /* ignore */ }
+}
+
 export function AdminLogin({ onBack }: AdminLoginProps) {
   const { t, isDark } = useTheme();
-  const { signIn } = useAuth();
+  const { signIn, signOut } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(() => {
+    const rec = readAttempts();
+    return rec.lockedUntil && rec.lockedUntil > Date.now() ? rec.lockedUntil : null;
+  });
+
+  // Clear any stale/half-broken session so a fresh login always starts clean.
+  useEffect(() => {
+    signOut();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Let the lockout expire on its own while the user sits on the page.
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const remaining = lockedUntil - Date.now();
+    if (remaining <= 0) { setLockedUntil(null); return; }
+    const timer = setTimeout(() => setLockedUntil(null), remaining);
+    return () => clearTimeout(timer);
+  }, [lockedUntil]);
+
+  const isLocked = lockedUntil !== null && lockedUntil > Date.now();
 
   const handleSubmit = async () => {
     setError("");
+    const rec = readAttempts();
+    if (rec.lockedUntil && rec.lockedUntil > Date.now()) {
+      setLockedUntil(rec.lockedUntil);
+      return;
+    }
     if (!email || !password) { setError("Please fill in all fields"); return; }
     setLoading(true);
     const { error: signInError } = await signIn(email, password);
-    if (signInError) setError("Invalid email or password");
+    if (signInError) {
+      const nextCount = rec.count + 1;
+      if (nextCount >= MAX_ATTEMPTS) {
+        const lockUntil = Date.now() + LOCKOUT_MS;
+        writeAttempts({ count: 0, lockedUntil: lockUntil });
+        setLockedUntil(lockUntil);
+      } else {
+        writeAttempts({ count: nextCount, lockedUntil: null });
+        setError("Invalid email or password");
+      }
+    } else {
+      clearAttempts();
+    }
     setLoading(false);
   };
 
@@ -74,13 +139,13 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
           <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Welcome back</h2>
           <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>Sign in to manage your bookings</p>
 
-          {error && (
+          {(isLocked || error) && (
             <div style={{
               background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 8,
               padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#DC2626",
               display: "flex", alignItems: "center", gap: 8,
             }}>
-              <X size={14} /> {error}
+              <X size={14} /> {isLocked ? "Too many attempts. Try again in 5 minutes." : error}
             </div>
           )}
 
@@ -88,7 +153,7 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
             <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email</label>
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="nessy@hairlon.com"
+              placeholder="Enter your email"
               style={{
                 width: "100%", padding: "12px 14px", borderRadius: 10,
                 border: `1px solid ${t.border}`, background: t.bgAlt,
@@ -117,11 +182,11 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
             />
           </div>
 
-          <GoldButton onClick={handleSubmit} disabled={loading} style={{
+          <GoldButton onClick={handleSubmit} disabled={loading || isLocked} style={{
             width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
             padding: "14px", fontSize: 15, fontWeight: 700,
-            cursor: loading ? "wait" : "pointer", borderRadius: 10,
-            opacity: loading ? 0.7 : 1,
+            cursor: loading || isLocked ? "wait" : "pointer", borderRadius: 10,
+            opacity: loading || isLocked ? 0.7 : 1,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
             {loading ? "Signing in..." : "Sign In"}
