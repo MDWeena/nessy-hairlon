@@ -12,6 +12,8 @@ export interface AvailabilitySlot {
   label: string;
   isBooked: boolean;
   isBlocked: boolean;
+  /** Falls within the business's configured min_booking_notice_hours window from right now. */
+  isTooSoon: boolean;
 }
 
 export interface AvailabilityDay {
@@ -63,19 +65,24 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
     const today = new Date();
     const rangeStart = toISODateString(today);
     const rangeEnd = toISODateString(addDays(today, daysAhead - 1));
+    const now = Date.now();
 
-    const [scheduleRes, blockedRes, bookingsRes] = await Promise.all([
+    const [scheduleRes, blockedRes, bookingsRes, settingsRes] = await Promise.all([
       supabase.from("schedule_defaults").select("*"),
       supabase.from("blocked_slots").select("*").gte("date", rangeStart).lte("date", rangeEnd),
       // public_booking_slots exposes only booking_date/booking_time/status (no client PII),
       // so this works for anon (client booking flow) and authenticated (admin) alike.
       supabase.from("public_booking_slots").select("booking_date, booking_time, status")
         .gte("booking_date", rangeStart).lte("booking_date", rangeEnd),
+      supabase.from("settings").select("value").eq("key", "min_booking_notice_hours").maybeSingle(),
     ]);
 
     if (scheduleRes.error) { setError(scheduleRes.error.message); setLoading(false); return; }
     if (blockedRes.error) { setError(blockedRes.error.message); setLoading(false); return; }
     if (bookingsRes.error) { setError(bookingsRes.error.message); setLoading(false); return; }
+
+    const noticeHours = Number(settingsRes.data?.value ?? 0) || 0;
+    const noticeMs = noticeHours * 60 * 60 * 1000;
 
     const scheduleMap = new Map(scheduleRes.data.map(row => [row.day_key, row]));
 
@@ -107,11 +114,14 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
       const slots: AvailabilitySlot[] = [];
       if (isOpen && sched) {
         for (let h = sched.start_hour; h < sched.end_hour; h++) {
+          const appointment = new Date(date);
+          appointment.setHours(h, 0, 0, 0);
           slots.push({
             hour: h,
             label: formatHourLabel(h),
             isBooked: bookedSlotSet.has(`${dateStr}-${h}`),
             isBlocked: blockedSlotSet.has(`${dateStr}-${h}`),
+            isTooSoon: appointment.getTime() - now < noticeMs,
           });
         }
       }
@@ -179,7 +189,7 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
   const bookingDays: BookingDay[] = days
     .filter(d => d.isOpen && !d.isDayBlocked)
     .map(d => {
-      const available = d.slots.filter(s => !s.isBooked && !s.isBlocked);
+      const available = d.slots.filter(s => !s.isBooked && !s.isBlocked && !s.isTooSoon);
       return {
         key: d.dayKey, label: d.fullLabel, date: toISODateString(d.date),
         slots: available.map(s => s.label), slotCount: available.length,
