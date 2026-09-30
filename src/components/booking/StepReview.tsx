@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Eye, Calendar, Clock, Scissors, Image, DollarSign, ChevronLeft, Check } from "lucide-react";
+import { Eye, Calendar, Clock, Scissors, Image, ChevronLeft, ChevronRight, Check, Mail, MessageCircle } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { createBooking } from "../../hooks/useBookings";
+import { useSettings } from "../../hooks/useSettings";
 import { shortBookingReference } from "../../lib/bookingReference";
-import type { BookingDay, ServiceItem } from "../../types";
+import { buildWhatsAppUrl } from "../../lib/whatsapp";
+import type { BookingDay, NavigateFn, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -17,13 +19,15 @@ interface StepReviewProps {
   customStyleUrl: string | null;
   customStyleDescription: string;
   onBack: () => void;
+  navigate: NavigateFn;
 }
 
 export function StepReview({
   allServices, selectedDay, selectedTime, selectedServices, uploadMode,
-  customStyleUrl, customStyleDescription, onBack,
+  customStyleUrl, customStyleDescription, onBack, navigate,
 }: StepReviewProps) {
   const { t } = useTheme();
+  const { settings } = useSettings();
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -64,29 +68,63 @@ export function StepReview({
   };
 
   if (reference) {
+    const whatsappHref = buildWhatsAppUrl(settings.phone, `Hi Nessy, I have a question about my booking ${reference}`);
     return (
       <FadeIn>
-        <div style={{ background: t.surface, borderRadius: 16, padding: 40, textAlign: "center", border: `1px solid ${t.border}` }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: "50%", background: t.goldBg,
-            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
-          }}>
-            <Check size={26} color={t.gold} />
+        <div style={{ background: t.surface, borderRadius: 16, padding: 40, border: `1px solid ${t.border}` }}>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%", background: t.goldBg,
+              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
+            }}>
+              <Check size={26} color={t.gold} />
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Booking Request Submitted!</h3>
+            <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+              Thanks {clientName.trim()}! Your booking request has been received. Nessy will review it and send you a price quote within 24 hours.
+            </p>
           </div>
-          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-            {isCustom ? "Your booking request has been submitted!" : "Booking request sent!"}
-          </h3>
-          <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6, marginBottom: 20 }}>
-            {isCustom
-              ? "Nessy will review your style photo and send a quote within 24 hours."
-              : "Nessy will review your request and confirm shortly. Transfer your deposit using the details below to secure your slot."}
-          </p>
+
           <div style={{
-            display: "inline-block", background: t.goldBg, border: `1px solid ${t.gold}30`,
-            borderRadius: 8, padding: "10px 20px", fontSize: 13, color: t.textSoft,
+            background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 10,
+            padding: "12px 16px", fontSize: 13, color: t.textSoft, textAlign: "center", marginBottom: 20,
           }}>
-            Check your booking status anytime with reference: <strong style={{ color: t.gold }}>{reference}</strong>
+            Your reference: <strong style={{ color: t.gold }}>{reference}</strong>
           </div>
+
+          <div style={{ display: "grid", gap: 10, marginBottom: 20, paddingBottom: 20, borderBottom: `1px solid ${t.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Calendar size={13} /> Date</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{selectedDay ? selectedDay.label : "—"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Clock size={13} /> Time</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>{selectedTime || "—"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Scissors size={13} /> Service</span>
+              <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>
+                {isCustom ? "Custom style (quote pending)" : selectedServices.join(", ") || "—"}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 10, fontSize: 13, color: t.textSoft, marginBottom: 24 }}>
+            {clientEmail.trim() && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Mail size={14} color={t.gold} /> You'll receive an email at <strong style={{ color: t.text }}>{clientEmail.trim()}</strong> when your quote is ready.
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <MessageCircle size={14} color={t.gold} /> Questions? <a href={whatsappHref} target="_blank" rel="noopener noreferrer" style={{ color: t.gold, fontWeight: 600 }}>WhatsApp Nessy directly</a>
+            </div>
+          </div>
+
+          <button onClick={() => navigate("track")} style={{
+            width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
+            padding: "12px", fontSize: 14, fontWeight: 700, cursor: "pointer", borderRadius: 6,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>Track your booking status <ChevronRight size={16} /></button>
         </div>
       </FadeIn>
     );
@@ -174,20 +212,6 @@ export function StepReview({
           </div>
         </div>
 
-        <div style={{ background: t.goldBg, borderRadius: 16, padding: 24, marginBottom: 20, border: `1px solid ${t.goldLight}` }}>
-          <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12, color: t.text, display: "flex", alignItems: "center", gap: 8 }}>
-            <DollarSign size={16} color={t.gold} /> Payment details
-          </h4>
-          <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6, marginBottom: 12 }}>
-            A 50% deposit is required to confirm. Transfer to the account below and tap "I've paid" to notify Nessy.
-          </p>
-          <div style={{ background: t.surface, padding: 16, borderRadius: 10, fontSize: 14, lineHeight: 1.8, border: `1px solid ${t.border}` }}>
-            <div><span style={{ color: t.textMuted }}>Bank:</span> <strong>GTBank</strong></div>
-            <div><span style={{ color: t.textMuted }}>Account:</span> <strong>012 345 6789</strong></div>
-            <div><span style={{ color: t.textMuted }}>Name:</span> <strong>Nessy Hairlon</strong></div>
-          </div>
-        </div>
-
         {submitError && <ErrorNotice message={submitError} />}
 
         <div style={{ display: "flex", gap: 12 }}>
@@ -202,7 +226,7 @@ export function StepReview({
             cursor: submitting ? "wait" : "pointer", borderRadius: 6, display: "flex",
             alignItems: "center", justifyContent: "center", gap: 8,
           }}>
-            <Check size={18} /> {submitting ? "Submitting…" : "Confirm Booking"}
+            <Check size={18} /> {submitting ? "Submitting…" : "Submit Booking Request"}
           </GoldButton>
         </div>
       </div>

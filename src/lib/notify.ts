@@ -16,7 +16,9 @@ export type NotificationBody =
   | { type: "new_booking"; booking: NotificationBookingPayload }
   | { type: "status_change"; booking: NotificationBookingPayload; previousStatus: OrderStatus }
   | { type: "client_reschedule"; booking: NotificationBookingPayload; previousDate: string; previousTime: string }
-  | { type: "client_cancellation"; booking: NotificationBookingPayload };
+  | { type: "client_cancellation"; booking: NotificationBookingPayload }
+  | { type: "deposit_claimed"; booking: NotificationBookingPayload }
+  | { type: "payment_not_verified"; booking: NotificationBookingPayload };
 
 /**
  * Best-effort call to the send-notification serverless function. Attaches the

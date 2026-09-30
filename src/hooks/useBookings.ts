@@ -26,7 +26,7 @@ function computeStats(rows: BookingRow[]): BookingStats {
 
   return {
     thisWeekCount: thisWeekRows.length,
-    pendingReviewCount: rows.filter(r => r.status === "pending_review").length,
+    pendingReviewCount: rows.filter(r => r.status === "pending_review" || r.status === "deposit_paid").length,
     revenueThisWeek: thisWeekRows
       .filter(r => r.status === "confirmed" || r.status === "completed")
       .reduce((sum, r) => sum + (r.quoted_price ?? 0), 0),
@@ -78,6 +78,7 @@ function rowToOrder(row: BookingRow, nameById: Map<string, string>): Order {
     price: row.quoted_price != null ? `₦${row.quoted_price.toLocaleString()}` : null,
     customStyleUrl: row.custom_style_url,
     customStyleDescription: row.custom_style_description,
+    paymentProofUrl: row.payment_proof_url,
   };
 }
 
@@ -89,6 +90,8 @@ interface UseBookingsResult {
   refetch: () => Promise<void>;
   updateBookingStatus: (id: string, status: OrderStatus) => Promise<void>;
   setQuotedPrice: (id: string, price: number) => Promise<void>;
+  confirmDepositPayment: (id: string) => Promise<void>;
+  rejectDepositPayment: (id: string) => Promise<void>;
 }
 
 export function useBookings(): UseBookingsResult {
@@ -164,10 +167,56 @@ export function useBookings(): UseBookingsResult {
     await fetchBookings();
   }, [rows, fetchBookings]);
 
+  /** Admin verifies a client's "I've paid" claim: deposit_paid -> confirmed, records when, schedules reminders. */
+  const confirmDepositPayment = useCallback(async (id: string) => {
+    await assertAuthenticated();
+    const existing = rows.find(r => r.id === id);
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase.from("bookings")
+      .update({ status: "confirmed", deposit_confirmed_at: nowIso, updated_at: nowIso }).eq("id", id);
+    if (updateError) await handleWriteError(updateError);
+
+    if (existing) {
+      await notify({
+        type: "status_change",
+        previousStatus: existing.status,
+        booking: {
+          id: existing.id, client_name: existing.client_name, client_email: existing.client_email,
+          client_phone: existing.client_phone, booking_date: existing.booking_date, booking_time: existing.booking_time,
+          status: "confirmed", quoted_price: existing.quoted_price,
+        },
+      });
+      if (existing.status !== "confirmed") await scheduleReminders(existing);
+    }
+    await fetchBookings();
+  }, [rows, fetchBookings]);
+
+  /** Admin can't find the deposit: deposit_paid -> quoted, asks the client to retry. */
+  const rejectDepositPayment = useCallback(async (id: string) => {
+    await assertAuthenticated();
+    const existing = rows.find(r => r.id === id);
+    const { error: updateError } = await supabase.from("bookings")
+      .update({ status: "quoted", updated_at: new Date().toISOString() }).eq("id", id);
+    if (updateError) await handleWriteError(updateError);
+
+    if (existing) {
+      await notify({
+        type: "payment_not_verified",
+        booking: {
+          id: existing.id, client_name: existing.client_name, client_email: existing.client_email,
+          client_phone: existing.client_phone, booking_date: existing.booking_date, booking_time: existing.booking_time,
+          status: "quoted", quoted_price: existing.quoted_price,
+        },
+      });
+    }
+    await fetchBookings();
+  }, [rows, fetchBookings]);
+
   return {
     bookings: rows.map(r => rowToOrder(r, nameById)),
     stats: computeStats(rows),
     loading, error, refetch: fetchBookings, updateBookingStatus, setQuotedPrice,
+    confirmDepositPayment, rejectDepositPayment,
   };
 }
 

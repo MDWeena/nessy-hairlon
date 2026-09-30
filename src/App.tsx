@@ -62,7 +62,7 @@ export default function App() {
           {page === "home" && <HomePage navigate={navigate} />}
           {page === "services" && <ServicesPage navigate={navigate} />}
           {page === "gallery" && <GalleryPage navigate={navigate} />}
-          {page === "book" && <BookingPage />}
+          {page === "book" && <BookingPage navigate={navigate} />}
           {page === "track" && <TrackBookingPage navigate={navigate} />}
           {page === "review" && <LeaveReviewPage />}
         </>

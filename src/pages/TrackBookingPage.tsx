@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { Search, Calendar, Clock, Scissors, X, Star } from "lucide-react";
+import { useRef, useState } from "react";
+import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Loader2 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-import { lookupBookings, rescheduleBooking, cancelBooking } from "../hooks/useBookingLookup";
+import { lookupBookings, rescheduleBooking, cancelBooking, markDepositPaid } from "../hooks/useBookingLookup";
 import type { TrackedBooking } from "../hooks/useBookingLookup";
 import { useAvailability, hourFromLabel } from "../hooks/useAvailability";
-import type { NavigateFn } from "../types";
+import { useSettings } from "../hooks/useSettings";
+import { uploadToCloudinary } from "../lib/cloudinary";
+import type { NavigateFn, OrderStatus } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
@@ -15,6 +17,8 @@ interface TrackBookingPageProps {
   navigate: NavigateFn;
 }
 
+type ActionMode = "reschedule" | "cancel" | "pay";
+
 function isPastNoticeWindow(booking: TrackedBooking): boolean {
   const hour = hourFromLabel(booking.time);
   if (hour === null) return true;
@@ -23,15 +27,33 @@ function isPastNoticeWindow(booking: TrackedBooking): boolean {
   return appointment.getTime() - Date.now() < 24 * 60 * 60 * 1000;
 }
 
+function describeStatus(status: OrderStatus, booking: TrackedBooking): { heading: string; body: string } {
+  switch (status) {
+    case "pending_review":
+      return { heading: "Under Review", body: "Nessy is reviewing your booking request." };
+    case "quoted":
+      return { heading: "Quote Ready", body: `Your quote is ${booking.quotedPrice != null ? `₦${booking.quotedPrice.toLocaleString()}` : "ready"}. Pay a deposit to confirm your appointment.` };
+    case "deposit_paid":
+      return { heading: "Payment Verification", body: "We've received your payment notification. Nessy will verify and confirm your appointment shortly." };
+    case "confirmed":
+      return { heading: "Confirmed ✓", body: `Your appointment is confirmed! See you on ${booking.date} at ${booking.time}.` };
+    case "completed":
+      return { heading: "Completed", body: "Thanks for visiting! We'd love your feedback." };
+    case "cancelled":
+      return { heading: "Cancelled", body: "This booking has been cancelled." };
+  }
+}
+
 export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
   const { t } = useTheme();
+  const { settings } = useSettings();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<TrackedBooking[] | null>(null);
 
   const [actionBooking, setActionBooking] = useState<TrackedBooking | null>(null);
-  const [actionMode, setActionMode] = useState<"reschedule" | "cancel" | null>(null);
+  const [actionMode, setActionMode] = useState<ActionMode | null>(null);
   const [verifyPhone, setVerifyPhone] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -41,7 +63,14 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const { bookingDays, loading: availabilityLoading } = useAvailability();
 
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [proofUploading, setProofUploading] = useState(false);
+  const proofInputRef = useRef<HTMLInputElement | null>(null);
+
   const looksLikeReference = /[a-z]/i.test(query.trim());
+  const depositAmount = settings.deposit_percentage != null
+    ? (booking: TrackedBooking) => booking.quotedPrice != null ? Math.round((booking.quotedPrice * settings.deposit_percentage!) / 100) : null
+    : () => null;
 
   const handleSearch = async () => {
     const trimmed = query.trim();
@@ -61,7 +90,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
     }
   };
 
-  const openAction = (booking: TrackedBooking, mode: "reschedule" | "cancel") => {
+  const openAction = (booking: TrackedBooking, mode: ActionMode) => {
     setActionBooking(booking);
     setActionMode(mode);
     setActionError(null);
@@ -69,12 +98,14 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
     setVerifyPhone(!looksLikeReference ? query.trim() : "");
     setSelectedDayIdx(null);
     setSelectedTime(null);
+    setProofUrl(null);
   };
 
   const closeAction = () => {
     setActionBooking(null);
     setActionMode(null);
     setActionError(null);
+    setProofUrl(null);
   };
 
   const confirmReschedule = async () => {
@@ -109,6 +140,40 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
       setResults(prev => prev?.map(b => b.reference === ref ? { ...b, status: "cancelled" } : b) ?? prev);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to cancel. Please try again.");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const handleProofChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setProofUploading(true);
+    setActionError(null);
+    try {
+      const url = await uploadToCloudinary(file);
+      setProofUrl(url);
+    } catch {
+      setActionError("Upload failed, please try again");
+    } finally {
+      setProofUploading(false);
+    }
+  };
+
+  const confirmPaid = async () => {
+    if (!actionBooking) return;
+    if (!verifyPhone.trim()) { setActionError("Enter the phone number you booked with"); return; }
+    const ref = actionBooking.reference;
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      await markDepositPaid(actionBooking, verifyPhone.trim(), proofUrl);
+      setActionSuccess("Thanks! We've received your payment notification — Nessy will verify and confirm your appointment shortly.");
+      closeAction();
+      setResults(prev => prev?.map(b => b.reference === ref ? { ...b, status: "deposit_paid" } : b) ?? prev);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to submit. Please try again.");
     } finally {
       setActionBusy(false);
     }
@@ -153,6 +218,8 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
             const canManage = b.status === "confirmed" || b.status === "quoted";
             const tooSoon = canManage && isPastNoticeWindow(b);
             const isActingOnThis = actionBooking?.reference === b.reference;
+            const statusCopy = describeStatus(b.status, b);
+            const deposit = depositAmount(b);
             return (
               <div key={b.reference} style={{
                 background: t.surface, borderRadius: 16, padding: 24, border: `1px solid ${t.border}`,
@@ -161,6 +228,18 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: t.gold }}>{b.reference}</span>
                   <StatusBadge status={b.status} />
                 </div>
+
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: 8, background: t.goldBg,
+                  border: `1px solid ${t.gold}20`, borderRadius: 10, padding: "10px 14px", marginBottom: 16,
+                }}>
+                  <Info size={14} color={t.gold} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{statusCopy.heading}</div>
+                    <div style={{ fontSize: 12, color: t.textSoft, marginTop: 2 }}>{statusCopy.body}</div>
+                  </div>
+                </div>
+
                 <div style={{ display: "grid", gap: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Calendar size={13} /> Date</span>
@@ -195,8 +274,30 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                   </a>
                 )}
 
+                {/* Quoted: deposit + payment details + "I've Paid" */}
+                {b.status === "quoted" && !isActingOnThis && (
+                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
+                    {(settings.bank_name || settings.account_number) && (
+                      <div style={{ background: t.bgAlt, borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 13, lineHeight: 1.8 }}>
+                        {deposit != null && (
+                          <div style={{ marginBottom: 6 }}>
+                            <span style={{ color: t.textMuted }}>Deposit ({settings.deposit_percentage}%):</span> <strong style={{ color: t.gold }}>₦{deposit.toLocaleString()}</strong>
+                          </div>
+                        )}
+                        <div><span style={{ color: t.textMuted }}>Bank:</span> <strong>{settings.bank_name}</strong></div>
+                        <div><span style={{ color: t.textMuted }}>Account:</span> <strong>{settings.account_number}</strong></div>
+                        <div><span style={{ color: t.textMuted }}>Name:</span> <strong>{settings.account_name}</strong></div>
+                      </div>
+                    )}
+                    <button onClick={() => openAction(b, "pay")} style={{
+                      width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
+                      padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                    }}>I've Paid My Deposit</button>
+                  </div>
+                )}
+
                 {canManage && !isActingOnThis && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
+                  <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: b.status === "quoted" ? 0 : 16, borderTop: b.status === "quoted" ? "none" : `1px solid ${t.border}` }}>
                     <button onClick={() => openAction(b, "reschedule")} style={{
                       flex: 1, background: t.goldBg, border: `1px solid ${t.gold}30`, color: t.gold,
                       padding: "8px 0", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
@@ -214,7 +315,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                       width: "100%", background: t.goldBg, border: `1px solid ${t.gold}30`, color: t.gold,
                       padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    }}><Star size={13} /> How was your experience? Leave a review</button>
+                    }}><Star size={13} /> Leave a review</button>
                   </div>
                 )}
 
@@ -222,7 +323,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                   <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                       <h4 style={{ fontSize: 14, fontWeight: 700 }}>
-                        {actionMode === "reschedule" ? "Reschedule appointment" : "Cancel appointment"}
+                        {actionMode === "reschedule" ? "Reschedule appointment" : actionMode === "cancel" ? "Cancel appointment" : "Confirm your deposit"}
                       </h4>
                       <button onClick={closeAction} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
                         <X size={16} color={t.textMuted} />
@@ -231,7 +332,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
 
                     {actionError && <ErrorNotice message={actionError} />}
 
-                    {tooSoon ? (
+                    {actionMode === "reschedule" && tooSoon ? (
                       <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6 }}>
                         This appointment is too soon to reschedule online. Please call or WhatsApp Nessy directly.
                       </p>
@@ -281,6 +382,38 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                                 cursor: actionBusy ? "wait" : "pointer",
                               }}>{actionBusy ? "Cancelling…" : "Yes, cancel"}</button>
                             </div>
+                          </>
+                        )}
+
+                        {actionMode === "pay" && (
+                          <>
+                            <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6, marginBottom: 12 }}>
+                              Optionally attach a screenshot of your transfer, then confirm below.
+                            </p>
+                            <input ref={proofInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleProofChange} />
+                            {proofUrl ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                                <img src={proofUrl} alt="Payment proof" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}` }} />
+                                <button onClick={() => setProofUrl(null)} style={{
+                                  background: "none", border: `1px solid #EF444440`, borderRadius: 6,
+                                  padding: "5px 12px", fontSize: 12, color: "#EF4444", cursor: "pointer",
+                                }}>Remove</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => proofInputRef.current?.click()} disabled={proofUploading} style={{
+                                background: t.bgAlt, border: `1px dashed ${t.border}`, borderRadius: 8,
+                                padding: "10px 14px", fontSize: 12, color: t.textSoft, cursor: proofUploading ? "wait" : "pointer",
+                                display: "flex", alignItems: "center", gap: 8, marginBottom: 16, width: "100%", justifyContent: "center",
+                              }}>
+                                {proofUploading ? <Loader2 size={14} style={{ animation: "loaderSpin 1s linear infinite" }} /> : <Upload size={14} />}
+                                {proofUploading ? "Uploading…" : "Attach payment screenshot (optional)"}
+                              </button>
+                            )}
+                            <GoldButton onClick={confirmPaid} disabled={actionBusy} style={{
+                              width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
+                              padding: "12px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                              cursor: actionBusy ? "wait" : "pointer",
+                            }}>{actionBusy ? "Submitting…" : "Confirm I've Paid"}</GoldButton>
                           </>
                         )}
                       </>

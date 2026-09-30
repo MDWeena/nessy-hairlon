@@ -73,7 +73,9 @@ type NotificationPayload =
   | { type: "new_booking"; booking: BookingNotificationData }
   | { type: "status_change"; booking: BookingNotificationData; previousStatus: BookingStatus }
   | { type: "client_reschedule"; booking: BookingNotificationData; previousDate: string; previousTime: string }
-  | { type: "client_cancellation"; booking: BookingNotificationData };
+  | { type: "client_cancellation"; booking: BookingNotificationData }
+  | { type: "deposit_claimed"; booking: BookingNotificationData }
+  | { type: "payment_not_verified"; booking: BookingNotificationData };
 
 function formatPrice(price: number | null): string {
   return price != null ? `₦${price.toLocaleString()}` : "Pending";
@@ -89,12 +91,22 @@ function renderNewBookingEmail(booking: BookingNotificationData): string {
   `;
 }
 
-function renderQuoteReadyEmail(booking: BookingNotificationData): string {
+function renderQuoteReadyEmail(booking: BookingNotificationData, settings: PaymentSettings | null, siteUrl: string): string {
+  const depositAmount = booking.quoted_price != null && settings
+    ? Math.round((booking.quoted_price * settings.depositPercentage) / 100)
+    : null;
+  const paymentBlock = settings
+    ? `<p>${settings.depositPercentage}% deposit: <strong>${formatPrice(depositAmount)}</strong></p>
+       <p>Bank: <strong>${settings.bankName}</strong><br/>
+       Account: <strong>${settings.accountNumber}</strong><br/>
+       Name: <strong>${settings.accountName}</strong></p>`
+    : "";
   return `
     <h2>Your Nessy Hairlon Quote is Ready</h2>
     <p>Your request for <strong>${booking.booking_date}</strong> at <strong>${booking.booking_time}</strong> has been priced.</p>
     <p>Quoted price: <strong>${formatPrice(booking.quoted_price)}</strong></p>
-    <p>Reply or confirm to secure your slot.</p>
+    ${paymentBlock}
+    <p>Pay your deposit and confirm at <a href="${siteUrl}/track">${siteUrl}/track</a></p>
   `;
 }
 
@@ -137,6 +149,23 @@ function renderClientCancellationEmail(booking: BookingNotificationData): string
   `;
 }
 
+function renderDepositClaimedEmail(booking: BookingNotificationData): string {
+  return `
+    <h2>Client says they've paid their deposit</h2>
+    <p><strong>${booking.client_name}</strong> (${booking.client_phone}) says they've paid the deposit for their
+      appointment on <strong>${booking.booking_date} at ${booking.booking_time}</strong>. Please verify and confirm.</p>
+  `;
+}
+
+function renderPaymentNotVerifiedEmail(booking: BookingNotificationData): string {
+  return `
+    <h2>We couldn't verify your deposit yet</h2>
+    <p>We couldn't find your deposit for the appointment on <strong>${booking.booking_date}</strong> at
+      <strong>${booking.booking_time}</strong>. Please ensure you've transferred to the correct account and try again.</p>
+    ${booking.quoted_price != null ? `<p>Amount due: <strong>${formatPrice(booking.quoted_price)}</strong></p>` : ""}
+  `;
+}
+
 function renderStatusChangeEmail(booking: BookingNotificationData, previousStatus: BookingStatus): string {
   return `
     <h2>Your Nessy Hairlon booking has been updated</h2>
@@ -165,18 +194,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // "status_change" is only ever admin-triggered — require a real session.
-  // The other types are triggered by anon clients (submitting, rescheduling,
-  // or cancelling a booking they've already verified via reference + phone
-  // against the SECURITY DEFINER functions), so instead we just confirm the
-  // referenced booking actually exists (deters blind spam).
-  if (payload.type === "status_change") {
+  // "status_change" and "payment_not_verified" are only ever admin-triggered
+  // — require a real session. The other types are triggered by anon clients
+  // (submitting, rescheduling, cancelling, or claiming a deposit payment for
+  // a booking they've already verified via reference + phone against the
+  // SECURITY DEFINER functions), so instead we just confirm the referenced
+  // booking actually exists (deters blind spam).
+  if (payload.type === "status_change" || payload.type === "payment_not_verified") {
     const userId = await getAuthenticatedUserId(req.headers.authorization);
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-  } else if (payload.type === "new_booking" || payload.type === "client_reschedule" || payload.type === "client_cancellation") {
+  } else if (
+    payload.type === "new_booking" || payload.type === "client_reschedule" ||
+    payload.type === "client_cancellation" || payload.type === "deposit_claimed"
+  ) {
     const exists = await bookingExists(payload.booking.id);
     if (!exists) {
       res.status(404).json({ error: "Booking not found" });
@@ -204,11 +237,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else if (payload.type === "status_change") {
       if (payload.booking.client_email) {
         if (payload.booking.status === "quoted") {
+          const settings = await fetchPaymentSettings();
+          const siteUrl = `https://${req.headers.host}`;
           await resend.emails.send({
             from: fromAddress,
             to: payload.booking.client_email,
             subject: "Your Nessy Hairlon Quote is Ready",
-            html: renderQuoteReadyEmail(payload.booking),
+            html: renderQuoteReadyEmail(payload.booking, settings, siteUrl),
           });
         } else if (payload.booking.status === "confirmed") {
           const settings = await fetchPaymentSettings();
@@ -253,6 +288,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           to: adminEmail,
           subject: `Client cancelled: ${payload.booking.client_name}`,
           html: renderClientCancellationEmail(payload.booking),
+        });
+      }
+    } else if (payload.type === "deposit_claimed") {
+      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
+      if (adminEmail) {
+        await resend.emails.send({
+          from: fromAddress,
+          to: adminEmail,
+          subject: `Deposit claimed: ${payload.booking.client_name} — please verify`,
+          html: renderDepositClaimedEmail(payload.booking),
+        });
+      }
+    } else if (payload.type === "payment_not_verified") {
+      if (payload.booking.client_email) {
+        await resend.emails.send({
+          from: fromAddress,
+          to: payload.booking.client_email,
+          subject: "We couldn't verify your deposit — Nessy Hairlon",
+          html: renderPaymentNotVerifiedEmail(payload.booking),
         });
       }
     } else {

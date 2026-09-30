@@ -96,6 +96,28 @@ export async function cancelBooking(booking: TrackedBooking, phone: string): Pro
 }
 
 /**
+ * Client claims they've paid their deposit, from the Track Booking page.
+ * Backed by the `mark_deposit_paid` SECURITY DEFINER function — only allowed
+ * from 'quoted', moves the booking to 'deposit_paid' (never straight to
+ * 'confirmed': an admin still has to verify the payment). Best-effort
+ * notifies the admin to go verify it.
+ */
+export async function markDepositPaid(booking: TrackedBooking, phone: string, paymentProofUrl?: string | null): Promise<void> {
+  const { error } = await supabase.rpc("mark_deposit_paid", {
+    p_reference: booking.reference, p_phone: phone, p_payment_proof_url: paymentProofUrl ?? null,
+  });
+  if (error) throw new Error(error.message);
+
+  await notify({
+    type: "deposit_claimed",
+    booking: {
+      id: booking.id, client_name: booking.clientName, client_email: null, client_phone: phone,
+      booking_date: booking.date, booking_time: booking.time, status: "deposit_paid", quoted_price: booking.quotedPrice,
+    },
+  });
+}
+
+/**
  * Submits a client review from the Leave a Review page. Backed by the
  * `submit_review` SECURITY DEFINER function — only allowed for completed
  * bookings, one review per booking, always inserted hidden (is_visible=false)

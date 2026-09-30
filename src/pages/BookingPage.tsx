@@ -10,8 +10,13 @@ import { StepClientHistory } from "../components/booking/StepClientHistory";
 import { StepDateTime } from "../components/booking/StepDateTime";
 import { StepServices } from "../components/booking/StepServices";
 import { StepReview } from "../components/booking/StepReview";
+import type { NavigateFn } from "../types";
 
-export function BookingPage() {
+interface BookingPageProps {
+  navigate: NavigateFn;
+}
+
+export function BookingPage({ navigate }: BookingPageProps) {
   const { t } = useTheme();
   const { services, loading: servicesLoading, error: servicesError } = useServices();
   const { bookingDays, loading: availabilityLoading, error: availabilityError } = useAvailability();
@@ -102,6 +107,7 @@ export function BookingPage() {
               customStyleUrl={customStyleUrl}
               customStyleDescription={customStyleDescription}
               onBack={() => setStep(1)}
+              navigate={navigate}
             />
           )}
         </>

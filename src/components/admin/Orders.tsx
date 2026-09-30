@@ -7,7 +7,7 @@ import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 
-const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "confirmed"];
+const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
 
 interface OrdersProps {
   initialFilter?: OrderFilter;
@@ -15,11 +15,11 @@ interface OrdersProps {
 
 export function Orders({ initialFilter = "all" }: OrdersProps) {
   const { t } = useTheme();
-  const { bookings, loading, error, setQuotedPrice, updateBookingStatus } = useBookings();
+  const { bookings, loading, error, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment } = useBookings();
   const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState("");
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const filtered = filter === "all" ? bookings : bookings.filter(o => o.status === filter);
 
@@ -40,15 +40,39 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
     }
   };
 
-  const confirmBooking = async (id: string) => {
+  const confirmWithoutDeposit = async (id: string) => {
     setActionError(null);
-    setConfirmingId(id);
+    setBusyId(id);
     try {
       await updateBookingStatus(id, "confirmed");
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to confirm booking");
     } finally {
-      setConfirmingId(null);
+      setBusyId(null);
+    }
+  };
+
+  const handleConfirmPayment = async (id: string) => {
+    setActionError(null);
+    setBusyId(id);
+    try {
+      await confirmDepositPayment(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to confirm payment");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handlePaymentNotFound = async (id: string) => {
+    setActionError(null);
+    setBusyId(id);
+    try {
+      await rejectDepositPayment(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update booking");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -73,11 +97,11 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
       <div style={{ background: t.surface, borderRadius: 12, border: `1px solid ${t.border}`, overflow: "hidden" }}>
         {filtered.map((o, i) => (
           <div key={o.id} style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
             padding: "16px 20px",
             borderBottom: i < filtered.length - 1 ? `1px solid ${t.border}` : "none",
             transition: "background 0.2s",
           }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
               {o.customStyleUrl ? (
                 <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }} title="Open full photo">
@@ -135,16 +159,45 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
                       cursor: "pointer",
                     }}>Set Price</button>
                   )}
-                  {o.status === "quoted" && (
-                    <button onClick={() => confirmBooking(o.id)} disabled={confirmingId === o.id} style={{
-                      background: t.gold, color: "#0A0A0A", border: "none",
-                      padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700,
-                      cursor: confirmingId === o.id ? "wait" : "pointer",
-                    }}>{confirmingId === o.id ? "Confirming…" : "Confirm"}</button>
-                  )}
                 </>
               )}
             </div>
+          </div>
+
+          {o.status === "quoted" && quotingId !== o.id && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
+              <span style={{ fontSize: 12, color: t.textMuted }}>Waiting for client deposit</span>
+              <button onClick={() => confirmWithoutDeposit(o.id)} disabled={busyId === o.id} style={{
+                background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
+                padding: "6px 12px", fontSize: 11, color: t.textSoft, cursor: busyId === o.id ? "wait" : "pointer",
+              }}>{busyId === o.id ? "Confirming…" : "Confirm without deposit"}</button>
+            </div>
+          )}
+
+          {o.status === "deposit_paid" && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}`, gap: 12 }}>
+              {o.paymentProofUrl ? (
+                <a href={o.paymentProofUrl} target="_blank" rel="noopener noreferrer" title="Open payment proof" style={{ flexShrink: 0 }}>
+                  <img src={o.paymentProofUrl} alt="Payment proof" style={{
+                    width: 36, height: 36, borderRadius: 6, objectFit: "cover", border: `1px solid ${t.gold}40`, cursor: "pointer",
+                  }} />
+                </a>
+              ) : (
+                <span style={{ fontSize: 12, color: t.textMuted }}>No payment screenshot attached</span>
+              )}
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => handlePaymentNotFound(o.id)} disabled={busyId === o.id} style={{
+                  background: "none", border: "1px solid #EF444440", borderRadius: 6,
+                  padding: "6px 12px", fontSize: 11, color: "#EF4444", cursor: busyId === o.id ? "wait" : "pointer",
+                }}>Payment Not Found</button>
+                <button onClick={() => handleConfirmPayment(o.id)} disabled={busyId === o.id} style={{
+                  background: t.gold, color: "#0A0A0A", border: "none",
+                  padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  cursor: busyId === o.id ? "wait" : "pointer",
+                }}>{busyId === o.id ? "Confirming…" : "Confirm Payment"}</button>
+              </div>
+            </div>
+          )}
           </div>
         ))}
       </div>

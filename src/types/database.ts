@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type BookingStatus = "pending_review" | "quoted" | "confirmed" | "completed" | "cancelled";
+export type BookingStatus = "pending_review" | "quoted" | "deposit_paid" | "confirmed" | "completed" | "cancelled";
 
 export interface Database {
   public: {
@@ -87,6 +87,8 @@ export interface Database {
           status: BookingStatus;
           quoted_price: number | null;
           notes: string | null;
+          deposit_confirmed_at: string | null;
+          payment_proof_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -103,6 +105,8 @@ export interface Database {
           status?: BookingStatus;
           quoted_price?: number | null;
           notes?: string | null;
+          deposit_confirmed_at?: string | null;
+          payment_proof_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -224,6 +228,10 @@ export interface Database {
       };
       cancel_booking: {
         Args: { p_reference: string; p_phone: string };
+        Returns: undefined;
+      };
+      mark_deposit_paid: {
+        Args: { p_reference: string; p_phone: string; p_payment_proof_url?: string | null };
         Returns: undefined;
       };
       submit_review: {

@@ -20,7 +20,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const statCards = [
     { label: "This week", value: String(stats.thisWeekCount), sub: "bookings", icon: Calendar, color: t.gold, onClick: () => onNavigate("orders") },
-    { label: "Pending review", value: String(stats.pendingReviewCount), sub: "need pricing", icon: Eye, color: "#F59E0B", onClick: () => onNavigate("orders", "pending_review") },
+    { label: "Pending review", value: String(stats.pendingReviewCount), sub: "need attention", icon: Eye, color: "#F59E0B", onClick: () => onNavigate("orders") },
     { label: "Revenue (week)", value: `₦${stats.revenueThisWeek.toLocaleString()}`, sub: "confirmed & completed", icon: TrendingUp, color: "#10B981", onClick: () => onNavigate("orders") },
     { label: "Clients (month)", value: String(stats.clientsThisMonthCount), sub: "unique clients", icon: Users, color: "#6366F1", onClick: () => onNavigate("orders") },
   ];

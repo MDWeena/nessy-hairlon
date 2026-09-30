@@ -1,22 +1,11 @@
 import { useSettings } from "../../hooks/useSettings";
+import { buildWhatsAppUrl } from "../../lib/whatsapp";
 
-const FALLBACK_WHATSAPP_NUMBER = "2348161271343";
 const MESSAGE = "Hi Nessy, I'd like to book an appointment";
-
-/** Converts a locally-formatted Nigerian number (e.g. "0816 127 1343") into the digits-only, country-code-prefixed form wa.me expects. */
-function toWhatsAppNumber(raw: string | undefined): string {
-  if (!raw) return FALLBACK_WHATSAPP_NUMBER;
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return FALLBACK_WHATSAPP_NUMBER;
-  if (digits.startsWith("234")) return digits;
-  if (digits.startsWith("0")) return `234${digits.slice(1)}`;
-  return digits;
-}
 
 export function WhatsAppButton() {
   const { settings } = useSettings();
-  const number = toWhatsAppNumber(settings.phone);
-  const href = `https://wa.me/${number}?text=${encodeURIComponent(MESSAGE)}`;
+  const href = buildWhatsAppUrl(settings.phone, MESSAGE);
 
   return (
     <>

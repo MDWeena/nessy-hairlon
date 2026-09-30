@@ -51,6 +51,7 @@ export interface BookingDay {
 export type OrderStatus =
   | "pending_review"
   | "quoted"
+  | "deposit_paid"
   | "confirmed"
   | "completed"
   | "cancelled";
@@ -65,6 +66,7 @@ export interface Order {
   price: string | null;
   customStyleUrl: string | null;
   customStyleDescription: string | null;
+  paymentProofUrl: string | null;
 }
 
 export type OrderFilter = "all" | OrderStatus;
