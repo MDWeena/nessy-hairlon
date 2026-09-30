@@ -23,7 +23,7 @@ export function StepDateTime({ bookingDays, selectedDayIdx, onSelectDay, selecte
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
           <Calendar size={18} color={t.gold} strokeWidth={1.5} /> Pick a day
         </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 32 }}>
+        <div className="day-picker-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 32 }}>
           {bookingDays.map((day, i) => (
             <button key={i} onClick={() => onSelectDay(i)} className="hover-lift" style={{
               padding: "14px 8px", borderRadius: 10, cursor: "pointer",
@@ -43,7 +43,7 @@ export function StepDateTime({ bookingDays, selectedDayIdx, onSelectDay, selecte
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
               <Clock size={18} color={t.gold} strokeWidth={1.5} /> Choose a time
             </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8, marginBottom: 32 }}>
+            <div className="time-slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8, marginBottom: 32 }}>
               {selectedDay.slots.map(time => (
                 <button key={time} onClick={() => onSelectTime(time)} style={{
                   padding: "12px 8px", borderRadius: 8, cursor: "pointer",

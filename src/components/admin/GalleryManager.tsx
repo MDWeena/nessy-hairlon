@@ -67,7 +67,7 @@ export function GalleryManager() {
             <div key={s.dayOfWeek} style={{
               display: "flex", alignItems: "center", gap: 16,
               background: t.surface, borderRadius: 12, padding: "14px 20px",
-              border: `1px solid ${t.border}`,
+              border: `1px solid ${t.border}`, flexWrap: "wrap", rowGap: 12,
             }}>
               {/* Day label */}
               <span style={{
@@ -89,7 +89,7 @@ export function GalleryManager() {
               </div>
 
               {/* Style name */}
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 120 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{s.styleName}</div>
                 <div style={{ fontSize: 12, color: hasImage ? t.gold : t.textMuted }}>
                   {isUploading ? "Uploading…" : hasImage ? "Image uploaded" : "No image yet"}

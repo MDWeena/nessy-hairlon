@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings as SettingsIcon, DollarSign, Clock } from "lucide-react";
+import { Settings as SettingsIcon, DollarSign, Clock, Info } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useSettings } from "../../hooks/useSettings";
@@ -120,14 +120,14 @@ export function Settings() {
               }}>{isEditing ? "Cancel" : "Edit"}</button>
             </div>
             {section.fields.map(f => (
-              <div key={f.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div key={f.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
                 <span style={{ fontSize: 13, color: t.textMuted }}>{f.label}</span>
                 {isEditing ? (
                   f.kind !== "text" ? (
                     <select value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })} style={{
                       padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
                       background: t.bgAlt, fontSize: 13, color: t.text, outline: "none",
-                      minWidth: 160,
+                      minWidth: 160, maxWidth: "100%",
                     }}>
                       {SELECT_OPTIONS[f.kind].map(o => {
                         const rawValue = o.replace(/[%]|\s(minutes|hours)$/, "");
@@ -138,7 +138,7 @@ export function Settings() {
                     <input value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })} style={{
                       padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
                       background: t.bgAlt, fontSize: 13, color: t.text, outline: "none",
-                      textAlign: "right", width: 180,
+                      textAlign: "right", width: 180, maxWidth: "100%", boxSizing: "border-box",
                     }} />
                   )
                 ) : (
@@ -151,6 +151,15 @@ export function Settings() {
                 background: t.gold, color: "#0A0A0A", border: "none",
                 padding: "10px 24px", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: saving ? "wait" : "pointer", marginTop: 8,
               }}>{saving ? "Saving…" : "Save Changes"}</GoldButton>
+            )}
+            {section.key === "schedule" && (
+              <div style={{
+                display: "flex", alignItems: "flex-start", gap: 8, marginTop: 16, paddingTop: 16,
+                borderTop: `1px solid ${t.border}`, fontSize: 12, color: t.textMuted,
+              }}>
+                <Info size={14} color={t.gold} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>Booking reminders are sent daily at 6:00 AM.</span>
+              </div>
             )}
           </div>
         );

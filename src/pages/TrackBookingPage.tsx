@@ -325,7 +325,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                       <h4 style={{ fontSize: 14, fontWeight: 700 }}>
                         {actionMode === "reschedule" ? "Reschedule appointment" : actionMode === "cancel" ? "Cancel appointment" : "Confirm your deposit"}
                       </h4>
-                      <button onClick={closeAction} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
+                      <button className="tap-target-sm" onClick={closeAction} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
                         <X size={16} color={t.textMuted} />
                       </button>
                     </div>

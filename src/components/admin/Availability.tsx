@@ -105,7 +105,7 @@ export function Availability() {
       </div>
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 11, color: t.textMuted }}>
+      <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 11, color: t.textMuted, flexWrap: "wrap" }}>
         {[
           { color: "#D1FAE5", label: "Available" },
           { color: t.gold, label: "Booked" },
@@ -118,8 +118,10 @@ export function Availability() {
         ))}
       </div>
 
-      {/* Day columns */}
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleDays.length}, 1fr)`, gap: 6 }}>
+      {/* Day columns — horizontally scrollable as a contained unit on narrow screens,
+          since 7 equal columns can't stay legible below ~700px without one. */}
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 -4px", padding: "0 4px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleDays.length}, minmax(100px, 1fr))`, gap: 6, minWidth: visibleDays.length * 106 }}>
         {visibleDays.map((day) => {
           const isDefaultClosed = !day.isOpen;
           const dayOff = day.isDayBlocked || isDefaultClosed;
@@ -215,6 +217,7 @@ export function Availability() {
             </div>
           );
         })}
+      </div>
       </div>
     </>
   );

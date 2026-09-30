@@ -101,7 +101,7 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
             borderBottom: i < filtered.length - 1 ? `1px solid ${t.border}` : "none",
             transition: "background 0.2s",
           }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", rowGap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
               {o.customStyleUrl ? (
                 <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }} title="Open full photo">
@@ -118,8 +118,8 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
                 }}>{o.client[0]}</div>
               )}
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{o.client}</div>
-                <div style={{ fontSize: 12, color: t.textMuted }}>{o.service}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.client}</div>
+                <div style={{ fontSize: 12, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.service}</div>
                 <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{o.date} at {o.time}</div>
                 {o.customStyleDescription && (
                   <div style={{ fontSize: 11, color: t.textSoft, marginTop: 4, fontStyle: "italic", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -165,7 +165,7 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
           </div>
 
           {o.status === "quoted" && quotingId !== o.id && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}`, flexWrap: "wrap", gap: 8 }}>
               <span style={{ fontSize: 12, color: t.textMuted }}>Waiting for client deposit</span>
               <button onClick={() => confirmWithoutDeposit(o.id)} disabled={busyId === o.id} style={{
                 background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
@@ -175,7 +175,7 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
           )}
 
           {o.status === "deposit_paid" && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}`, gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}`, gap: 12, flexWrap: "wrap" }}>
               {o.paymentProofUrl ? (
                 <a href={o.paymentProofUrl} target="_blank" rel="noopener noreferrer" title="Open payment proof" style={{ flexShrink: 0 }}>
                   <img src={o.paymentProofUrl} alt="Payment proof" style={{

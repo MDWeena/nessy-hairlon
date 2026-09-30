@@ -56,9 +56,9 @@ export function ServicesPage({ navigate }: ServicesPageProps) {
             <div className="hover-lift" style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "20px 24px", background: t.surface, borderRadius: 12,
-              border: `1px solid ${t.border}`, cursor: "default",
+              border: `1px solid ${t.border}`, cursor: "default", flexWrap: "wrap", rowGap: 12,
             }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 16, minWidth: 0 }}>
                 {s.imageUrl ? (
                   <img src={s.imageUrl} alt="" style={{
                     width: 48, height: 48, borderRadius: 10, objectFit: "cover", flexShrink: 0,
@@ -72,8 +72,8 @@ export function ServicesPage({ navigate }: ServicesPageProps) {
                     <s.icon size={18} color={t.gold} strokeWidth={1.5} />
                   </div>
                 )}
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{s.name}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
                   <div style={{ fontSize: 13, color: t.textMuted }}>{s.desc}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, fontSize: 12, color: t.gold }}>
                     <Clock size={12} /> {s.duration}

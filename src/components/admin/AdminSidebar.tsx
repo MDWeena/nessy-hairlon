@@ -1,4 +1,4 @@
-import { TrendingUp, Calendar, Clock, Scissors, Star, Image, Settings, LogOut, ExternalLink } from "lucide-react";
+import { TrendingUp, Calendar, Clock, Scissors, Star, Image, Settings, LogOut, ExternalLink, X } from "lucide-react";
 import { LOGO_ICON } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
 import { useTestimonials } from "../../hooks/useTestimonials";
@@ -9,6 +9,8 @@ interface AdminSidebarProps {
   onSwitchPage: (page: string) => void;
   onViewSite: () => void;
   onLogout: () => void;
+  open: boolean;
+  onClose: () => void;
 }
 
 const SIDEBAR_ITEMS = [
@@ -21,26 +23,31 @@ const SIDEBAR_ITEMS = [
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
-export function AdminSidebar({ adminPage, onSwitchPage, onViewSite, onLogout }: AdminSidebarProps) {
+export function AdminSidebar({ adminPage, onSwitchPage, onViewSite, onLogout, open, onClose }: AdminSidebarProps) {
   const { t } = useTheme();
   const { testimonials } = useTestimonials();
   const pendingReviewCount = testimonials.filter(story => story.verified && !story.visible).length;
 
   return (
-    <aside style={{
+    <aside className={`admin-sidebar${open ? " open" : ""}`} style={{
       width: 220, background: t.surface, borderRight: `1px solid ${t.border}`,
       padding: "20px 12px", display: "flex", flexDirection: "column",
       height: "100vh", overflowY: "auto", boxSizing: "border-box", flexShrink: 0,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px 20px", borderBottom: `1px solid ${t.border}` }}>
         <img src={LOGO_ICON} alt="" style={{ width: 32, height: 32, borderRadius: "50%" }} />
-        <span style={{ fontFamily: "'Tangerine', cursive", fontSize: 28, fontWeight: 700 }}>Nessy <span style={{ color: t.gold }}>Hairlon</span></span>
+        <span style={{ fontFamily: "'Tangerine', cursive", fontSize: 28, fontWeight: 700, flex: 1 }}>Nessy <span style={{ color: t.gold }}>Hairlon</span></span>
+        <button className="admin-sidebar-close tap-target-sm" onClick={onClose} style={{
+          display: "none", background: "none", border: "none", cursor: "pointer", flexShrink: 0,
+        }}>
+          <X size={20} color={t.textMuted} />
+        </button>
       </div>
       <p style={{ fontSize: 10, color: t.textMuted, padding: "8px 12px 16px", letterSpacing: 2 }}>ADMIN PANEL</p>
 
       <div style={{ flex: 1 }}>
         {SIDEBAR_ITEMS.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => onSwitchPage(key)} style={{
+          <button key={key} onClick={() => { onSwitchPage(key); onClose(); }} style={{
             display: "flex", alignItems: "center", gap: 10, width: "100%",
             padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
             background: adminPage === key ? t.goldBg : "transparent",

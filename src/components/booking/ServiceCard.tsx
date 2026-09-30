@@ -25,7 +25,7 @@ export function ServiceCard({ service, selected, onToggle }: ServiceCardProps) {
           }} />
         ) : null}
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: t.text }}>{service.name}</div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{service.name}</div>
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>{service.desc}</div>
         </div>
       </div>

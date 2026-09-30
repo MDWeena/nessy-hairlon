@@ -181,8 +181,8 @@ export function ClientStories() {
                   border: `1px solid ${t.gold}30`,
                 }}>New — Approve?</div>
               )}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", rowGap: 12 }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                     {/* Avatar initial */}
                     <div style={{

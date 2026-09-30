@@ -13,7 +13,7 @@ export function TrustBar() {
   const { t } = useTheme();
   return (
     <FadeIn>
-      <div style={{
+      <div className="trust-bar" style={{
         display: "flex", justifyContent: "center", gap: 48, padding: "36px 24px",
         borderBottom: `1px solid ${t.border}`, flexWrap: "wrap",
       }}>

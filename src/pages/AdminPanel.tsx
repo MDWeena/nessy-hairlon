@@ -23,6 +23,7 @@ export function AdminPanel({ onViewSite, onLogout }: AdminPanelProps) {
   const [adminPage, setAdminPage] = useState("dashboard");
   const [adminLoading, setAdminLoading] = useState(false);
   const [ordersFilter, setOrdersFilter] = useState<OrderFilter>("all");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const switchAdminPage = (p: string, filter?: OrderFilter) => {
     setOrdersFilter(filter ?? "all");
@@ -36,11 +37,20 @@ export function AdminPanel({ onViewSite, onLogout }: AdminPanelProps) {
       <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", color: t.text, background: t.bg, height: "100vh", display: "flex", overflow: "hidden" }}>
         <link href="https://fonts.googleapis.com/css2?family=Tangerine:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
 
-        <AdminSidebar adminPage={adminPage} onSwitchPage={switchAdminPage} onViewSite={onViewSite} onLogout={onLogout} />
+        {sidebarOpen && (
+          <div className="admin-sidebar-backdrop" onClick={() => setSidebarOpen(false)} style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 199,
+          }} />
+        )}
+
+        <AdminSidebar
+          adminPage={adminPage} onSwitchPage={switchAdminPage} onViewSite={onViewSite} onLogout={onLogout}
+          open={sidebarOpen} onClose={() => setSidebarOpen(false)}
+        />
 
         {/* Main content */}
-        <main style={{ flex: 1, padding: "28px 32px", height: "100vh", overflowY: "auto", boxSizing: "border-box" }}>
-          <AdminTopBar adminPage={adminPage} />
+        <main className="admin-main" style={{ flex: 1, padding: "28px 32px", height: "100vh", overflowY: "auto", boxSizing: "border-box" }}>
+          <AdminTopBar adminPage={adminPage} onMenuClick={() => setSidebarOpen(true)} />
 
           {adminLoading ? <AdminLoader /> : (
             <>

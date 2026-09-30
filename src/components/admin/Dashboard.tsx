@@ -62,29 +62,29 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         ) : todaysBookings.map(o => (
           <div key={o.id} style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "14px 0", borderBottom: `1px solid ${t.border}`,
+            padding: "14px 0", borderBottom: `1px solid ${t.border}`, flexWrap: "wrap", rowGap: 8,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
               {o.customStyleUrl ? (
-                <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" title="Open full photo">
+                <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" title="Open full photo" style={{ flexShrink: 0 }}>
                   <img src={o.customStyleUrl} alt="Requested style" style={{
                     width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: `1px solid ${t.gold}40`, cursor: "pointer",
                   }} />
                 </a>
               ) : (
                 <div style={{
-                  width: 36, height: 36, borderRadius: "50%",
+                  width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
                   background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}10)`,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 14, fontWeight: 700, color: t.gold,
                 }}>{o.client[0]}</div>
               )}
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{o.client}</div>
-                <div style={{ fontSize: 12, color: t.textMuted }}>{o.service}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.client}</div>
+                <div style={{ fontSize: 12, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.service}</div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
               <span style={{ fontSize: 13, color: t.textSoft }}>{o.time}</span>
               <StatusBadge status={o.status} />
             </div>

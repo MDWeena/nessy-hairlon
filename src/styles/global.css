@@ -25,3 +25,51 @@
 
 @keyframes loaderSpin { to { transform: rotate(360deg); } }
 @keyframes loaderPulseAdmin { 0%,100% { transform: scale(0.92); } 50% { transform: scale(1.02); } }
+
+/* ── Mobile responsiveness ───────────────────────────────────────── */
+
+/* Belt-and-suspenders guard against any stray element causing page-level horizontal scroll. */
+html, body { overflow-x: hidden; max-width: 100%; }
+
+/* Booking flow: pin the day-picker and time-slot grids to exactly 2 columns on small phones,
+   rather than leaving it to auto-fit's column math (which can land on 1 or 3 depending on
+   viewport width). */
+@media (max-width: 480px) {
+  .day-picker-grid, .time-slot-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* Trust bar: tighten the gap between items on narrow screens instead of the desktop spacing. */
+@media (max-width: 640px) {
+  .trust-bar { gap: 20px !important; padding: 24px 20px !important; }
+}
+
+/* Icon-only buttons that are otherwise well under the 44px touch-target guideline on mobile —
+   applied selectively (nav hamburger, dismiss/close buttons), not globally, so it doesn't
+   inflate compact multi-segment controls like the theme toggle. */
+@media (max-width: 768px) {
+  .tap-target-sm { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+}
+
+/* Admin shell: sidebar becomes an off-canvas drawer with a hamburger trigger below 768px;
+   above that it's untouched (static, always visible, part of the flex row). */
+@media (max-width: 768px) {
+  .admin-sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 200;
+    width: 260px;
+    max-width: 82vw;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.2);
+  }
+  .admin-sidebar.open { transform: translateX(0); }
+  .admin-hamburger { display: flex !important; }
+  .admin-sidebar-close { display: flex !important; }
+  .admin-main { padding: 20px 16px !important; }
+}
+@media (min-width: 769px) {
+  .admin-hamburger { display: none !important; }
+  .admin-sidebar-backdrop { display: none !important; }
+  .admin-sidebar-close { display: none !important; }
+}

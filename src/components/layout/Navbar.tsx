@@ -64,7 +64,7 @@ export function Navbar({ navigate, page, scrolled, mobileNavOpen, onToggleMobile
       </div>
 
       {/* Mobile hamburger */}
-      <button className="mobile-menu-btn" onClick={onToggleMobileNav} style={{
+      <button className="mobile-menu-btn tap-target-sm" onClick={onToggleMobileNav} style={{
         background: "none", border: "none", cursor: "pointer", padding: 4,
         display: "none", alignItems: "center",
       }}>
