@@ -77,3 +77,34 @@ html, body { overflow-x: hidden; max-width: 100%; }
 /* Style detail modal (Gallery + Services) */
 @keyframes modalOverlayIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modalContentIn { from { opacity: 0; transform: scale(0.95) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+/* ── Developer-credit pill & card animations ── */
+@keyframes creditPillPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(196, 154, 108, 0.45); }
+  70%  { box-shadow: 0 0 0 8px rgba(196, 154, 108, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(196, 154, 108, 0); }
+}
+
+.credit-pill-pulse-once {
+  animation: creditPillPulse 1s ease-out 1;
+}
+
+@keyframes creditCardEnter {
+  from { opacity: 0; transform: scale(0.92) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.credit-card-enter {
+  animation: creditCardEnter 0.22s ease-out both;
+}
+
+@keyframes creditBorderDraw {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.credit-card-border-path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: creditBorderDraw 0.5s ease-out 0.15s forwards;
+}

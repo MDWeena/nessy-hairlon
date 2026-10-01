@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useSettings } from "../../hooks/useSettings";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 
@@ -6,6 +7,24 @@ const MESSAGE = "Hi Nessy, I'd like to book an appointment";
 export function WhatsAppButton() {
   const { settings } = useSettings();
   const href = buildWhatsAppUrl(settings.phone, MESSAGE);
+  const [hidden, setHidden] = useState(false);
+
+  // Hide the FAB when the user scrolls near the bottom of the page
+  // so it doesn't cover the footer's Manage button.
+  useEffect(() => {
+    function check() {
+      const scrollBottom = window.innerHeight + window.scrollY;
+      const threshold = document.documentElement.scrollHeight - 100;
+      setHidden(scrollBottom >= threshold);
+    }
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("resize", check, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("resize", check);
+    };
+  }, []);
 
   return (
     <>
@@ -27,10 +46,11 @@ export function WhatsAppButton() {
           cursor: pointer;
           text-decoration: none;
           animation: waPulse 1.8s ease-out 3;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
         }
         .wa-float-btn:hover { transform: scale(1.06); box-shadow: 0 6px 22px rgba(37,211,102,0.5); }
         .wa-float-btn:active { transform: scale(0.96); }
+        .wa-float-btn.wa-hidden { opacity: 0; pointer-events: none; }
         @keyframes waPulse {
           0%, 100% { box-shadow: 0 4px 16px rgba(37,211,102,0.4), 0 0 0 0 rgba(37,211,102,0.5); }
           50% { box-shadow: 0 4px 16px rgba(37,211,102,0.4), 0 0 0 12px rgba(37,211,102,0); }
@@ -43,7 +63,7 @@ export function WhatsAppButton() {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="wa-float-btn"
+        className={`wa-float-btn${hidden ? " wa-hidden" : ""}`}
         aria-label="Chat with us on WhatsApp"
       >
         <svg viewBox="0 0 24 24" width="60%" height="60%" fill="#fff" aria-hidden="true">
