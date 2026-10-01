@@ -232,10 +232,6 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
                 {loading ? "Signing in..." : "Sign In"}
                 {!loading && <ArrowRight size={16} />}
               </GoldButton>
-
-              <p style={{ fontSize: 11, color: t.textMuted, textAlign: "center", marginTop: 20 }}>
-                Admin access is managed via Supabase Auth.
-              </p>
             </>
           ) : (
             <>
