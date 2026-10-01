@@ -38,9 +38,15 @@ export function Footer({ navigate, onManageClick }: FooterProps) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#888", fontSize: 13 }}>
             <Phone size={14} color={t.gold} /> 0816 127 1343
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#888", fontSize: 13 }}>
+          <a href="https://www.instagram.com/nessy_hairlon/" target="_blank" rel="noopener noreferrer" style={{
+            display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#888", fontSize: 13,
+            textDecoration: "none", transition: "color 0.2s", width: "fit-content",
+          }}
+            onMouseEnter={(e: MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.color = t.gold; }}
+            onMouseLeave={(e: MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.color = "#888"; }}
+          >
             <Camera size={14} color={t.gold} /> @nessy_hairlon
-          </div>
+          </a>
           <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 13 }}>
             <MapPin size={14} color={t.gold} /> Lagos, Nigeria
           </div>
