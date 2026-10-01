@@ -7,7 +7,7 @@ interface PageTransition {
   pageLoading: boolean;
 }
 
-const DEEP_LINKABLE_PAGES = new Set(["track", "review"]);
+const DEEP_LINKABLE_PAGES = new Set(["track", "review", "reset-password"]);
 
 /** Lets emailed links like "/track" or "/review" land directly on that page instead of always opening on home. */
 function pageFromLocation(): string | null {

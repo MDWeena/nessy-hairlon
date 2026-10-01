@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, ChevronLeft, X } from "lucide-react";
+import { ArrowRight, ChevronLeft, Mail, X } from "lucide-react";
 import { LOGO_ICON } from "../assets/logos";
 import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../hooks/useAuth";
@@ -39,7 +39,7 @@ function clearAttempts() {
 
 export function AdminLogin({ onBack }: AdminLoginProps) {
   const { t, isDark } = useTheme();
-  const { signIn, signOut } = useAuth();
+  const { signIn, signOut, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -48,6 +48,11 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
     const rec = readAttempts();
     return rec.lockedUntil && rec.lockedUntil > Date.now() ? rec.lockedUntil : null;
   });
+
+  const [mode, setMode] = useState<"login" | "reset">("login");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Clear any stale/half-broken session so a fresh login always starts clean.
   useEffect(() => {
@@ -92,6 +97,28 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
     setLoading(false);
   };
 
+  const openResetMode = () => {
+    setError("");
+    setResetEmail(email);
+    setResetSent(false);
+    setMode("reset");
+  };
+
+  const backToLogin = () => {
+    setMode("login");
+    setResetSent(false);
+  };
+
+  const handleResetSubmit = async () => {
+    if (!resetEmail) return;
+    setResetLoading(true);
+    await resetPassword(resetEmail);
+    setResetLoading(false);
+    // Always show the same message, regardless of whether the email matched an
+    // account — surfacing a different result would let someone enumerate admin emails.
+    setResetSent(true);
+  };
+
   return (
     <div style={{
       fontFamily: "'DM Sans', system-ui, sans-serif",
@@ -130,72 +157,143 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
           <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>Admin Portal</p>
         </div>
 
-        {/* Login card */}
+        {/* Login / reset card */}
         <div style={{
           background: t.surface, borderRadius: 16, padding: 32,
           border: `1px solid ${t.border}`,
           boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.3)" : "0 8px 32px rgba(26,18,7,0.08)",
         }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Welcome back</h2>
-          <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>Sign in to manage your bookings</p>
+          {mode === "login" ? (
+            <>
+              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Welcome back</h2>
+              <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>Sign in to manage your bookings</p>
 
-          {(isLocked || error) && (
-            <div style={{
-              background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 8,
-              padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#DC2626",
-              display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <X size={14} /> {isLocked ? "Too many attempts. Try again in 5 minutes." : error}
-            </div>
+              {(isLocked || error) && (
+                <div style={{
+                  background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 8,
+                  padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#DC2626",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  <X size={14} /> {isLocked ? "Too many attempts. Try again in 5 minutes." : error}
+                </div>
+              )}
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email</label>
+                <input
+                  type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  style={{
+                    width: "100%", padding: "12px 14px", borderRadius: 10,
+                    border: `1px solid ${t.border}`, background: t.bgAlt,
+                    fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
+                    transition: "border-color 0.2s",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = t.gold)}
+                  onBlur={(e) => (e.target.style.borderColor = t.border)}
+                />
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Password</label>
+                <input
+                  type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  style={{
+                    width: "100%", padding: "12px 14px", borderRadius: 10,
+                    border: `1px solid ${t.border}`, background: t.bgAlt,
+                    fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
+                    transition: "border-color 0.2s",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = t.gold)}
+                  onBlur={(e) => (e.target.style.borderColor = t.border)}
+                />
+              </div>
+
+              <div style={{ textAlign: "right", marginBottom: 24 }}>
+                <button onClick={openResetMode} style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: t.textMuted, fontSize: 12, padding: 0, textDecoration: "underline",
+                  transition: "color 0.2s",
+                }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = t.gold)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = t.textMuted)}
+                >Forgot password?</button>
+              </div>
+
+              <GoldButton onClick={handleSubmit} disabled={loading || isLocked} style={{
+                width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
+                padding: "14px", fontSize: 15, fontWeight: 700,
+                cursor: loading || isLocked ? "wait" : "pointer", borderRadius: 10,
+                opacity: loading || isLocked ? 0.7 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}>
+                {loading ? "Signing in..." : "Sign In"}
+                {!loading && <ArrowRight size={16} />}
+              </GoldButton>
+
+              <p style={{ fontSize: 11, color: t.textMuted, textAlign: "center", marginTop: 20 }}>
+                Admin access is managed via Supabase Auth.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Reset your password</h2>
+              <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>
+                Enter your email and we'll send you a link to reset it.
+              </p>
+
+              {resetSent ? (
+                <div style={{
+                  background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 8,
+                  padding: "14px 16px", marginBottom: 20, fontSize: 13, color: t.textSoft,
+                  display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5,
+                }}>
+                  <Mail size={16} color={t.gold} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>If an account exists with that email, you'll receive a password reset link shortly. Check your inbox.</span>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email</label>
+                  <input
+                    type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    onKeyDown={(e) => e.key === "Enter" && handleResetSubmit()}
+                    style={{
+                      width: "100%", padding: "12px 14px", borderRadius: 10,
+                      border: `1px solid ${t.border}`, background: t.bgAlt,
+                      fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = t.gold)}
+                    onBlur={(e) => (e.target.style.borderColor = t.border)}
+                  />
+                </div>
+              )}
+
+              {!resetSent && (
+                <GoldButton onClick={handleResetSubmit} disabled={resetLoading || !resetEmail} style={{
+                  width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
+                  padding: "14px", fontSize: 15, fontWeight: 700,
+                  cursor: resetLoading ? "wait" : "pointer", borderRadius: 10,
+                  opacity: resetLoading || !resetEmail ? 0.7 : 1,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}>
+                  {resetLoading ? "Sending..." : "Send Reset Link"}
+                  {!resetLoading && <ArrowRight size={16} />}
+                </GoldButton>
+              )}
+
+              <button onClick={backToLogin} style={{
+                display: "block", margin: "20px auto 0", background: "none", border: "none",
+                cursor: "pointer", color: t.textMuted, fontSize: 13, transition: "color 0.2s",
+              }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = t.gold)}
+                onMouseLeave={(e) => (e.currentTarget.style.color = t.textMuted)}
+              >Back to login</button>
+            </>
           )}
-
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email</label>
-            <input
-              type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              style={{
-                width: "100%", padding: "12px 14px", borderRadius: 10,
-                border: `1px solid ${t.border}`, background: t.bgAlt,
-                fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = t.gold)}
-              onBlur={(e) => (e.target.style.borderColor = t.border)}
-            />
-          </div>
-
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Password</label>
-            <input
-              type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              style={{
-                width: "100%", padding: "12px 14px", borderRadius: 10,
-                border: `1px solid ${t.border}`, background: t.bgAlt,
-                fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = t.gold)}
-              onBlur={(e) => (e.target.style.borderColor = t.border)}
-            />
-          </div>
-
-          <GoldButton onClick={handleSubmit} disabled={loading || isLocked} style={{
-            width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "14px", fontSize: 15, fontWeight: 700,
-            cursor: loading || isLocked ? "wait" : "pointer", borderRadius: 10,
-            opacity: loading || isLocked ? 0.7 : 1,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}>
-            {loading ? "Signing in..." : "Sign In"}
-            {!loading && <ArrowRight size={16} />}
-          </GoldButton>
-
-          <p style={{ fontSize: 11, color: t.textMuted, textAlign: "center", marginTop: 20 }}>
-            Admin access is managed via Supabase Auth.
-          </p>
         </div>
 
         {/* Back to site */}

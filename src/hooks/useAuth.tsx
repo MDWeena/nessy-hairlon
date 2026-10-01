@@ -14,6 +14,7 @@ interface AuthContextValue {
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
   /** Arms/disarms the inactivity-timeout while the admin UI is mounted. Call true on mount, false on unmount. */
   setAdminContextActive: (active: boolean) => void;
 }
@@ -103,6 +104,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return { error: error ? error.message : null };
   }, []);
 
+  const resetPassword = useCallback(async (email: string): Promise<{ error: string | null }> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    return { error: error ? error.message : null };
+  }, []);
+
   const value: AuthContextValue = {
     session,
     user: session?.user ?? null,
@@ -110,6 +118,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     signIn,
     signOut,
+    resetPassword,
     setAdminContextActive,
   };
 

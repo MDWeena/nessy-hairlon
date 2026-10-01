@@ -15,6 +15,7 @@ import { BookingPage } from "./pages/BookingPage";
 import { TrackBookingPage } from "./pages/TrackBookingPage";
 import { LeaveReviewPage } from "./pages/LeaveReviewPage";
 import { AdminPanel } from "./pages/AdminPanel";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { WhatsAppButton } from "./components/ui/WhatsAppButton";
 
 export default function App() {
@@ -41,6 +42,17 @@ export default function App() {
       <AdminPanel
         onViewSite={() => { setIsAdmin(false); navigate("home"); }}
         onLogout={async () => { await signOut(); setIsAdmin(false); navigate("home"); }}
+      />
+    );
+  }
+
+  if (page === "reset-password") {
+    return (
+      <ResetPasswordPage
+        onGoToAdmin={() => {
+          window.history.replaceState(null, "", "/");
+          setIsAdmin(true);
+        }}
       />
     );
   }
