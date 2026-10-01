@@ -7,11 +7,13 @@ import { ErrorNotice } from "../ui/ErrorNotice";
 
 export function GalleryManager() {
   const { t } = useTheme();
-  const { entries, loading, error, updateStyleName, uploadImageForDay } = useGallery();
+  const { entries, loading, error, updateStyleName, uploadImageForDay, updateDescription } = useGallery();
   const [actionError, setActionError] = useState<string | null>(null);
   const [uploadingDay, setUploadingDay] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingDayRef = useRef<string | null>(null);
+  const [descDrafts, setDescDrafts] = useState<Record<string, string>>({});
+  const [savingDescDay, setSavingDescDay] = useState<string | null>(null);
 
   const triggerUpload = (dayOfWeek: string) => {
     setActionError(null);
@@ -43,6 +45,19 @@ export function GalleryManager() {
       await updateStyleName(dayOfWeek, next.trim());
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to update style name");
+    }
+  };
+
+  const saveDescription = async (dayOfWeek: string, currentDescription: string | null) => {
+    const draft = (descDrafts[dayOfWeek] ?? currentDescription ?? "").trim();
+    setActionError(null);
+    setSavingDescDay(dayOfWeek);
+    try {
+      await updateDescription(dayOfWeek, draft);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update description");
+    } finally {
+      setSavingDescDay(null);
     }
   };
 
@@ -107,6 +122,30 @@ export function GalleryManager() {
                   background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
                   padding: "6px 12px", fontSize: 12, cursor: "pointer", color: t.textSoft,
                 }}>Edit Name</button>
+              </div>
+
+              {/* Description */}
+              <div style={{ flexBasis: "100%", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <textarea
+                  value={descDrafts[s.dayOfWeek] ?? s.description ?? ""}
+                  onChange={(e) => setDescDrafts({ ...descDrafts, [s.dayOfWeek]: e.target.value })}
+                  placeholder="Brief description shown in the style detail popup…"
+                  rows={2}
+                  style={{
+                    flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
+                    background: t.bgAlt, fontSize: 13, color: t.text, outline: "none",
+                    fontFamily: "inherit", resize: "vertical", boxSizing: "border-box",
+                  }}
+                />
+                <button
+                  onClick={() => saveDescription(s.dayOfWeek, s.description)}
+                  disabled={savingDescDay === s.dayOfWeek}
+                  style={{
+                    background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
+                    padding: "8px 14px", fontSize: 12, fontWeight: 600, color: t.gold,
+                    cursor: savingDescDay === s.dayOfWeek ? "wait" : "pointer", flexShrink: 0,
+                  }}
+                >{savingDescDay === s.dayOfWeek ? "Saving…" : "Save"}</button>
               </div>
             </div>
           );

@@ -1,21 +1,46 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Shield } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
-import { useAvailability, formatHourLabel } from "../../hooks/useAvailability";
+import { supabase } from "../../lib/supabase";
+import { toISODateString, addDays } from "../../lib/date";
+import { useAvailability, formatHourLabel, hourFromLabel } from "../../hooks/useAvailability";
 import type { AvailabilityDay, AvailabilitySlot } from "../../hooks/useAvailability";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 
 const HOUR_OPTIONS = Array.from({ length: 22 - 6 + 1 }, (_, i) => i + 6); // 6 AM .. 10 PM
+const DAYS_AHEAD = 14;
 
 export function Availability() {
   const { t } = useTheme();
-  const { days, loading, error, blockDay, unblockDay, blockSlot, unblockSlot, openDay, closeDay } = useAvailability(14);
+  const { days, loading, error, blockDay, unblockDay, blockSlot, unblockSlot, openDay, closeDay } = useAvailability(DAYS_AHEAD);
   const [weekOffset, setWeekOffset] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
   const [openingDayKey, setOpeningDayKey] = useState<string | null>(null);
   const [openStartHour, setOpenStartHour] = useState(9);
   const [openEndHour, setOpenEndHour] = useState(17);
+  // "date-hour" -> client name. Admin-only (authenticated session has full SELECT on
+  // bookings), kept separate from useAvailability so that hook stays anon-safe/shared
+  // with the public booking flow, which must never see client PII.
+  const [clientNamesByHour, setClientNamesByHour] = useState<Map<string, string>>(new Map());
+
+  const fetchClientNames = useCallback(async () => {
+    const today = new Date();
+    const rangeStart = toISODateString(today);
+    const rangeEnd = toISODateString(addDays(today, DAYS_AHEAD - 1));
+    const { data } = await supabase.from("bookings").select("client_name, booking_date, booking_time, status")
+      .gte("booking_date", rangeStart).lte("booking_date", rangeEnd).neq("status", "cancelled");
+    const map = new Map<string, string>();
+    for (const row of data ?? []) {
+      const hour = hourFromLabel(row.booking_time);
+      if (hour !== null) map.set(`${row.booking_date}-${hour}`, row.client_name);
+    }
+    setClientNamesByHour(map);
+  }, []);
+
+  useEffect(() => {
+    fetchClientNames();
+  }, [fetchClientNames]);
 
   const visibleDays = days.slice(weekOffset * 7, weekOffset * 7 + 7);
 
@@ -110,6 +135,7 @@ export function Availability() {
           { color: "#D1FAE5", label: "Available" },
           { color: t.gold, label: "Booked" },
           { color: "#FEE2E2", label: "Blocked" },
+          { color: "#E5E7EB", label: "Buffer (too close to another booking)" },
           { color: t.bgAlt, label: "Closed" },
         ].map(l => (
           <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -121,11 +147,12 @@ export function Availability() {
       {/* Day columns — horizontally scrollable as a contained unit on narrow screens,
           since 7 equal columns can't stay legible below ~700px without one. */}
       <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 -4px", padding: "0 4px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleDays.length}, minmax(100px, 1fr))`, gap: 6, minWidth: visibleDays.length * 106 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleDays.length}, minmax(110px, 1fr))`, gap: 6, minWidth: visibleDays.length * 116 }}>
         {visibleDays.map((day) => {
           const isDefaultClosed = !day.isOpen;
           const dayOff = day.isDayBlocked || isDefaultClosed;
           const isOpeningThisDay = openingDayKey === day.dayKey;
+          const dateStr = toISODateString(day.date);
 
           return (
             <div key={day.dateLabel} style={{ opacity: dayOff && !isOpeningThisDay ? 0.45 : 1, transition: "opacity 0.3s" }}>
@@ -138,10 +165,21 @@ export function Availability() {
                 <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{day.dayKey}</div>
                 <div style={{ fontSize: 11, color: t.textMuted }}>{day.dateLabel}</div>
 
+                {day.isOpen && !dayOff && (
+                  <div style={{
+                    marginTop: 4, fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 8,
+                    display: "inline-block",
+                    background: day.isFull ? "#FEE2E2" : t.goldBg,
+                    color: day.isFull ? "#DC2626" : t.gold,
+                  }}>
+                    {day.isFull ? `Full (${day.bookingCount}/${day.maxSlotsPerDay})` : `${day.bookingCount} of ${day.maxSlotsPerDay} booked`}
+                  </div>
+                )}
+
                 {day.isOpen ? (
                   <>
                     <button onClick={() => toggleDay(day)} style={{
-                      marginTop: 6, fontSize: 10, padding: "2px 8px", borderRadius: 4,
+                      display: "block", margin: "6px auto 0", fontSize: 10, padding: "2px 8px", borderRadius: 4,
                       border: `1px solid ${day.isDayBlocked ? "#EF4444" : t.border}`,
                       background: day.isDayBlocked ? "#FEE2E2" : "transparent",
                       color: day.isDayBlocked ? "#DC2626" : t.textMuted,
@@ -191,20 +229,31 @@ export function Availability() {
                 <div style={{ display: "grid", gap: 3 }}>
                   {day.slots.map(slot => {
                     let bg = "#D1FAE520"; let borderCol = "#D1FAE5"; let textCol = "#065F46";
-                    if (slot.isBooked) { bg = t.goldBg; borderCol = t.gold; textCol = t.gold; }
+                    if (slot.isBlockedByGap) { bg = "#E5E7EB40"; borderCol = "#D1D5DB"; textCol = "#6B7280"; }
                     if (slot.isBlocked) { bg = "#FEE2E220"; borderCol = "#FCA5A5"; textCol = "#DC2626"; }
+                    if (slot.isBooked) { bg = t.goldBg; borderCol = t.gold; textCol = t.gold; }
+                    const clientName = clientNamesByHour.get(`${dateStr}-${slot.hour}`);
 
                     return (
                       <button key={slot.hour} onClick={() => toggleSlot(day, slot)}
-                        disabled={slot.isBooked}
+                        disabled={slot.isBooked || slot.isBlockedByGap}
+                        title={slot.isBlockedByGap ? "Too close to another booking" : clientName}
                         style={{
                           padding: "6px 2px", borderRadius: 4, fontSize: 10, fontWeight: 500,
                           border: `1px solid ${borderCol}`, background: bg, color: textCol,
-                          cursor: slot.isBooked ? "default" : "pointer",
+                          cursor: slot.isBooked || slot.isBlockedByGap ? "default" : "pointer",
                           textDecoration: slot.isBlocked ? "line-through" : "none",
-                          transition: "all 0.2s",
+                          transition: "all 0.2s", lineHeight: 1.3,
                         }}
-                      >{slot.label}{slot.isBooked ? " ★" : ""}</button>
+                      >
+                        {slot.label}
+                        {slot.isBooked && (
+                          <span style={{ display: "block", fontSize: 9, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {clientName ?? "Booked"}
+                          </span>
+                        )}
+                        {slot.isBlockedByGap && <span style={{ display: "block", fontSize: 9 }}>buffer</span>}
+                      </button>
                     );
                   })}
                 </div>

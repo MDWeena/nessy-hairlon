@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { addDays, toISODateString } from "../lib/date";
 import type { BookingDay } from "../types";
+import type { Database } from "../types/database";
 
 const DAY_KEYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -14,6 +15,8 @@ export interface AvailabilitySlot {
   isBlocked: boolean;
   /** Falls within the business's configured min_booking_notice_hours window from right now. */
   isTooSoon: boolean;
+  /** Not itself booked, but within min_gap_hours of another booking that day (either direction). */
+  isBlockedByGap: boolean;
 }
 
 export interface AvailabilityDay {
@@ -24,6 +27,11 @@ export interface AvailabilityDay {
   isOpen: boolean;
   isDayBlocked: boolean;
   slots: AvailabilitySlot[];
+  bookingCount: number;
+  maxSlotsPerDay: number;
+  minGapHours: number;
+  /** bookingCount >= maxSlotsPerDay — the whole day is at capacity regardless of which hours are free. */
+  isFull: boolean;
 }
 
 export function formatHourLabel(hour: number): string {
@@ -96,10 +104,15 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
       }
     }
 
-    const bookedSlotSet = new Set<string>();
+    // Booked hours per date — need the full list (not just a boolean) to compute
+    // the min-gap exclusion zone around each booking, in both directions.
+    const bookedHoursByDate = new Map<string, number[]>();
     for (const row of bookingsRes.data) {
       const hour = hourFromLabel(row.booking_time);
-      if (hour !== null) bookedSlotSet.add(`${row.booking_date}-${hour}`);
+      if (hour === null) continue;
+      const list = bookedHoursByDate.get(row.booking_date) ?? [];
+      list.push(hour);
+      bookedHoursByDate.set(row.booking_date, list);
     }
 
     const result: AvailabilityDay[] = [];
@@ -111,17 +124,28 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
       const isOpen = sched?.is_open ?? false;
       const isDayBlocked = blockedDaySet.has(dateStr);
 
+      const bookedHours = bookedHoursByDate.get(dateStr) ?? [];
+      const bookedHourSet = new Set(bookedHours);
+      const maxSlotsPerDay = sched?.max_slots_per_day ?? 3;
+      const minGapHours = sched?.min_gap_hours ?? 3;
+      const isFull = bookedHours.length >= maxSlotsPerDay;
+
       const slots: AvailabilitySlot[] = [];
       if (isOpen && sched) {
-        for (let h = sched.start_hour; h < sched.end_hour; h++) {
+        // Inclusive of end_hour — e.g. start=10/end=16 means the 4:00 PM slot is bookable,
+        // it's the START of the last appointment, not the closing time.
+        for (let h = sched.start_hour; h <= sched.end_hour; h++) {
           const appointment = new Date(date);
           appointment.setHours(h, 0, 0, 0);
+          const isBooked = bookedHourSet.has(h);
+          const isBlockedByGap = !isBooked && bookedHours.some(bh => Math.abs(h - bh) < minGapHours);
           slots.push({
             hour: h,
             label: formatHourLabel(h),
-            isBooked: bookedSlotSet.has(`${dateStr}-${h}`),
+            isBooked,
             isBlocked: blockedSlotSet.has(`${dateStr}-${h}`),
             isTooSoon: appointment.getTime() - now < noticeMs,
+            isBlockedByGap,
           });
         }
       }
@@ -131,6 +155,7 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
         dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
         fullLabel: `${dayKey}, ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
         isOpen, isDayBlocked, slots,
+        bookingCount: bookedHours.length, maxSlotsPerDay, minGapHours, isFull,
       });
     }
 
@@ -187,9 +212,9 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
   }, [fetchAvailability]);
 
   const bookingDays: BookingDay[] = days
-    .filter(d => d.isOpen && !d.isDayBlocked)
+    .filter(d => d.isOpen && !d.isDayBlocked && !d.isFull)
     .map(d => {
-      const available = d.slots.filter(s => !s.isBooked && !s.isBlocked && !s.isTooSoon);
+      const available = d.slots.filter(s => !s.isBooked && !s.isBlocked && !s.isTooSoon && !s.isBlockedByGap);
       return {
         key: d.dayKey, label: d.fullLabel, date: toISODateString(d.date),
         slots: available.map(s => s.label), slotCount: available.length,
@@ -198,4 +223,71 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
     .filter(d => d.slotCount > 0);
 
   return { days, bookingDays, loading, error, refetch: fetchAvailability, blockDay, unblockDay, blockSlot, unblockSlot, openDay, closeDay };
+}
+
+export interface ScheduleRule {
+  maxSlotsPerDay: number;
+  minGapHours: number;
+}
+
+interface UseScheduleRulesResult {
+  weekday: ScheduleRule | null;
+  sunday: ScheduleRule | null;
+  loading: boolean;
+  error: string | null;
+  updateWeekday: (rule: ScheduleRule) => Promise<void>;
+  updateSunday: (rule: ScheduleRule) => Promise<void>;
+}
+
+const WEEKDAY_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * Lightweight counterpart to useAvailability for the admin Settings page — reads/writes
+ * only the per-day capacity rules (max_slots_per_day, min_gap_hours) on schedule_defaults,
+ * without pulling in the full multi-week slot computation.
+ */
+export function useScheduleRules(): UseScheduleRulesResult {
+  const [rows, setRows] = useState<Database["public"]["Tables"]["schedule_defaults"]["Row"][]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRules = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const { data, error: fetchError } = await supabase.from("schedule_defaults").select("*");
+    if (fetchError) { setError(fetchError.message); setLoading(false); return; }
+    setRows(data ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
+
+  const updateWeekday = useCallback(async (rule: ScheduleRule) => {
+    await assertAuthenticated();
+    const { error: updateError } = await supabase.from("schedule_defaults")
+      .update({ max_slots_per_day: rule.maxSlotsPerDay, min_gap_hours: rule.minGapHours })
+      .in("day_key", WEEKDAY_KEYS);
+    if (updateError) await handleWriteError(updateError);
+    await fetchRules();
+  }, [fetchRules]);
+
+  const updateSunday = useCallback(async (rule: ScheduleRule) => {
+    await assertAuthenticated();
+    const { error: updateError } = await supabase.from("schedule_defaults")
+      .update({ max_slots_per_day: rule.maxSlotsPerDay, min_gap_hours: rule.minGapHours })
+      .eq("day_key", "Sun");
+    if (updateError) await handleWriteError(updateError);
+    await fetchRules();
+  }, [fetchRules]);
+
+  const weekdayRow = rows.find(r => WEEKDAY_KEYS.includes(r.day_key));
+  const sundayRow = rows.find(r => r.day_key === "Sun");
+
+  return {
+    weekday: weekdayRow ? { maxSlotsPerDay: weekdayRow.max_slots_per_day, minGapHours: weekdayRow.min_gap_hours } : null,
+    sunday: sundayRow ? { maxSlotsPerDay: sundayRow.max_slots_per_day, minGapHours: sundayRow.min_gap_hours } : null,
+    loading, error, updateWeekday, updateSunday,
+  };
 }

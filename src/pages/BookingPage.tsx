@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { useServices } from "../hooks/useServices";
 import { useAvailability } from "../hooks/useAvailability";
@@ -14,9 +14,11 @@ import type { NavigateFn } from "../types";
 
 interface BookingPageProps {
   navigate: NavigateFn;
+  preselectedService?: string | null;
+  onConsumePreselectedService?: () => void;
 }
 
-export function BookingPage({ navigate }: BookingPageProps) {
+export function BookingPage({ navigate, preselectedService, onConsumePreselectedService }: BookingPageProps) {
   const { t } = useTheme();
   const { services, loading: servicesLoading, error: servicesError } = useServices();
   const { bookingDays, loading: availabilityLoading, error: availabilityError } = useAvailability();
@@ -33,6 +35,19 @@ export function BookingPage({ navigate }: BookingPageProps) {
     setSelectedServices(serviceNames.filter(name => services.flatMap(c => c.items).some(s => s.name === name)));
     setHistoryResolved(true);
   };
+
+  // Arrived here via a "Book This Style/Service" CTA elsewhere on the site — pre-select
+  // it, skip the "booked before?" step, and consume it so it doesn't linger on a later visit.
+  useEffect(() => {
+    if (!preselectedService || services.length === 0) return;
+    const allNames = services.flatMap(c => c.items).map(s => s.name);
+    if (allNames.includes(preselectedService)) {
+      setSelectedServices([preselectedService]);
+      setHistoryResolved(true);
+    }
+    onConsumePreselectedService?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedService, services]);
 
   const allServices = services.flatMap(c => c.items);
   const selectedDay = selectedDayIdx !== null ? bookingDays[selectedDayIdx] : null;

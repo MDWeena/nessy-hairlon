@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Settings as SettingsIcon, DollarSign, Clock, Info } from "lucide-react";
+import { Settings as SettingsIcon, DollarSign, Clock, Info, CalendarRange } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useSettings } from "../../hooks/useSettings";
 import type { SettingsMap } from "../../hooks/useSettings";
+import { useScheduleRules } from "../../hooks/useAvailability";
+import type { ScheduleRule } from "../../hooks/useAvailability";
 import { GoldButton } from "../ui/GoldButton";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -28,6 +30,7 @@ const SECTIONS: SectionDef[] = [
     { label: "Business Name", settingKey: "business_name", kind: "text" },
     { label: "Phone", settingKey: "phone", kind: "text" },
     { label: "Instagram", settingKey: "instagram", kind: "text" },
+    { label: "Location URL", settingKey: "location_url", kind: "text" },
   ]},
   { key: "payment", title: "Payment Details", icon: DollarSign, fields: [
     { label: "Bank", settingKey: "bank_name", kind: "text" },
@@ -58,6 +61,127 @@ function displayValue(kind: FieldKind, raw: string | number | undefined): string
 function parseValue(kind: FieldKind, display: string): string | number {
   if (kind === "text") return display;
   return parseInt(display, 10);
+}
+
+const MAX_SLOTS_OPTIONS = [1, 2, 3, 4, 5, 6];
+const GAP_HOURS_OPTIONS = [1, 2, 3, 4, 5, 6];
+
+interface BookingRuleCardProps {
+  title: string;
+  rule: ScheduleRule | null;
+  onSave: (rule: ScheduleRule) => Promise<void>;
+}
+
+function BookingRuleCard({ title, rule, onSave }: BookingRuleCardProps) {
+  const { t } = useTheme();
+  const [isEditing, setIsEditing] = useState(false);
+  const [maxSlots, setMaxSlots] = useState(rule?.maxSlotsPerDay ?? 3);
+  const [gapHours, setGapHours] = useState(rule?.minGapHours ?? 3);
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const startEdit = () => {
+    setActionError(null);
+    setMaxSlots(rule?.maxSlotsPerDay ?? 3);
+    setGapHours(rule?.minGapHours ?? 3);
+    setIsEditing(true);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setActionError(null);
+    try {
+      await onSave({ maxSlotsPerDay: maxSlots, minGapHours: gapHours });
+      setIsEditing(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{
+      background: t.bgAlt, borderRadius: 10, padding: 18,
+      border: `1px solid ${t.border}`, marginBottom: 12,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isEditing ? 14 : 0 }}>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>{title}</span>
+        <button onClick={() => isEditing ? setIsEditing(false) : startEdit()} style={{
+          background: isEditing ? t.goldBg : "none", border: `1px solid ${isEditing ? t.gold : t.border}`,
+          borderRadius: 6, padding: "4px 12px", fontSize: 11, fontWeight: 600,
+          cursor: "pointer", color: isEditing ? t.gold : t.textMuted,
+        }}>{isEditing ? "Cancel" : "Edit"}</button>
+      </div>
+      {actionError && <ErrorNotice message={actionError} />}
+      {isEditing ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: t.textMuted }}>Max bookings per day</span>
+            <select value={maxSlots} onChange={(e) => setMaxSlots(Number(e.target.value))} style={{
+              padding: "6px 10px", borderRadius: 8, border: `1px solid ${t.border}`,
+              background: t.surface, fontSize: 13, color: t.text, outline: "none",
+            }}>
+              {MAX_SLOTS_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: t.textMuted }}>Min gap between bookings (hours)</span>
+            <select value={gapHours} onChange={(e) => setGapHours(Number(e.target.value))} style={{
+              padding: "6px 10px", borderRadius: 8, border: `1px solid ${t.border}`,
+              background: t.surface, fontSize: 13, color: t.text, outline: "none",
+            }}>
+              {GAP_HOURS_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <GoldButton onClick={save} disabled={saving} style={{
+            background: t.gold, color: "#0A0A0A", border: "none",
+            padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+            cursor: saving ? "wait" : "pointer", width: "fit-content",
+          }}>{saving ? "Saving…" : "Save"}</GoldButton>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 20, marginTop: 10 }}>
+          <div>
+            <span style={{ fontSize: 11, color: t.textMuted, display: "block" }}>Max per day</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{rule ? rule.maxSlotsPerDay : "—"}</span>
+          </div>
+          <div>
+            <span style={{ fontSize: 11, color: t.textMuted, display: "block" }}>Min gap</span>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>{rule ? `${rule.minGapHours} hrs` : "—"}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BookingRulesSection() {
+  const { t } = useTheme();
+  const { weekday, sunday, loading, error, updateWeekday, updateSunday } = useScheduleRules();
+
+  return (
+    <div style={{
+      background: t.surface, borderRadius: 12, padding: 24,
+      border: `1px solid ${t.border}`, marginBottom: 20,
+    }}>
+      <h3 style={{ fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 20, paddingBottom: 12, borderBottom: `1px solid ${t.border}` }}>
+        <CalendarRange size={16} color={t.gold} /> Booking Rules
+      </h3>
+      <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 16 }}>
+        Caps how many appointments can land on one day, and how far apart they're spaced. Sunday is set separately since hours are shorter.
+      </p>
+      {error && <ErrorNotice message={error} />}
+      {loading ? (
+        <LoadingNotice label="Loading booking rules…" />
+      ) : (
+        <>
+          <BookingRuleCard title="Monday – Saturday" rule={weekday} onSave={updateWeekday} />
+          <BookingRuleCard title="Sunday" rule={sunday} onSave={updateSunday} />
+        </>
+      )}
+    </div>
+  );
 }
 
 export function Settings() {
@@ -164,6 +288,7 @@ export function Settings() {
           </div>
         );
       })}
+      <BookingRulesSection />
     </div>
   );
 }

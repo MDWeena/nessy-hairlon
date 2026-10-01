@@ -24,10 +24,16 @@ export default function App() {
   const { signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [preselectedService, setPreselectedService] = useState<string | null>(null);
 
   const navigate: NavigateFn = (p) => {
     setMobileNavOpen(false);
     rawNavigate(p);
+  };
+
+  const bookService = (serviceName: string) => {
+    setPreselectedService(serviceName);
+    navigate("book");
   };
 
   if (isAdmin) {
@@ -60,9 +66,15 @@ export default function App() {
       {pageLoading ? <ClientLoader /> : (
         <>
           {page === "home" && <HomePage navigate={navigate} />}
-          {page === "services" && <ServicesPage navigate={navigate} />}
-          {page === "gallery" && <GalleryPage navigate={navigate} />}
-          {page === "book" && <BookingPage navigate={navigate} />}
+          {page === "services" && <ServicesPage navigate={navigate} onBookService={bookService} />}
+          {page === "gallery" && <GalleryPage navigate={navigate} onBookService={bookService} />}
+          {page === "book" && (
+            <BookingPage
+              navigate={navigate}
+              preselectedService={preselectedService}
+              onConsumePreselectedService={() => setPreselectedService(null)}
+            />
+          )}
           {page === "track" && <TrackBookingPage navigate={navigate} />}
           {page === "review" && <LeaveReviewPage />}
         </>

@@ -2,24 +2,33 @@ import { useEffect, useState } from "react";
 import { Clock, Image } from "lucide-react";
 import { useServices } from "../hooks/useServices";
 import { useTheme } from "../context/ThemeContext";
-import type { NavigateFn } from "../types";
+import type { NavigateFn, ServiceItem } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { LoadingNotice } from "../components/ui/LoadingNotice";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
+import { StyleDetailModal } from "../components/ui/StyleDetailModal";
 
 interface ServicesPageProps {
   navigate: NavigateFn;
+  onBookService: (serviceName: string) => void;
 }
 
-export function ServicesPage({ navigate }: ServicesPageProps) {
+export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
   const { t, isDark } = useTheme();
   const { services, loading, error } = useServices();
   const [activeTab, setActiveTab] = useState<string | null>(null);
+  const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
 
   useEffect(() => {
     if (activeTab === null && services.length > 0) setActiveTab(services[0].cat);
   }, [activeTab, services]);
+
+  const handleBook = () => {
+    if (!selectedService) return;
+    setSelectedService(null);
+    onBookService(selectedService.name);
+  };
 
   return (
     <section style={{ padding: "48px 24px 72px", maxWidth: 800, margin: "0 auto" }}>
@@ -53,10 +62,10 @@ export function ServicesPage({ navigate }: ServicesPageProps) {
       <div style={{ display: "grid", gap: 12 }}>
         {services.find(s => s.cat === activeTab)?.items.map((s, i) => (
           <FadeIn key={s.name} delay={0.05 * (i + 1)}>
-            <div className="hover-lift" style={{
+            <div className="hover-lift" onClick={() => setSelectedService(s)} style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "20px 24px", background: t.surface, borderRadius: 12,
-              border: `1px solid ${t.border}`, cursor: "default", flexWrap: "wrap", rowGap: 12,
+              border: `1px solid ${t.border}`, cursor: "pointer", flexWrap: "wrap", rowGap: 12,
             }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 16, minWidth: 0 }}>
                 {s.imageUrl ? (
@@ -121,6 +130,19 @@ export function ServicesPage({ navigate }: ServicesPageProps) {
       </FadeIn>
         </>
       )}
+
+      <StyleDetailModal
+        open={!!selectedService}
+        onClose={() => setSelectedService(null)}
+        imageUrl={selectedService?.imageUrl ?? null}
+        title={selectedService?.name ?? ""}
+        description={selectedService?.desc}
+        duration={selectedService?.duration}
+        price={selectedService ? (selectedService.price || selectedService.priceRange || null) : null}
+        priceNote={selectedService && !selectedService.price ? "Final price on request" : null}
+        ctaLabel="Book This Service"
+        onBook={handleBook}
+      />
     </section>
   );
 }

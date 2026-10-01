@@ -44,6 +44,8 @@ export interface Database {
           is_open: boolean;
           start_hour: number;
           end_hour: number;
+          max_slots_per_day: number;
+          min_gap_hours: number;
         };
         Insert: {
           id?: string;
@@ -51,6 +53,8 @@ export interface Database {
           is_open?: boolean;
           start_hour?: number;
           end_hour?: number;
+          max_slots_per_day?: number;
+          min_gap_hours?: number;
         };
         Update: Partial<Database["public"]["Tables"]["schedule_defaults"]["Insert"]>;
         Relationships: [];
@@ -169,6 +173,7 @@ export interface Database {
           day_of_week: string;
           style_name: string;
           image_url: string | null;
+          description: string | null;
           updated_at: string;
         };
         Insert: {
@@ -176,6 +181,7 @@ export interface Database {
           day_of_week: string;
           style_name: string;
           image_url?: string | null;
+          description?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["gallery"]["Insert"]>;

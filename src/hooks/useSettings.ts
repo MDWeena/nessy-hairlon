@@ -15,6 +15,7 @@ export interface SettingsMap {
   deposit_percentage: number;
   slot_duration_minutes: number;
   min_booking_notice_hours: number;
+  location_url: string;
 }
 
 interface UseSettingsResult {

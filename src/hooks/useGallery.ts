@@ -12,6 +12,7 @@ export interface GalleryEntry {
   dayOfWeek: string;
   styleName: string;
   imageUrl: string | null;
+  description: string | null;
 }
 
 interface UseGalleryResult {
@@ -21,6 +22,7 @@ interface UseGalleryResult {
   refetch: () => Promise<void>;
   updateStyleName: (dayOfWeek: string, styleName: string) => Promise<void>;
   uploadImageForDay: (dayOfWeek: string, file: File) => Promise<void>;
+  updateDescription: (dayOfWeek: string, description: string) => Promise<void>;
 }
 
 export function useGallery(): UseGalleryResult {
@@ -66,8 +68,16 @@ export function useGallery(): UseGalleryResult {
     await fetchGallery();
   }, [fetchGallery]);
 
+  const updateDescription = useCallback(async (dayOfWeek: string, description: string) => {
+    await assertAuthenticated();
+    const { error: updateError } = await supabase.from("gallery")
+      .update({ description: description || null, updated_at: new Date().toISOString() }).eq("day_of_week", dayOfWeek);
+    if (updateError) await handleWriteError(updateError);
+    await fetchGallery();
+  }, [fetchGallery]);
+
   return {
-    entries: rows.map(r => ({ dayOfWeek: r.day_of_week, styleName: r.style_name, imageUrl: r.image_url })),
-    loading, error, refetch: fetchGallery, updateStyleName, uploadImageForDay,
+    entries: rows.map(r => ({ dayOfWeek: r.day_of_week, styleName: r.style_name, imageUrl: r.image_url, description: r.description })),
+    loading, error, refetch: fetchGallery, updateStyleName, uploadImageForDay, updateDescription,
   };
 }

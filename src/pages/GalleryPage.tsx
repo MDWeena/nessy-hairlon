@@ -1,19 +1,46 @@
+import { useState } from "react";
 import { Scissors, ArrowRight, Upload } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useGallery } from "../hooks/useGallery";
+import type { GalleryEntry } from "../hooks/useGallery";
+import { useServices } from "../hooks/useServices";
+import type { ServiceItem } from "../types";
 import type { NavigateFn } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { LoadingNotice } from "../components/ui/LoadingNotice";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
+import { StyleDetailModal } from "../components/ui/StyleDetailModal";
 
 interface GalleryPageProps {
   navigate: NavigateFn;
+  onBookService: (serviceName: string) => void;
 }
 
-export function GalleryPage({ navigate }: GalleryPageProps) {
+/** Gallery styles are protective-style categories, not literal service names — matched by keyword. */
+function findMatchingService(styleName: string, allServices: ServiceItem[]): ServiceItem | undefined {
+  const lower = styleName.toLowerCase();
+  if (lower.includes("loc")) return allServices.find(s => s.name === "Locs");
+  if (lower.includes("braid") || lower.includes("cornrow") || lower.includes("twist")) {
+    return allServices.find(s => s.name === "Braiding");
+  }
+  return undefined;
+}
+
+export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
   const { t, isDark } = useTheme();
   const { entries, loading, error } = useGallery();
+  const { services } = useServices();
+  const [selectedEntry, setSelectedEntry] = useState<GalleryEntry | null>(null);
+
+  const allServices = services.flatMap(c => c.items);
+  const matchedService = selectedEntry ? findMatchingService(selectedEntry.styleName, allServices) : undefined;
+
+  const handleBook = () => {
+    setSelectedEntry(null);
+    if (matchedService) onBookService(matchedService.name);
+    else navigate("book");
+  };
 
   return (
     <section style={{ padding: "48px 24px 72px", maxWidth: 900, margin: "0 auto" }}>
@@ -33,7 +60,7 @@ export function GalleryPage({ navigate }: GalleryPageProps) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
         {entries.map((entry, i) => (
           <FadeIn key={entry.dayOfWeek} delay={0.06 * (i + 1)}>
-            <div className="hover-lift" style={{
+            <div className="hover-lift" onClick={() => setSelectedEntry(entry)} style={{
               background: t.surface, borderRadius: 16, overflow: "hidden",
               border: `1px solid ${t.border}`, cursor: "pointer",
             }}>
@@ -67,7 +94,7 @@ export function GalleryPage({ navigate }: GalleryPageProps) {
               <div style={{ padding: "16px 20px" }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{entry.styleName}</h3>
                 <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 12 }}>Featured style for {entry.dayOfWeek}</p>
-                <button onClick={() => navigate("book")} style={{
+                <button onClick={(e) => { e.stopPropagation(); setSelectedEntry(entry); }} style={{
                   background: "none", border: "none", cursor: "pointer",
                   color: t.gold, fontSize: 13, fontWeight: 600, padding: 0,
                   display: "flex", alignItems: "center", gap: 4,
@@ -94,6 +121,19 @@ export function GalleryPage({ navigate }: GalleryPageProps) {
       </FadeIn>
         </>
       )}
+
+      <StyleDetailModal
+        open={!!selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+        imageUrl={selectedEntry?.imageUrl ?? null}
+        title={selectedEntry?.styleName ?? ""}
+        subtitle={selectedEntry ? `Featured style for ${selectedEntry.dayOfWeek}` : undefined}
+        description={selectedEntry?.description}
+        price={matchedService ? (matchedService.price || matchedService.priceRange || null) : null}
+        priceNote={matchedService && !matchedService.price ? "Final price on request" : null}
+        ctaLabel="Book This Style"
+        onBook={handleBook}
+      />
     </section>
   );
 }

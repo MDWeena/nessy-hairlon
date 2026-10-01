@@ -2,6 +2,8 @@ import { Phone, Camera, MapPin } from "lucide-react";
 import type { MouseEvent } from "react";
 import { LOGO_ICON } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
+import { useSettings } from "../../hooks/useSettings";
+import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import type { NavigateFn } from "../../types";
 import { WeenaCredit } from "./WeenaCredit";
 
@@ -10,8 +12,20 @@ interface FooterProps {
   onManageClick: () => void;
 }
 
+const FALLBACK_LOCATION_URL = "https://www.google.com/maps/search/?api=1&query=Lagos,Nigeria";
+
 export function Footer({ navigate, onManageClick }: FooterProps) {
   const { t, isDark } = useTheme();
+  const { settings } = useSettings();
+  const whatsappHref = buildWhatsAppUrl(settings.phone, "Hi Nessy, I'd like to book an appointment");
+  const locationHref = settings.location_url || FALLBACK_LOCATION_URL;
+
+  const footerLinkStyle = {
+    display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#888", fontSize: 13,
+    textDecoration: "none", transition: "color 0.2s", width: "fit-content",
+  } as const;
+  const onLinkEnter = (e: MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.color = t.gold; };
+  const onLinkLeave = (e: MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.color = "#888"; };
 
   return (
     <footer style={{ background: isDark ? "#0A0806" : "#1E1914", color: isDark ? "#999" : "#aaa", padding: "56px 24px 32px" }}>
@@ -35,21 +49,21 @@ export function Footer({ navigate, onManageClick }: FooterProps) {
         </div>
         <div>
           <h4 style={{ color: "#ccc", fontSize: 13, fontWeight: 700, marginBottom: 16, letterSpacing: 0.5 }}>Get in touch</h4>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#888", fontSize: 13 }}>
+          <a href={whatsappHref} target="_blank" rel="noopener noreferrer" style={footerLinkStyle}
+            onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}
+          >
             <Phone size={14} color={t.gold} /> 0816 127 1343
-          </div>
-          <a href="https://www.instagram.com/nessy_hairlon/" target="_blank" rel="noopener noreferrer" style={{
-            display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#888", fontSize: 13,
-            textDecoration: "none", transition: "color 0.2s", width: "fit-content",
-          }}
-            onMouseEnter={(e: MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.color = t.gold; }}
-            onMouseLeave={(e: MouseEvent<HTMLAnchorElement>) => { e.currentTarget.style.color = "#888"; }}
+          </a>
+          <a href="https://www.instagram.com/nessy_hairlon/" target="_blank" rel="noopener noreferrer" style={footerLinkStyle}
+            onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}
           >
             <Camera size={14} color={t.gold} /> @nessy_hairlon
           </a>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#888", fontSize: 13 }}>
+          <a href={locationHref} target="_blank" rel="noopener noreferrer" style={{ ...footerLinkStyle, marginBottom: 0 }}
+            onMouseEnter={onLinkEnter} onMouseLeave={onLinkLeave}
+          >
             <MapPin size={14} color={t.gold} /> Lagos, Nigeria
-          </div>
+          </a>
         </div>
       </div>
       <div style={{ borderTop: "1px solid #1E1E1E", paddingTop: 20, marginTop: 40 }}>
