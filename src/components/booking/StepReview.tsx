@@ -9,6 +9,7 @@ import type { AttachmentPreference, BookingDay, NavigateFn, ServiceItem } from "
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 
 interface StepReviewProps {
   allServices: ServiceItem[];
@@ -239,7 +240,7 @@ export function StepReview({
             cursor: submitting ? "wait" : "pointer", borderRadius: 6, display: "flex",
             alignItems: "center", justifyContent: "center", gap: 8,
           }}>
-            <Check size={18} /> {submitting ? "Submitting…" : "Submit Booking Request"}
+            {submitting ? <GoldSpinner size={18} color="#0A0A0A" /> : <Check size={18} />} {submitting ? "Submitting…" : "Submit Booking Request"}
           </GoldButton>
         </div>
       </div>

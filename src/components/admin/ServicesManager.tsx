@@ -6,6 +6,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { GoldButton } from "../ui/GoldButton";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 
 interface ServiceDraft {
   name: string;
@@ -44,7 +45,8 @@ function ServiceImageField({ imageUrl, uploading, onChoose, onRemove }: ServiceI
           <button type="button" onClick={onChoose} disabled={uploading} style={{
             background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
             padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: uploading ? "wait" : "pointer", color: t.gold,
-          }}>{uploading ? "Uploading…" : imageUrl ? "Change" : "Upload"}</button>
+            display: "flex", alignItems: "center", gap: 6,
+          }}>{uploading && <GoldSpinner size={12} />} {uploading ? "Uploading…" : imageUrl ? "Change" : "Upload"}</button>
           {imageUrl && (
             <button type="button" onClick={onRemove} style={{
               background: "none", border: "1px solid #EF444440", borderRadius: 6,
@@ -280,7 +282,8 @@ export function ServicesManager() {
                           <GoldButton onClick={() => saveEdit(s.id, hasFixedPrice)} disabled={saving} style={{
                             background: t.gold, color: "#0A0A0A", border: "none",
                             padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: saving ? "wait" : "pointer",
-                          }}>{saving ? "Saving…" : "Save"}</GoldButton>
+                            display: "flex", alignItems: "center", gap: 6,
+                          }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save"}</GoldButton>
                           <button onClick={() => remove(s.id)} style={{
                             background: "none", border: `1px solid #EF444440`, borderRadius: 6,
                             padding: "8px 16px", fontSize: 12, color: "#EF4444", cursor: "pointer",
@@ -353,7 +356,8 @@ export function ServicesManager() {
                       <GoldButton onClick={() => saveNew(cat.cat)} disabled={saving} style={{
                         background: t.gold, color: "#0A0A0A", border: "none",
                         padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: saving ? "wait" : "pointer",
-                      }}>{saving ? "Saving…" : "Add"}</GoldButton>
+                        display: "flex", alignItems: "center", gap: 6,
+                      }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Add"}</GoldButton>
                       <button onClick={cancel} style={{
                         background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
                         padding: "8px 16px", fontSize: 12, color: t.textSoft, cursor: "pointer",

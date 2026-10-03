@@ -5,6 +5,8 @@ import { useTheme } from "../context/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
+import { LoadingNotice } from "../components/ui/LoadingNotice";
+import { GoldSpinner } from "../components/ui/GoldSpinner";
 
 interface ResetPasswordPageProps {
   onGoToAdmin: () => void;
@@ -111,9 +113,7 @@ export function ResetPasswordPage({ onGoToAdmin }: ResetPasswordPageProps) {
               </GoldButton>
             </>
           ) : !ready ? (
-            <p style={{ fontSize: 13, color: t.textMuted, textAlign: "center", padding: "20px 0" }}>
-              Verifying your reset link…
-            </p>
+            <LoadingNotice label="Verifying your reset link…" />
           ) : (
             <>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Set new password</h2>
@@ -169,6 +169,7 @@ export function ResetPasswordPage({ onGoToAdmin }: ResetPasswordPageProps) {
                 opacity: loading ? 0.7 : 1,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}>
+                {loading && <GoldSpinner size={16} color="#0A0A0A" />}
                 {loading ? "Updating..." : "Update Password"}
                 {!loading && <ArrowRight size={16} />}
               </GoldButton>

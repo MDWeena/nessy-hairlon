@@ -9,6 +9,7 @@ import type { ScheduleRule } from "../../hooks/useAvailability";
 import { GoldButton } from "../ui/GoldButton";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 
 type FieldKind = "text" | "percent" | "minutes" | "hours";
 
@@ -138,7 +139,8 @@ function BookingRuleCard({ title, rule, onSave }: BookingRuleCardProps) {
             background: t.gold, color: "#0A0A0A", border: "none",
             padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700,
             cursor: saving ? "wait" : "pointer", width: "fit-content",
-          }}>{saving ? "Saving…" : "Save"}</GoldButton>
+            display: "flex", alignItems: "center", gap: 6,
+          }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save"}</GoldButton>
         </div>
       ) : (
         <div style={{ display: "flex", gap: 20, marginTop: 10 }}>
@@ -274,7 +276,8 @@ export function Settings() {
               <GoldButton onClick={() => save(section)} disabled={saving} style={{
                 background: t.gold, color: "#0A0A0A", border: "none",
                 padding: "10px 24px", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: saving ? "wait" : "pointer", marginTop: 8,
-              }}>{saving ? "Saving…" : "Save Changes"}</GoldButton>
+                display: "flex", alignItems: "center", gap: 6, width: "fit-content",
+              }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save Changes"}</GoldButton>
             )}
             {section.key === "schedule" && (
               <div style={{

@@ -6,6 +6,7 @@ import type { TrackedBooking } from "../hooks/useBookingLookup";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
+import { GoldSpinner } from "../components/ui/GoldSpinner";
 
 export function LeaveReviewPage() {
   const { t } = useTheme();
@@ -104,7 +105,7 @@ export function LeaveReviewPage() {
               padding: "0 20px", borderRadius: 10, fontSize: 14, fontWeight: 700,
               cursor: loading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 8,
             }}>
-              <Search size={16} /> {loading ? "Searching…" : "Search"}
+              {loading ? <GoldSpinner size={16} color="#0A0A0A" /> : <Search size={16} />} {loading ? "Searching…" : "Search"}
             </GoldButton>
           </div>
           {lookupError && <ErrorNotice message={lookupError} />}
@@ -168,7 +169,8 @@ export function LeaveReviewPage() {
             width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
             padding: "14px", fontSize: 15, fontWeight: 700,
             cursor: submitting ? "wait" : "pointer", borderRadius: 6,
-          }}>{submitting ? "Submitting…" : "Submit Review"}</GoldButton>
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          }}>{submitting && <GoldSpinner size={16} color="#0A0A0A" />} {submitting ? "Submitting…" : "Submit Review"}</GoldButton>
         </div>
       )}
     </section>

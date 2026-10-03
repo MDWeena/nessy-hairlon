@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
-import { Scissors, Upload, ChevronLeft, Loader2, X, Package } from "lucide-react";
+import { Scissors, Upload, ChevronLeft, X, Package } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { uploadToCloudinary } from "../../lib/cloudinary";
 import type { AttachmentPreference, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 import { ServiceCard } from "./ServiceCard";
 
 interface StepServicesProps {
@@ -120,7 +121,7 @@ export function StepServices({
                   cursor: uploading ? "wait" : "pointer",
                   display: "inline-flex", alignItems: "center", gap: 8,
                 }}>
-                  {uploading && <Loader2 size={14} style={{ animation: "loaderSpin 1s linear infinite" }} />}
+                  {uploading && <GoldSpinner size={14} />}
                   {uploading ? "Uploading..." : "Choose Photo"}
                 </button>
               </div>

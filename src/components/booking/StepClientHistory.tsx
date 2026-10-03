@@ -6,6 +6,7 @@ import type { TrackedBooking } from "../../hooks/useBookingLookup";
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 import { StatusBadge } from "../ui/StatusBadge";
 
 interface StepClientHistoryProps {
@@ -64,7 +65,7 @@ export function StepClientHistory({ onContinueFresh, onBookAgain }: StepClientHi
                 padding: "0 20px", borderRadius: 10, fontSize: 14, fontWeight: 700,
                 cursor: loading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 8,
               }}>
-                <Search size={16} /> {loading ? "Searching…" : "Find me"}
+                {loading ? <GoldSpinner size={16} color="#0A0A0A" /> : <Search size={16} />} {loading ? "Searching…" : "Find me"}
               </GoldButton>
             </div>
             {error && <ErrorNotice message={error} />}

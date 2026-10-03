@@ -4,6 +4,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useGallery } from "../../hooks/useGallery";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 
 export function GalleryManager() {
   const { t } = useTheme();
@@ -106,7 +107,8 @@ export function GalleryManager() {
               {/* Style name */}
               <div style={{ flex: 1, minWidth: 120 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{s.styleName}</div>
-                <div style={{ fontSize: 12, color: hasImage ? t.gold : t.textMuted }}>
+                <div style={{ fontSize: 12, color: hasImage ? t.gold : t.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
+                  {isUploading && <GoldSpinner size={11} />}
                   {isUploading ? "Uploading…" : hasImage ? "Image uploaded" : "No image yet"}
                 </div>
               </div>
@@ -144,8 +146,9 @@ export function GalleryManager() {
                     background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
                     padding: "8px 14px", fontSize: 12, fontWeight: 600, color: t.gold,
                     cursor: savingDescDay === s.dayOfWeek ? "wait" : "pointer", flexShrink: 0,
+                    display: "flex", alignItems: "center", gap: 6,
                   }}
-                >{savingDescDay === s.dayOfWeek ? "Saving…" : "Save"}</button>
+                >{savingDescDay === s.dayOfWeek && <GoldSpinner size={12} />} {savingDescDay === s.dayOfWeek ? "Saving…" : "Save"}</button>
               </div>
             </div>
           );

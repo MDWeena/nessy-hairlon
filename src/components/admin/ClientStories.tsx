@@ -5,6 +5,7 @@ import { useTestimonials } from "../../hooks/useTestimonials";
 import { GoldButton } from "../ui/GoldButton";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 
 export function ClientStories() {
   const { t } = useTheme();
@@ -287,7 +288,8 @@ export function ClientStories() {
                     background: t.gold, color: "#0A0A0A", border: "none",
                     padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700,
                     cursor: saving ? "wait" : "pointer", width: "fit-content",
-                  }}>{saving ? "Saving…" : "Save Changes"}</GoldButton>
+                    display: "flex", alignItems: "center", gap: 6,
+                  }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save Changes"}</GoldButton>
                 </div>
               )}
             </div>

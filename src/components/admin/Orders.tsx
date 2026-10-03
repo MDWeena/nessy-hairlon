@@ -7,6 +7,7 @@ import { Package, Plus, Trash2 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { GoldSpinner } from "../ui/GoldSpinner";
 
 const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
 
@@ -242,7 +243,8 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               <button onClick={() => confirmWithoutDeposit(o.id)} disabled={busyId === o.id} style={{
                 background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
                 padding: "6px 12px", fontSize: 11, color: t.textSoft, cursor: busyId === o.id ? "wait" : "pointer",
-              }}>{busyId === o.id ? "Confirming…" : "Confirm without deposit"}</button>
+                display: "flex", alignItems: "center", gap: 6,
+              }}>{busyId === o.id && <GoldSpinner size={12} />} {busyId === o.id ? "Confirming…" : "Confirm without deposit"}</button>
             </div>
           )}
 
@@ -266,7 +268,8 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                   background: t.gold, color: "#0A0A0A", border: "none",
                   padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700,
                   cursor: busyId === o.id ? "wait" : "pointer",
-                }}>{busyId === o.id ? "Confirming…" : "Confirm Payment"}</button>
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>{busyId === o.id && <GoldSpinner size={12} color="#0A0A0A" />} {busyId === o.id ? "Confirming…" : "Confirm Payment"}</button>
               </div>
             </div>
           )}

@@ -5,6 +5,8 @@ import { useTheme } from "../context/ThemeContext";
 import { useAuth } from "../hooks/useAuth";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
+import { LoadingNotice } from "../components/ui/LoadingNotice";
+import { GoldSpinner } from "../components/ui/GoldSpinner";
 
 interface AdminLoginProps {
   onBack: () => void;
@@ -164,6 +166,9 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
           boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.3)" : "0 8px 32px rgba(26,18,7,0.08)",
         }}>
           {mode === "login" ? (
+            loading ? (
+              <LoadingNotice label="Signing in…" />
+            ) : (
             <>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Welcome back</h2>
               <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>Sign in to manage your bookings</p>
@@ -222,17 +227,17 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
                 >Forgot password?</button>
               </div>
 
-              <GoldButton onClick={handleSubmit} disabled={loading || isLocked} style={{
+              <GoldButton onClick={handleSubmit} disabled={isLocked} style={{
                 width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
                 padding: "14px", fontSize: 15, fontWeight: 700,
-                cursor: loading || isLocked ? "wait" : "pointer", borderRadius: 10,
-                opacity: loading || isLocked ? 0.7 : 1,
+                cursor: isLocked ? "wait" : "pointer", borderRadius: 10,
+                opacity: isLocked ? 0.7 : 1,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}>
-                {loading ? "Signing in..." : "Sign In"}
-                {!loading && <ArrowRight size={16} />}
+                Sign In <ArrowRight size={16} />
               </GoldButton>
             </>
+            )
           ) : (
             <>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Reset your password</h2>
@@ -276,6 +281,7 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
                   opacity: resetLoading || !resetEmail ? 0.7 : 1,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 }}>
+                  {resetLoading && <GoldSpinner size={16} color="#0A0A0A" />}
                   {resetLoading ? "Sending..." : "Send Reset Link"}
                   {!resetLoading && <ArrowRight size={16} />}
                 </GoldButton>

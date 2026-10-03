@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Loader2, Package } from "lucide-react";
+import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Package } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { lookupBookings, rescheduleBooking, cancelBooking, markDepositPaid } from "../hooks/useBookingLookup";
 import type { TrackedBooking } from "../hooks/useBookingLookup";
@@ -11,6 +11,8 @@ import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
 import { StatusBadge } from "../components/ui/StatusBadge";
+import { LoadingNotice } from "../components/ui/LoadingNotice";
+import { GoldSpinner } from "../components/ui/GoldSpinner";
 import { StepDateTime } from "../components/booking/StepDateTime";
 
 interface TrackBookingPageProps {
@@ -218,7 +220,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
           padding: "0 20px", borderRadius: 10, fontSize: 14, fontWeight: 700,
           cursor: loading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 8,
         }}>
-          <Search size={16} /> {loading ? "Searching…" : "Search"}
+          {loading ? <GoldSpinner size={16} /> : <Search size={16} />} {loading ? "Searching…" : "Search"}
         </GoldButton>
       </div>
 
@@ -407,7 +409,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
 
                         {actionMode === "reschedule" && (
                           availabilityLoading ? (
-                            <p style={{ fontSize: 13, color: t.textMuted }}>Loading available times…</p>
+                            <LoadingNotice label="Loading available times…" />
                           ) : (
                             <StepDateTime
                               bookingDays={bookingDays}
@@ -434,7 +436,8 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                                 flex: 1, background: "#EF4444", color: "#fff", border: "none",
                                 padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
                                 cursor: actionBusy ? "wait" : "pointer",
-                              }}>{actionBusy ? "Cancelling…" : "Yes, cancel"}</button>
+                                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                              }}>{actionBusy && <GoldSpinner size={14} />} {actionBusy ? "Cancelling…" : "Yes, cancel"}</button>
                             </div>
                           </>
                         )}
@@ -459,7 +462,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                                 padding: "10px 14px", fontSize: 12, color: t.textSoft, cursor: proofUploading ? "wait" : "pointer",
                                 display: "flex", alignItems: "center", gap: 8, marginBottom: 16, width: "100%", justifyContent: "center",
                               }}>
-                                {proofUploading ? <Loader2 size={14} style={{ animation: "loaderSpin 1s linear infinite" }} /> : <Upload size={14} />}
+                                {proofUploading ? <GoldSpinner size={14} /> : <Upload size={14} />}
                                 {proofUploading ? "Uploading…" : "Attach payment screenshot (optional)"}
                               </button>
                             )}
@@ -467,7 +470,8 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                               width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
                               padding: "12px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
                               cursor: actionBusy ? "wait" : "pointer",
-                            }}>{actionBusy ? "Submitting…" : "Confirm I've Paid"}</GoldButton>
+                              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                            }}>{actionBusy && <GoldSpinner size={14} color="#0A0A0A" />} {actionBusy ? "Submitting…" : "Confirm I've Paid"}</GoldButton>
                           </>
                         )}
                       </>
