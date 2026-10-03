@@ -52,24 +52,30 @@ function computeStats(rows: BookingRow[], depositPercentage: number | null): Boo
 
   const moneyReceivedThisWeek = thisWeekRows.filter(r => r.status === "confirmed" || r.status === "completed");
 
+  const depositsThisWeek = moneyReceivedThisWeek
+    .filter(r => r.deposit_confirmed_at != null)
+    .reduce((sum, r) => sum + (calculateDepositAmount(toDepositInput(r), depositPercentage) ?? 0), 0);
+  const balanceCollectedThisWeek = moneyReceivedThisWeek
+    .filter(r => r.balance_paid_at != null)
+    .reduce((sum, r) => sum + (calculateBalanceAmount({ ...toDepositInput(r), depositConfirmedAt: r.deposit_confirmed_at }, depositPercentage) ?? 0), 0);
+
   return {
     thisWeekCount: thisWeekRows.length,
     pendingReviewCount: rows.filter(r => r.status === "pending_review" || r.status === "deposit_paid").length,
-    revenueThisWeek: moneyReceivedThisWeek
-      .filter(r => r.deposit_confirmed_at != null)
-      .reduce((sum, r) => sum + (r.quoted_price ?? 0), 0),
-    depositsThisWeek: moneyReceivedThisWeek
-      .filter(r => r.deposit_confirmed_at != null)
-      .reduce((sum, r) => sum + (calculateDepositAmount(toDepositInput(r), depositPercentage) ?? 0), 0),
-    balanceCollectedThisWeek: moneyReceivedThisWeek
-      .filter(r => r.balance_paid_at != null)
-      .reduce((sum, r) => sum + (calculateBalanceAmount({ ...toDepositInput(r), depositConfirmedAt: r.deposit_confirmed_at }, depositPercentage) ?? 0), 0),
+    // Actual money received, never the full quoted price unless fully paid.
+    revenueThisWeek: depositsThisWeek + balanceCollectedThisWeek,
+    depositsThisWeek,
+    balanceCollectedThisWeek,
     clientsThisMonthCount: new Set(thisMonthRows.map(r => r.client_phone)).size,
   };
 }
 
-/** All-time cost-category breakdown for Nessy's own audit, independent of the weekly revenue stats above. */
-function computeRevenueBreakdown(rows: BookingRow[]): RevenueBreakdown {
+/**
+ * All-time cost-category breakdown for Nessy's own audit, independent of the weekly
+ * revenue stats above. Only counts money actually received — a deposit-only booking
+ * contributes just its deposit amount, not the full quoted price.
+ */
+function computeRevenueBreakdown(rows: BookingRow[], depositPercentage: number | null): RevenueBreakdown {
   const moneyReceived = rows.filter(
     r => (r.status === "confirmed" || r.status === "completed") && (r.deposit_confirmed_at != null || r.balance_paid_at != null),
   );
@@ -80,12 +86,29 @@ function computeRevenueBreakdown(rows: BookingRow[]): RevenueBreakdown {
   let standardRevenue = 0;
 
   for (const r of moneyReceived) {
+    const input = toDepositInput(r);
+
     if (r.attachment_preference === "nessy_buys") {
-      hairServiceRevenue += r.hair_service_cost ?? 0;
-      attachmentRevenue += sumMaterials(toMaterialItems(r.attachment_items));
-      accessoryRevenue += sumMaterials(toMaterialItems(r.accessory_items));
-    } else {
+      const attachFull = sumMaterials(input.attachmentItems);
+      const accessFull = sumMaterials(input.accessoryItems);
+      const hairFull = r.hair_service_cost ?? 0;
+
+      if (r.balance_paid_at != null) {
+        // Fully paid — deposit + balance together always equal the full quoted price.
+        attachmentRevenue += attachFull;
+        accessoryRevenue += accessFull;
+        hairServiceRevenue += hairFull;
+      } else if (r.deposit_confirmed_at != null) {
+        // Deposit only: full materials cost + 50% of the hair service have been received so far.
+        attachmentRevenue += attachFull;
+        accessoryRevenue += accessFull;
+        const deposit = calculateDepositAmount(input, depositPercentage) ?? 0;
+        hairServiceRevenue += deposit - (attachFull + accessFull);
+      }
+    } else if (r.balance_paid_at != null) {
       standardRevenue += r.quoted_price ?? 0;
+    } else if (r.deposit_confirmed_at != null) {
+      standardRevenue += calculateDepositAmount(input, depositPercentage) ?? 0;
     }
   }
 
@@ -330,7 +353,7 @@ export function useBookings(): UseBookingsResult {
   return {
     bookings: rows.map(r => rowToOrder(r, nameById)),
     stats: computeStats(rows, depositPercentage),
-    revenueBreakdown: computeRevenueBreakdown(rows),
+    revenueBreakdown: computeRevenueBreakdown(rows, depositPercentage),
     loading, error, refetch: fetchBookings, updateBookingStatus, setQuotedPrice,
     confirmDepositPayment, rejectDepositPayment, markBalancePaid, sendBalanceReminder,
   };

@@ -5,7 +5,7 @@ import { useBookings } from "../../hooks/useBookings";
 import { useSettings } from "../../hooks/useSettings";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
-import { toISODateString } from "../../lib/date";
+import { toISODateString, getWeekRange } from "../../lib/date";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
 import { Package, Plus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -13,7 +13,7 @@ import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 
-const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
+const FILTERS: Exclude<OrderFilter, "this_week_confirmed">[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
 
 function buildBalanceWhatsAppMessage(
   o: Order,
@@ -47,7 +47,16 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [actionError, setActionError] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [highlightFading, setHighlightFading] = useState(false);
-  const filtered = filter === "all" ? bookings : bookings.filter(o => o.status === filter);
+  const filtered = filter === "all"
+    ? bookings
+    : filter === "this_week_confirmed"
+      ? (() => {
+          const { start, end } = getWeekRange(new Date());
+          return bookings.filter(o =>
+            (o.status === "confirmed" || o.status === "completed") && o.date >= start && o.date <= end,
+          );
+        })()
+      : bookings.filter(o => o.status === filter);
 
   // Scroll to and briefly highlight a deep-linked booking
   useEffect(() => {

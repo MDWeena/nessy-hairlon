@@ -87,7 +87,8 @@ export interface Order {
   balanceReminderSentAt: string | null;
 }
 
-export type OrderFilter = "all" | OrderStatus;
+/** "this_week_confirmed" is dashboard-only (Revenue card drill-down) — never shown as a visible filter tab. */
+export type OrderFilter = "all" | OrderStatus | "this_week_confirmed";
 
 export interface StatusConfig {
   bg: string;

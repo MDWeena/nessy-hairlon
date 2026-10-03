@@ -38,7 +38,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     {
       label: "Revenue (week)", value: `₦${stats.revenueThisWeek.toLocaleString()}`,
       sub: `Deposits ₦${stats.depositsThisWeek.toLocaleString()} · Balance ₦${stats.balanceCollectedThisWeek.toLocaleString()}`,
-      icon: TrendingUp, color: "#10B981", onClick: () => onNavigate("orders", "confirmed"),
+      icon: TrendingUp, color: "#10B981", onClick: () => onNavigate("orders", "this_week_confirmed"),
     },
     { label: "Clients (month)", value: String(stats.clientsThisMonthCount), sub: "unique clients", icon: Users, color: "#6366F1" },
   ];
@@ -81,10 +81,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
         <div style={{ display: "grid", gap: 10 }}>
           {[
-            { label: "Hair service revenue", value: revenueBreakdown.hairServiceRevenue, color: t.gold },
-            { label: "Attachment costs", value: revenueBreakdown.attachmentRevenue, color: "#6366F1" },
-            { label: "Accessory costs", value: revenueBreakdown.accessoryRevenue, color: "#F59E0B" },
-            { label: "Standard bookings revenue", value: revenueBreakdown.standardRevenue, color: "#10B981" },
+            { label: "Styling (labour)", value: revenueBreakdown.hairServiceRevenue, color: t.gold },
+            { label: "Attachments (wigs, extensions)", value: revenueBreakdown.attachmentRevenue, color: "#6366F1" },
+            { label: "Accessories (clips, pins)", value: revenueBreakdown.accessoryRevenue, color: "#F59E0B" },
+            { label: "Client-supplied bookings", value: revenueBreakdown.standardRevenue, color: "#10B981" },
           ].map(row => (
             <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 13, color: t.textSoft, display: "flex", alignItems: "center", gap: 8 }}>
