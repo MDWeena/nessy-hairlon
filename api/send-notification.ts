@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { statusColors } from "../src/constants/statusColors.js";
 import type { BookingStatus } from "../src/types/database.js";
+import { calculateDepositAmount, sumMaterials as sumMaterialsShared } from "../src/lib/payments.js";
 
 function getAdminClient() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -88,7 +89,7 @@ type NotificationPayload =
   | { type: "payment_not_verified"; booking: BookingNotificationData };
 
 function sumMaterials(items: MaterialItemData[]): number {
-  return items.reduce((s, i) => s + i.quantity * i.unit_cost, 0);
+  return sumMaterialsShared(items.map(i => ({ quantity: i.quantity, unitCost: i.unit_cost })));
 }
 
 function formatPrice(price: number | null): string {
@@ -124,15 +125,16 @@ function renderNewBookingEmail(booking: BookingNotificationData, siteUrl: string
 
 function renderQuoteReadyEmail(booking: BookingNotificationData, settings: PaymentSettings | null, siteUrl: string): string {
   const isNessyBuys = booking.attachment_preference === "nessy_buys" && booking.hair_service_cost != null;
-  let depositAmount: number | null = null;
+  const depositAmount = calculateDepositAmount({
+    quotedPrice: booking.quoted_price,
+    attachmentPreference: booking.attachment_preference ?? null,
+    attachmentItems: (booking.attachment_items ?? []).map(i => ({ quantity: i.quantity, unitCost: i.unit_cost })),
+    accessoryItems: (booking.accessory_items ?? []).map(i => ({ quantity: i.quantity, unitCost: i.unit_cost })),
+    hairServiceCost: booking.hair_service_cost ?? null,
+  }, settings?.depositPercentage ?? null);
   let breakdownHtml = "";
 
   if (isNessyBuys) {
-    const attachCost = sumMaterials(booking.attachment_items ?? []);
-    const accessCost = sumMaterials(booking.accessory_items ?? []);
-    const materialsCost = attachCost + accessCost;
-    depositAmount = Math.round(materialsCost + booking.hair_service_cost! * 0.5);
-
     const itemRows = (items: MaterialItemData[], label: string) => items.length > 0
       ? `<p>${label}: <strong>${formatPrice(sumMaterials(items))}</strong><br/>
          <span style="font-size:12px;color:#888">${items.map(i => `${i.type} × ${i.quantity} @ ₦${i.unit_cost.toLocaleString()}`).join(", ")}</span></p>`
@@ -147,7 +149,6 @@ function renderQuoteReadyEmail(booking: BookingNotificationData, settings: Payme
       <span style="font-size:12px;color:#888">Full materials cost + 50% hair service</span></p>
     `;
   } else if (booking.quoted_price != null && settings) {
-    depositAmount = Math.round((booking.quoted_price * settings.depositPercentage) / 100);
     breakdownHtml = `<p>${settings.depositPercentage}% deposit: <strong>${formatPrice(depositAmount)}</strong></p>`;
   }
 

@@ -3,7 +3,9 @@ import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { getMonthRange, getWeekRange } from "../lib/date";
 import { notify } from "../lib/notify";
+import { calculateDepositAmount, calculateBalanceAmount, sumMaterials } from "../lib/payments";
 import { hourFromLabel } from "./useAvailability";
+import { useSettings } from "./useSettings";
 import type { Database } from "../types/database";
 import type { AttachmentPreference, MaterialItem, Order, OrderStatus } from "../types";
 
@@ -13,10 +15,34 @@ export interface BookingStats {
   thisWeekCount: number;
   pendingReviewCount: number;
   revenueThisWeek: number;
+  depositsThisWeek: number;
+  balanceCollectedThisWeek: number;
   clientsThisMonthCount: number;
 }
 
-function computeStats(rows: BookingRow[]): BookingStats {
+export interface RevenueBreakdown {
+  hairServiceRevenue: number;
+  attachmentRevenue: number;
+  accessoryRevenue: number;
+  standardRevenue: number;
+}
+
+/** bookings.attachment_items/accessory_items are stored snake_case (unit_cost); both the calc lib and the app-facing Order type expect camelCase. */
+function toMaterialItems(items: { type: string; quantity: number; unit_cost: number }[] | null | undefined): MaterialItem[] {
+  return (items ?? []).map(i => ({ type: i.type, quantity: i.quantity, unitCost: i.unit_cost }));
+}
+
+function toDepositInput(r: BookingRow) {
+  return {
+    quotedPrice: r.quoted_price,
+    attachmentPreference: r.attachment_preference as AttachmentPreference | null,
+    attachmentItems: toMaterialItems(r.attachment_items),
+    accessoryItems: toMaterialItems(r.accessory_items),
+    hairServiceCost: r.hair_service_cost,
+  };
+}
+
+function computeStats(rows: BookingRow[], depositPercentage: number | null): BookingStats {
   const now = new Date();
   const { start: weekStart, end: weekEnd } = getWeekRange(now);
   const { start: monthStart, end: monthEnd } = getMonthRange(now);
@@ -24,14 +50,46 @@ function computeStats(rows: BookingRow[]): BookingStats {
   const thisWeekRows = rows.filter(r => r.booking_date >= weekStart && r.booking_date <= weekEnd);
   const thisMonthRows = rows.filter(r => r.booking_date >= monthStart && r.booking_date <= monthEnd);
 
+  const moneyReceivedThisWeek = thisWeekRows.filter(r => r.status === "confirmed" || r.status === "completed");
+
   return {
     thisWeekCount: thisWeekRows.length,
     pendingReviewCount: rows.filter(r => r.status === "pending_review" || r.status === "deposit_paid").length,
-    revenueThisWeek: thisWeekRows
-      .filter(r => (r.status === "confirmed" || r.status === "completed") && r.deposit_confirmed_at != null)
+    revenueThisWeek: moneyReceivedThisWeek
+      .filter(r => r.deposit_confirmed_at != null)
       .reduce((sum, r) => sum + (r.quoted_price ?? 0), 0),
+    depositsThisWeek: moneyReceivedThisWeek
+      .filter(r => r.deposit_confirmed_at != null)
+      .reduce((sum, r) => sum + (calculateDepositAmount(toDepositInput(r), depositPercentage) ?? 0), 0),
+    balanceCollectedThisWeek: moneyReceivedThisWeek
+      .filter(r => r.balance_paid_at != null)
+      .reduce((sum, r) => sum + (calculateBalanceAmount({ ...toDepositInput(r), depositConfirmedAt: r.deposit_confirmed_at }, depositPercentage) ?? 0), 0),
     clientsThisMonthCount: new Set(thisMonthRows.map(r => r.client_phone)).size,
   };
+}
+
+/** All-time cost-category breakdown for Nessy's own audit, independent of the weekly revenue stats above. */
+function computeRevenueBreakdown(rows: BookingRow[]): RevenueBreakdown {
+  const moneyReceived = rows.filter(
+    r => (r.status === "confirmed" || r.status === "completed") && (r.deposit_confirmed_at != null || r.balance_paid_at != null),
+  );
+
+  let hairServiceRevenue = 0;
+  let attachmentRevenue = 0;
+  let accessoryRevenue = 0;
+  let standardRevenue = 0;
+
+  for (const r of moneyReceived) {
+    if (r.attachment_preference === "nessy_buys") {
+      hairServiceRevenue += r.hair_service_cost ?? 0;
+      attachmentRevenue += sumMaterials(toMaterialItems(r.attachment_items));
+      accessoryRevenue += sumMaterials(toMaterialItems(r.accessory_items));
+    } else {
+      standardRevenue += r.quoted_price ?? 0;
+    }
+  }
+
+  return { hairServiceRevenue, attachmentRevenue, accessoryRevenue, standardRevenue };
 }
 
 /**
@@ -71,24 +129,31 @@ function rowToOrder(row: BookingRow, nameById: Map<string, string>): Order {
   return {
     id: row.id,
     client: row.client_name,
+    clientEmail: row.client_email,
+    clientPhone: row.client_phone,
     service: describeBookingService(row, nameById),
     date: row.booking_date,
     time: row.booking_time,
     status: row.status,
     price: row.quoted_price != null ? `₦${row.quoted_price.toLocaleString()}` : null,
+    quotedPrice: row.quoted_price,
     customStyleUrl: row.custom_style_url,
     customStyleDescription: row.custom_style_description,
     paymentProofUrl: row.payment_proof_url,
     attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
-    attachmentItems: (row.attachment_items as unknown as MaterialItem[]) ?? [],
-    accessoryItems: (row.accessory_items as unknown as MaterialItem[]) ?? [],
+    attachmentItems: toMaterialItems(row.attachment_items),
+    accessoryItems: toMaterialItems(row.accessory_items),
     hairServiceCost: row.hair_service_cost ?? null,
+    depositConfirmedAt: row.deposit_confirmed_at,
+    balancePaidAt: row.balance_paid_at,
+    balanceReminderSentAt: row.balance_reminder_sent_at,
   };
 }
 
 interface UseBookingsResult {
   bookings: Order[];
   stats: BookingStats;
+  revenueBreakdown: RevenueBreakdown;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -100,9 +165,12 @@ interface UseBookingsResult {
   ) => Promise<void>;
   confirmDepositPayment: (id: string) => Promise<void>;
   rejectDepositPayment: (id: string) => Promise<void>;
+  markBalancePaid: (id: string) => Promise<void>;
+  sendBalanceReminder: (id: string) => Promise<void>;
 }
 
 export function useBookings(): UseBookingsResult {
+  const { settings } = useSettings();
   const [rows, setRows] = useState<BookingRow[]>([]);
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -230,11 +298,41 @@ export function useBookings(): UseBookingsResult {
     await fetchBookings();
   }, [rows, fetchBookings]);
 
+  /** Admin marks the remaining balance as collected — whether that was a deposit top-up or, for a booking confirmed without one, the full amount taken in person. */
+  const markBalancePaid = useCallback(async (id: string) => {
+    await assertAuthenticated();
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase.from("bookings")
+      .update({ balance_paid_at: nowIso, updated_at: nowIso }).eq("id", id);
+    if (updateError) await handleWriteError(updateError);
+    await fetchBookings();
+  }, [fetchBookings]);
+
+  /** Manually (re)sends the balance-due reminder email for one booking, via the same endpoint the daily cron uses. */
+  const sendBalanceReminder = useCallback(async (id: string) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error("Not signed in");
+
+    const res = await fetch("/api/process-balance-reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ bookingId: id }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.error || "Failed to send reminder");
+    if (!body?.sent) throw new Error("Reminder was not sent");
+    await fetchBookings();
+  }, [fetchBookings]);
+
+  const depositPercentage = settings.deposit_percentage ?? null;
+
   return {
     bookings: rows.map(r => rowToOrder(r, nameById)),
-    stats: computeStats(rows),
+    stats: computeStats(rows, depositPercentage),
+    revenueBreakdown: computeRevenueBreakdown(rows),
     loading, error, refetch: fetchBookings, updateBookingStatus, setQuotedPrice,
-    confirmDepositPayment, rejectDepositPayment,
+    confirmDepositPayment, rejectDepositPayment, markBalancePaid, sendBalanceReminder,
   };
 }
 

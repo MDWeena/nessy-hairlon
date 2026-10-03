@@ -1,4 +1,4 @@
-import { Calendar, Eye, TrendingUp, Users, Clock, AlertCircle, CheckCircle } from "lucide-react";
+import { Calendar, Eye, TrendingUp, Users, Clock, AlertCircle, CheckCircle, PieChart } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useBookings } from "../../hooks/useBookings";
 import { toISODateString } from "../../lib/date";
@@ -25,7 +25,7 @@ function getUpcomingBookings(bookings: Order[], days: number): Order[] {
 
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { t } = useTheme();
-  const { bookings, stats, loading, error } = useBookings();
+  const { bookings, stats, revenueBreakdown, loading, error } = useBookings();
 
   const today = toISODateString(new Date());
   const todaysBookings = bookings.filter(o => o.date === today && (o.status === "confirmed" || o.status === "completed"));
@@ -35,7 +35,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const statCards = [
     { label: "This week", value: String(stats.thisWeekCount), sub: "bookings", icon: Calendar, color: t.gold, onClick: () => onNavigate("orders") },
     { label: "Pending review", value: String(stats.pendingReviewCount), sub: "need attention", icon: Eye, color: "#F59E0B", onClick: () => onNavigate("orders", "pending_review") },
-    { label: "Revenue (week)", value: `₦${stats.revenueThisWeek.toLocaleString()}`, sub: "verified payments", icon: TrendingUp, color: "#10B981", onClick: () => onNavigate("orders", "confirmed") },
+    {
+      label: "Revenue (week)", value: `₦${stats.revenueThisWeek.toLocaleString()}`,
+      sub: `Deposits ₦${stats.depositsThisWeek.toLocaleString()} · Balance ₦${stats.balanceCollectedThisWeek.toLocaleString()}`,
+      icon: TrendingUp, color: "#10B981", onClick: () => onNavigate("orders", "confirmed"),
+    },
     { label: "Clients (month)", value: String(stats.clientsThisMonthCount), sub: "unique clients", icon: Users, color: "#6366F1" },
   ];
 
@@ -66,6 +70,40 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <div style={{ fontSize: 12, color: t.textMuted, marginTop: 4 }}>{s.sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* Revenue breakdown — all-time audit view, independent of the weekly stat card above */}
+      <div style={{ background: t.surface, borderRadius: 12, padding: 24, border: `1px solid ${t.border}`, marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <PieChart size={18} color={t.gold} />
+          <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Revenue Breakdown</h3>
+          <span style={{ fontSize: 11, color: t.textMuted, marginLeft: "auto" }}>All-time · received payments only</span>
+        </div>
+        <div style={{ display: "grid", gap: 10 }}>
+          {[
+            { label: "Hair service revenue", value: revenueBreakdown.hairServiceRevenue, color: t.gold },
+            { label: "Attachment costs", value: revenueBreakdown.attachmentRevenue, color: "#6366F1" },
+            { label: "Accessory costs", value: revenueBreakdown.accessoryRevenue, color: "#F59E0B" },
+            { label: "Standard bookings revenue", value: revenueBreakdown.standardRevenue, color: "#10B981" },
+          ].map(row => (
+            <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13, color: t.textSoft, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: row.color, flexShrink: 0 }} />
+                {row.label}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>₦{row.value.toLocaleString()}</span>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${t.border}`, paddingTop: 10, marginTop: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>Total</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: t.gold }}>
+              ₦{(
+                revenueBreakdown.hairServiceRevenue + revenueBreakdown.attachmentRevenue +
+                revenueBreakdown.accessoryRevenue + revenueBreakdown.standardRevenue
+              ).toLocaleString()}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Needs Attention section */}

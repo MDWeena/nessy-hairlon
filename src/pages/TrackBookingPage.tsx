@@ -6,6 +6,7 @@ import type { TrackedBooking } from "../hooks/useBookingLookup";
 import { useAvailability, hourFromLabel } from "../hooks/useAvailability";
 import { useSettings } from "../hooks/useSettings";
 import { uploadToCloudinary } from "../lib/cloudinary";
+import { calculateDepositAmount, sumMaterials } from "../lib/payments";
 import type { NavigateFn, OrderStatus } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
@@ -70,21 +71,9 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
   const proofInputRef = useRef<HTMLInputElement | null>(null);
 
   const looksLikeReference = /[a-z]/i.test(query.trim());
-  const sumMaterials = (items: { quantity: number; unitCost: number }[]) => items.reduce((s, i) => s + i.quantity * i.unitCost, 0);
 
-  const depositAmount = (booking: TrackedBooking): number | null => {
-    if (booking.quotedPrice == null) return null;
-    // If Nessy buys attachments: deposit = full materials cost + 50% of hair service
-    if (booking.attachmentPreference === "nessy_buys" && booking.hairServiceCost != null) {
-      const materialsCost = sumMaterials(booking.attachmentItems) + sumMaterials(booking.accessoryItems);
-      return Math.round(materialsCost + booking.hairServiceCost * 0.5);
-    }
-    // Standard: deposit = quoted_price × deposit_percentage / 100
-    if (settings.deposit_percentage != null) {
-      return Math.round((booking.quotedPrice * settings.deposit_percentage) / 100);
-    }
-    return null;
-  };
+  const depositAmount = (booking: TrackedBooking): number | null =>
+    calculateDepositAmount(booking, settings.deposit_percentage ?? null);
 
   const handleSearch = async () => {
     const trimmed = query.trim();

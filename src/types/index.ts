@@ -67,11 +67,14 @@ export interface MaterialItem {
 export interface Order {
   id: string;
   client: string;
+  clientEmail: string | null;
+  clientPhone: string;
   service: string;
   date: string;
   time: string;
   status: OrderStatus;
   price: string | null;
+  quotedPrice: number | null;
   customStyleUrl: string | null;
   customStyleDescription: string | null;
   paymentProofUrl: string | null;
@@ -79,6 +82,9 @@ export interface Order {
   attachmentItems: MaterialItem[];
   accessoryItems: MaterialItem[];
   hairServiceCost: number | null;
+  depositConfirmedAt: string | null;
+  balancePaidAt: string | null;
+  balanceReminderSentAt: string | null;
 }
 
 export type OrderFilter = "all" | OrderStatus;

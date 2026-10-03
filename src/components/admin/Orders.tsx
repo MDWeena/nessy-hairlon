@@ -2,14 +2,26 @@ import { useEffect, useRef, useState } from "react";
 import { statusColors } from "../../constants/statusColors";
 import { useTheme } from "../../context/ThemeContext";
 import { useBookings } from "../../hooks/useBookings";
-import type { MaterialItem, OrderFilter } from "../../types";
-import { Package, Plus, Trash2 } from "lucide-react";
+import { useSettings } from "../../hooks/useSettings";
+import { calculateBalanceAmount } from "../../lib/payments";
+import { buildWhatsAppUrl } from "../../lib/whatsapp";
+import { toISODateString } from "../../lib/date";
+import type { MaterialItem, Order, OrderFilter } from "../../types";
+import { Package, Plus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 
 const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
+
+function buildBalanceWhatsAppMessage(
+  o: Order,
+  balanceDue: number,
+  settings: { bank_name?: string; account_number?: string; account_name?: string },
+): string {
+  return `Hi ${o.client}, this is Nessy Hairlon. Your appointment on ${o.date} is complete but we haven't received the remaining balance of ₦${balanceDue.toLocaleString()}. Please transfer to ${settings.bank_name ?? ""} - ${settings.account_number ?? ""} - ${settings.account_name ?? ""}. Thank you!`;
+}
 
 interface OrdersProps {
   initialFilter?: OrderFilter;
@@ -18,7 +30,11 @@ interface OrdersProps {
 
 export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProps) {
   const { t } = useTheme();
-  const { bookings, loading, error, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment } = useBookings();
+  const { settings } = useSettings();
+  const {
+    bookings, loading, error, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
+    markBalancePaid, sendBalanceReminder,
+  } = useBookings();
   const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState("");
@@ -26,6 +42,8 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [attachItems, setAttachItems] = useState<MaterialItem[]>([]);
   const [accessItems, setAccessItems] = useState<MaterialItem[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [balanceActionId, setBalanceActionId] = useState<string | null>(null);
+  const [reminderActionId, setReminderActionId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [highlightFading, setHighlightFading] = useState(false);
@@ -137,6 +155,30 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     }
   };
 
+  const handleMarkBalancePaid = async (id: string) => {
+    setActionError(null);
+    setBalanceActionId(id);
+    try {
+      await markBalancePaid(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to mark balance as paid");
+    } finally {
+      setBalanceActionId(null);
+    }
+  };
+
+  const handleSendReminder = async (id: string) => {
+    setActionError(null);
+    setReminderActionId(id);
+    try {
+      await sendBalanceReminder(id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to send reminder");
+    } finally {
+      setReminderActionId(null);
+    }
+  };
+
   if (loading) return <LoadingNotice label="Loading bookings…" />;
 
   return (
@@ -158,6 +200,18 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
       <div style={{ background: t.surface, borderRadius: 12, border: `1px solid ${t.border}`, overflow: "hidden" }}>
         {filtered.map((o, i) => {
           const isHighlighted = o.id === highlightBookingId;
+          const showBalanceSection = o.status === "confirmed" || o.status === "completed";
+          const balanceDue = showBalanceSection
+            ? calculateBalanceAmount({
+                quotedPrice: o.quotedPrice,
+                attachmentPreference: o.attachmentPreference,
+                attachmentItems: o.attachmentItems,
+                accessoryItems: o.accessoryItems,
+                hairServiceCost: o.hairServiceCost,
+                depositConfirmedAt: o.depositConfirmedAt,
+              }, settings.deposit_percentage ?? null)
+            : null;
+          const datePassed = o.date < toISODateString(new Date());
           return (
           <div key={o.id} ref={isHighlighted ? highlightRef : undefined} style={{
             padding: "16px 20px",
@@ -193,6 +247,15 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 {o.attachmentPreference && (
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 11, color: o.attachmentPreference === "nessy_buys" ? t.gold : t.textMuted }}>
                     <Package size={11} /> {o.attachmentPreference === "client_provides" ? "Client brings attachments" : "Nessy purchases attachments"}
+                  </div>
+                )}
+                {!o.clientEmail && (
+                  <div style={{
+                    display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4,
+                    fontSize: 10, fontWeight: 600, color: "#F59E0B", background: "#F59E0B15",
+                    padding: "2px 7px", borderRadius: 10,
+                  }}>
+                    <MailWarning size={10} /> No email
                   </div>
                 )}
               </div>
@@ -271,6 +334,56 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                   display: "flex", alignItems: "center", gap: 6,
                 }}>{busyId === o.id && <GoldSpinner size={12} color="#0A0A0A" />} {busyId === o.id ? "Confirming…" : "Confirm Payment"}</button>
               </div>
+            </div>
+          )}
+
+          {showBalanceSection && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
+              {o.balancePaidAt ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#10B981" }}>
+                  <CheckCircle2 size={14} /> Fully Paid
+                </div>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                  <span style={{ fontSize: 12, color: t.textMuted }}>
+                    Balance due: <strong style={{ color: t.text }}>{balanceDue != null ? `₦${balanceDue.toLocaleString()}` : "—"}</strong>
+                  </span>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {datePassed && balanceDue != null && balanceDue > 0 && (
+                      o.clientEmail ? (
+                        <button onClick={() => handleSendReminder(o.id)} disabled={reminderActionId === o.id} style={{
+                          background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
+                          padding: "6px 12px", fontSize: 11, fontWeight: 600, color: t.gold,
+                          cursor: reminderActionId === o.id ? "wait" : "pointer",
+                          display: "flex", alignItems: "center", gap: 6,
+                        }}>
+                          {reminderActionId === o.id ? <GoldSpinner size={12} /> : <Bell size={12} />}
+                          {reminderActionId === o.id ? "Sending…" : o.balanceReminderSentAt ? "Resend Reminder" : "Send Balance Reminder"}
+                        </button>
+                      ) : (
+                        <a
+                          href={buildWhatsAppUrl(o.clientPhone, buildBalanceWhatsAppMessage(o, balanceDue, settings))}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{
+                            background: "#22c55e", color: "#fff", border: "none", borderRadius: 6,
+                            padding: "6px 12px", fontSize: 11, fontWeight: 600, textDecoration: "none",
+                            display: "flex", alignItems: "center", gap: 6,
+                          }}
+                        ><MessageCircle size={12} /> WhatsApp Reminder</a>
+                      )
+                    )}
+                    <button onClick={() => handleMarkBalancePaid(o.id)} disabled={balanceActionId === o.id} style={{
+                      background: t.gold, color: "#0A0A0A", border: "none",
+                      padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                      cursor: balanceActionId === o.id ? "wait" : "pointer",
+                      display: "flex", alignItems: "center", gap: 6,
+                    }}>
+                      {balanceActionId === o.id && <GoldSpinner size={12} color="#0A0A0A" />}
+                      {balanceActionId === o.id ? "Marking…" : "Mark Balance Paid"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -107,6 +107,8 @@ export interface Database {
           attachment_items: MaterialItem[];
           accessory_items: MaterialItem[];
           hair_service_cost: number | null;
+          balance_paid_at: string | null;
+          balance_reminder_sent_at: string | null;
         };
         Insert: {
           id?: string;
@@ -129,6 +131,8 @@ export interface Database {
           attachment_items?: MaterialItem[];
           accessory_items?: MaterialItem[];
           hair_service_cost?: number | null;
+          balance_paid_at?: string | null;
+          balance_reminder_sent_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
@@ -246,6 +250,8 @@ export interface Database {
           attachment_items: MaterialItem[];
           accessory_items: MaterialItem[];
           hair_service_cost: number | null;
+          balance_paid_at: string | null;
+          balance_reminder_sent_at: string | null;
         }[];
       };
       reschedule_booking: {
