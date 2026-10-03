@@ -34,6 +34,32 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const t = themes[resolvedTheme];
   const isDark = resolvedTheme === "dark";
 
+  // Mirror every theme token onto :root as a CSS custom property, so Tailwind utility
+  // classes (bg-surface, text-[var(--gold)], etc.) stay correct in both light and dark
+  // mode without needing a separate dark: variant — the variable's value just changes.
+  useEffect(() => {
+    const root = document.documentElement.style;
+    root.setProperty("--bg", t.bg);
+    root.setProperty("--bg-alt", t.bgAlt);
+    root.setProperty("--surface", t.surface);
+    root.setProperty("--surface-hover", t.surfaceHover);
+    root.setProperty("--text", t.text);
+    root.setProperty("--text-soft", t.textSoft);
+    root.setProperty("--text-muted", t.textMuted);
+    root.setProperty("--gold", t.gold);
+    root.setProperty("--gold-dark", t.goldDark);
+    root.setProperty("--gold-light", t.goldLight);
+    root.setProperty("--gold-bg", t.goldBg);
+    root.setProperty("--border", t.border);
+    root.setProperty("--border-strong", t.borderStrong);
+    root.setProperty("--black", t.black);
+    root.setProperty("--white", t.white);
+    root.setProperty("--nav-bg", t.navBg);
+    root.setProperty("--shadow", t.shadow);
+    root.setProperty("--hero-overlay", t.heroOverlay);
+    root.setProperty("--card-shadow", t.cardShadow);
+  }, [t]);
+
   return (
     <ThemeContext.Provider value={{ themeMode, setThemeMode, t, isDark }}>
       {children}

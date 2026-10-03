@@ -1,6 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default (light theme) values so there's no flash-of-unstyled-content before
+   ThemeContext's effect sets these on first paint — see src/constants/themes.ts. */
+:root {
+  --bg: #FFFCF8;
+  --bg-alt: #F0E6D8;
+  --surface: #F5EDE3;
+  --surface-hover: #EDE3D5;
+  --text: #120D04;
+  --text-soft: #4A3D2E;
+  --text-muted: #8B7A64;
+  --gold: #C49A6C;
+  --gold-dark: #A67B4F;
+  --gold-light: #E8D5BF;
+  --gold-bg: #C49A6C15;
+  --border: #DDD2C2;
+  --border-strong: #C9BBAA;
+  --black: #0A0A0A;
+  --white: #FFFFFF;
+  --nav-bg: rgba(255,252,248,0.85);
+  --shadow: 0 1px 3px rgba(26,18,7,0.06);
+  --hero-overlay: linear-gradient(135deg, rgba(10,10,10,0.82) 0%, rgba(42,26,14,0.7) 100%);
+  --card-shadow: 0 3px 12px rgba(26,18,7,0.12), 0 1px 3px rgba(26,18,7,0.08);
+}
+
 body {
   margin: 0;
   padding: 0;
+  font-family: 'DM Sans', system-ui, sans-serif;
 }
 
 #root {
