@@ -79,12 +79,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Revenue Breakdown</h3>
           <span style={{ fontSize: 11, color: t.textMuted, marginLeft: "auto" }}>All-time · received payments only</span>
         </div>
+
+        {/* Primary: Payments Received */}
+        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+          Payments Received
+        </div>
         <div style={{ display: "grid", gap: 10 }}>
           {[
-            { label: "Styling (labour)", value: revenueBreakdown.hairServiceRevenue, color: t.gold },
-            { label: "Attachments (wigs, extensions)", value: revenueBreakdown.attachmentRevenue, color: "#6366F1" },
-            { label: "Accessories (clips, pins)", value: revenueBreakdown.accessoryRevenue, color: "#F59E0B" },
-            { label: "Client-supplied bookings", value: revenueBreakdown.standardRevenue, color: "#10B981" },
+            { label: "Deposits received", value: revenueBreakdown.depositsReceived, color: t.gold },
+            { label: "Balance received", value: revenueBreakdown.balanceReceived, color: "#10B981" },
           ].map(row => (
             <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 13, color: t.textSoft, display: "flex", alignItems: "center", gap: 8 }}>
@@ -95,15 +98,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           ))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${t.border}`, paddingTop: 10, marginTop: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Total</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: t.gold }}>
-              ₦{(
-                revenueBreakdown.hairServiceRevenue + revenueBreakdown.attachmentRevenue +
-                revenueBreakdown.accessoryRevenue + revenueBreakdown.standardRevenue
-              ).toLocaleString()}
-            </span>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>Total received</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: t.gold }}>₦{revenueBreakdown.totalReceived.toLocaleString()}</span>
           </div>
         </div>
+
+        {/* Secondary: Material Costs (Nessy-supplied) — only when relevant */}
+        {(revenueBreakdown.attachmentMaterialCosts > 0 || revenueBreakdown.accessoryMaterialCosts > 0) && (
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px dashed ${t.border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+              Material costs (Nessy-supplied)
+            </div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {[
+                { label: "Attachments (wigs, extensions)", value: revenueBreakdown.attachmentMaterialCosts, color: "#6366F1" },
+                { label: "Accessories (clips, pins)", value: revenueBreakdown.accessoryMaterialCosts, color: "#F59E0B" },
+              ].map(row => (
+                <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: t.textSoft, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: row.color, flexShrink: 0 }} />
+                    {row.label}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>₦{row.value.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Needs Attention section */}

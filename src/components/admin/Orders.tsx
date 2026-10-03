@@ -7,11 +7,12 @@ import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { toISODateString, getWeekRange } from "../../lib/date";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Package, Plus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
+import { MoneyInput } from "../ui/MoneyInput";
 
 const FILTERS: Exclude<OrderFilter, "this_week_confirmed">[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
 
@@ -37,8 +38,8 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   } = useBookings();
   const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [quotingId, setQuotingId] = useState<string | null>(null);
-  const [quoteValue, setQuoteValue] = useState("");
-  const [hairCostValue, setHairCostValue] = useState("");
+  const [quoteValue, setQuoteValue] = useState(0);
+  const [hairCostValue, setHairCostValue] = useState(0);
   const [attachItems, setAttachItems] = useState<MaterialItem[]>([]);
   const [accessItems, setAccessItems] = useState<MaterialItem[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -69,8 +70,8 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const startQuote = (id: string) => {
     setActionError(null);
     setQuotingId(id);
-    setQuoteValue("");
-    setHairCostValue("");
+    setQuoteValue(0);
+    setHairCostValue(0);
     setAttachItems([]);
     setAccessItems([]);
   };
@@ -98,7 +99,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     const hasAttachPref = order?.attachmentPreference != null;
 
     if (hasAttachPref) {
-      const hairCost = parseInt(hairCostValue, 10);
+      const hairCost = hairCostValue;
       if (!hairCost || hairCost <= 0) { setActionError("Enter a valid hair service cost"); return; }
       // Validate items have types filled in
       const badAttach = attachItems.some(i => !i.type.trim());
@@ -117,7 +118,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
         setActionError(err instanceof Error ? err.message : "Failed to set price");
       }
     } else {
-      const price = parseInt(quoteValue, 10);
+      const price = quoteValue;
       if (!price || price <= 0) { setActionError("Enter a valid price"); return; }
       try {
         await setQuotedPrice(id, price);
@@ -246,16 +247,25 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               )}
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.client}</div>
-                <div style={{ fontSize: 12, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.service}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                  <span style={{ fontSize: 12, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.service}</span>
+                  {o.attachmentPreference === "nessy_buys" && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: t.gold, background: t.goldBg,
+                      padding: "1px 7px", borderRadius: 8, flexShrink: 0, whiteSpace: "nowrap",
+                    }}>Nessy supplies</span>
+                  )}
+                  {o.attachmentPreference === "client_provides" && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: t.textMuted, background: t.bgAlt,
+                      padding: "1px 7px", borderRadius: 8, flexShrink: 0, whiteSpace: "nowrap",
+                    }}>Client supplies</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{o.date} at {o.time}</div>
                 {o.customStyleDescription && (
                   <div style={{ fontSize: 11, color: t.textSoft, marginTop: 4, fontStyle: "italic", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     "{o.customStyleDescription}"
-                  </div>
-                )}
-                {o.attachmentPreference && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 11, color: o.attachmentPreference === "nessy_buys" ? t.gold : t.textMuted }}>
-                    <Package size={11} /> {o.attachmentPreference === "client_provides" ? "Client brings attachments" : "Nessy purchases attachments"}
                   </div>
                 )}
                 {!o.clientEmail && (
@@ -275,13 +285,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                   <div style={{ fontSize: 12, color: t.textSoft }}>Quoting below…</div>
                 ) : (
                 <>
-                  <input
-                    type="number" value={quoteValue} onChange={(e) => setQuoteValue(e.target.value)}
-                    placeholder="₦ amount" autoFocus
-                    style={{
-                      width: 110, padding: "6px 10px", borderRadius: 6, border: `1px solid ${t.border}`,
-                      background: t.bgAlt, fontSize: 12, color: t.text, outline: "none",
-                    }}
+                  <MoneyInput
+                    value={quoteValue} onChange={setQuoteValue}
+                    placeholder="amount" autoFocus
+                    style={{ width: 110, fontSize: 12 }}
                   />
                   <button onClick={() => submitQuote(o.id)} style={{
                     background: t.gold, color: "#0A0A0A", border: "none",
@@ -401,9 +408,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               <div style={{ display: "grid", gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 4, display: "block" }}>Hair Service Cost</label>
-                  <input type="number" value={hairCostValue} onChange={(e) => setHairCostValue(e.target.value)}
-                    placeholder="₦ hair service" autoFocus
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box" }}
+                  <MoneyInput
+                    value={hairCostValue} onChange={setHairCostValue}
+                    placeholder="hair service" autoFocus
+                    style={{ width: "100%", fontSize: 13 }}
                   />
                 </div>
 
@@ -419,7 +427,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
                       <input value={item.type} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "type", e.target.value)} placeholder="Type" style={{ flex: 2, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
                       <input type="number" value={item.quantity} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "quantity", e.target.value)} placeholder="Qty" style={{ width: 50, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none", textAlign: "center" }} />
-                      <input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "unitCost", e.target.value)} placeholder="₦ each" style={{ width: 80, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
+                      <MoneyInput value={item.unitCost} onChange={(v) => updateItem(attachItems, setAttachItems, idx, "unitCost", String(v))} placeholder="each" style={{ width: 80, fontSize: 12 }} />
                       <button onClick={() => removeItem(attachItems, setAttachItems, idx)} style={{ background: "none", border: "none", color: "#EF4444", cursor: "pointer", padding: 2, flexShrink: 0 }}><Trash2 size={14} /></button>
                     </div>
                   ))}
@@ -438,7 +446,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
                       <input value={item.type} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "type", e.target.value)} placeholder="Type" style={{ flex: 2, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
                       <input type="number" value={item.quantity} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "quantity", e.target.value)} placeholder="Qty" style={{ width: 50, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none", textAlign: "center" }} />
-                      <input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "unitCost", e.target.value)} placeholder="₦ each" style={{ width: 80, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
+                      <MoneyInput value={item.unitCost} onChange={(v) => updateItem(accessItems, setAccessItems, idx, "unitCost", String(v))} placeholder="each" style={{ width: 80, fontSize: 12 }} />
                       <button onClick={() => removeItem(accessItems, setAccessItems, idx)} style={{ background: "none", border: "none", color: "#EF4444", cursor: "pointer", padding: 2, flexShrink: 0 }}><Trash2 size={14} /></button>
                     </div>
                   ))}
@@ -448,7 +456,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 {/* Total and actions */}
                 <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, fontWeight: 700 }}>
-                    Total: ₦{((parseInt(hairCostValue, 10) || 0) + sumItems(attachItems) + sumItems(accessItems)).toLocaleString()}
+                    Total: ₦{(hairCostValue + sumItems(attachItems) + sumItems(accessItems)).toLocaleString()}
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => setQuotingId(null)} style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, color: t.textSoft, cursor: "pointer" }}>Cancel</button>

@@ -21,10 +21,11 @@ export interface BookingStats {
 }
 
 export interface RevenueBreakdown {
-  hairServiceRevenue: number;
-  attachmentRevenue: number;
-  accessoryRevenue: number;
-  standardRevenue: number;
+  depositsReceived: number;
+  balanceReceived: number;
+  totalReceived: number;
+  attachmentMaterialCosts: number;
+  accessoryMaterialCosts: number;
 }
 
 /** bookings.attachment_items/accessory_items are stored snake_case (unit_cost); both the calc lib and the app-facing Order type expect camelCase. */
@@ -71,48 +72,43 @@ function computeStats(rows: BookingRow[], depositPercentage: number | null): Boo
 }
 
 /**
- * All-time cost-category breakdown for Nessy's own audit, independent of the weekly
- * revenue stats above. Only counts money actually received — a deposit-only booking
- * contributes just its deposit amount, not the full quoted price.
+ * All-time payments-received audit, independent of the weekly revenue stats above.
+ * Deposits/balance are summed directly off deposit_confirmed_at/balance_paid_at
+ * (not gated by current status — once money is confirmed received, it stays
+ * counted even if the booking is later cancelled). Material costs are a separate
+ * "where did the money go" view: the full attachment/accessory cost of a
+ * nessy_buys booking is already covered as soon as its deposit is confirmed
+ * (the deposit formula is full materials + 50% of the styling fee), so it's
+ * counted in full the moment there's any payment at all, not split further.
  */
 function computeRevenueBreakdown(rows: BookingRow[], depositPercentage: number | null): RevenueBreakdown {
-  const moneyReceived = rows.filter(
-    r => (r.status === "confirmed" || r.status === "completed") && (r.deposit_confirmed_at != null || r.balance_paid_at != null),
-  );
+  let depositsReceived = 0;
+  let balanceReceived = 0;
+  let attachmentMaterialCosts = 0;
+  let accessoryMaterialCosts = 0;
 
-  let hairServiceRevenue = 0;
-  let attachmentRevenue = 0;
-  let accessoryRevenue = 0;
-  let standardRevenue = 0;
-
-  for (const r of moneyReceived) {
+  for (const r of rows) {
     const input = toDepositInput(r);
 
-    if (r.attachment_preference === "nessy_buys") {
-      const attachFull = sumMaterials(input.attachmentItems);
-      const accessFull = sumMaterials(input.accessoryItems);
-      const hairFull = r.hair_service_cost ?? 0;
-
-      if (r.balance_paid_at != null) {
-        // Fully paid — deposit + balance together always equal the full quoted price.
-        attachmentRevenue += attachFull;
-        accessoryRevenue += accessFull;
-        hairServiceRevenue += hairFull;
-      } else if (r.deposit_confirmed_at != null) {
-        // Deposit only: full materials cost + 50% of the hair service have been received so far.
-        attachmentRevenue += attachFull;
-        accessoryRevenue += accessFull;
-        const deposit = calculateDepositAmount(input, depositPercentage) ?? 0;
-        hairServiceRevenue += deposit - (attachFull + accessFull);
-      }
-    } else if (r.balance_paid_at != null) {
-      standardRevenue += r.quoted_price ?? 0;
-    } else if (r.deposit_confirmed_at != null) {
-      standardRevenue += calculateDepositAmount(input, depositPercentage) ?? 0;
+    if (r.deposit_confirmed_at != null) {
+      depositsReceived += calculateDepositAmount(input, depositPercentage) ?? 0;
+    }
+    if (r.balance_paid_at != null) {
+      balanceReceived += calculateBalanceAmount({ ...input, depositConfirmedAt: r.deposit_confirmed_at }, depositPercentage) ?? 0;
+    }
+    if (r.attachment_preference === "nessy_buys" && (r.deposit_confirmed_at != null || r.balance_paid_at != null)) {
+      attachmentMaterialCosts += sumMaterials(input.attachmentItems);
+      accessoryMaterialCosts += sumMaterials(input.accessoryItems);
     }
   }
 
-  return { hairServiceRevenue, attachmentRevenue, accessoryRevenue, standardRevenue };
+  return {
+    depositsReceived,
+    balanceReceived,
+    totalReceived: depositsReceived + balanceReceived,
+    attachmentMaterialCosts,
+    accessoryMaterialCosts,
+  };
 }
 
 /**
