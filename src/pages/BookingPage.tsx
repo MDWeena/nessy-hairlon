@@ -10,7 +10,7 @@ import { StepClientHistory } from "../components/booking/StepClientHistory";
 import { StepDateTime } from "../components/booking/StepDateTime";
 import { StepServices } from "../components/booking/StepServices";
 import { StepReview } from "../components/booking/StepReview";
-import type { NavigateFn } from "../types";
+import type { AttachmentPreference, NavigateFn } from "../types";
 
 interface BookingPageProps {
   navigate: NavigateFn;
@@ -30,6 +30,7 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
   const [uploadMode, setUploadMode] = useState(false);
   const [customStyleUrl, setCustomStyleUrl] = useState<string | null>(null);
   const [customStyleDescription, setCustomStyleDescription] = useState("");
+  const [attachmentPreference, setAttachmentPreference] = useState<AttachmentPreference | null>(null);
 
   const handleBookAgain = (serviceNames: string[]) => {
     setSelectedServices(serviceNames.filter(name => services.flatMap(c => c.items).some(s => s.name === name)));
@@ -107,6 +108,8 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
               onPhotoRemoved={() => setCustomStyleUrl(null)}
               customStyleDescription={customStyleDescription}
               onDescriptionChange={setCustomStyleDescription}
+              attachmentPreference={attachmentPreference}
+              onAttachmentPreferenceChange={setAttachmentPreference}
               onBack={() => setStep(0)}
               onContinue={() => setStep(2)}
             />
@@ -121,6 +124,7 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
               uploadMode={uploadMode}
               customStyleUrl={customStyleUrl}
               customStyleDescription={customStyleDescription}
+              attachmentPreference={attachmentPreference}
               onBack={() => setStep(1)}
               navigate={navigate}
             />

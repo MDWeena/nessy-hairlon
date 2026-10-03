@@ -18,14 +18,22 @@ import { AdminPanel } from "./pages/AdminPanel";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { WhatsAppButton } from "./components/ui/WhatsAppButton";
 
+/** Read ?booking=<id> from the current URL (for admin deep links). */
+function getDeepLinkBookingId(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("booking");
+  } catch { return null; }
+}
+
 export default function App() {
   const { t, isDark } = useTheme();
   const scrolled = useScrollPosition();
   const { page, navigate: rawNavigate, pageLoading } = usePageTransition();
   const { signOut } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => page === "admin");
   const [preselectedService, setPreselectedService] = useState<string | null>(null);
+  const [deepLinkBookingId] = useState<string | null>(() => page === "admin" ? getDeepLinkBookingId() : null);
 
   const navigate: NavigateFn = (p) => {
     setMobileNavOpen(false);
@@ -42,6 +50,7 @@ export default function App() {
       <AdminPanel
         onViewSite={() => { setIsAdmin(false); navigate("home"); }}
         onLogout={async () => { await signOut(); setIsAdmin(false); navigate("home"); }}
+        deepLinkBookingId={deepLinkBookingId}
       />
     );
   }

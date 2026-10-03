@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { statusColors } from "../../constants/statusColors";
 import { useTheme } from "../../context/ThemeContext";
 import { useBookings } from "../../hooks/useBookings";
-import type { OrderFilter } from "../../types";
+import type { MaterialItem, OrderFilter } from "../../types";
+import { Package, Plus, Trash2 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -11,32 +12,91 @@ const FILTERS: OrderFilter[] = ["all", "pending_review", "quoted", "deposit_paid
 
 interface OrdersProps {
   initialFilter?: OrderFilter;
+  highlightBookingId?: string | null;
 }
 
-export function Orders({ initialFilter = "all" }: OrdersProps) {
+export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProps) {
   const { t } = useTheme();
   const { bookings, loading, error, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment } = useBookings();
   const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState("");
+  const [hairCostValue, setHairCostValue] = useState("");
+  const [attachItems, setAttachItems] = useState<MaterialItem[]>([]);
+  const [accessItems, setAccessItems] = useState<MaterialItem[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  const [highlightFading, setHighlightFading] = useState(false);
   const filtered = filter === "all" ? bookings : bookings.filter(o => o.status === filter);
+
+  // Scroll to and briefly highlight a deep-linked booking
+  useEffect(() => {
+    if (!highlightBookingId || !highlightRef.current) return;
+    highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => setHighlightFading(true), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightBookingId, loading]);
 
   const startQuote = (id: string) => {
     setActionError(null);
     setQuotingId(id);
     setQuoteValue("");
+    setHairCostValue("");
+    setAttachItems([]);
+    setAccessItems([]);
   };
 
+  const addItem = (list: MaterialItem[], setList: (items: MaterialItem[]) => void) => {
+    setList([...list, { type: "", quantity: 1, unitCost: 0 }]);
+  };
+
+  const removeItem = (list: MaterialItem[], setList: (items: MaterialItem[]) => void, idx: number) => {
+    setList(list.filter((_, i) => i !== idx));
+  };
+
+  const updateItem = (list: MaterialItem[], setList: (items: MaterialItem[]) => void, idx: number, field: keyof MaterialItem, val: string) => {
+    const updated = [...list];
+    if (field === "type") updated[idx] = { ...updated[idx], type: val };
+    else if (field === "quantity") updated[idx] = { ...updated[idx], quantity: Math.max(1, parseInt(val, 10) || 1) };
+    else updated[idx] = { ...updated[idx], unitCost: Math.max(0, parseInt(val, 10) || 0) };
+    setList(updated);
+  };
+
+  const sumItems = (items: MaterialItem[]) => items.reduce((s, i) => s + i.quantity * i.unitCost, 0);
+
   const submitQuote = async (id: string) => {
-    const price = parseInt(quoteValue, 10);
-    if (!price || price <= 0) { setActionError("Enter a valid price"); return; }
-    try {
-      await setQuotedPrice(id, price);
-      setQuotingId(null);
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to set price");
+    const order = bookings.find(o => o.id === id);
+    const hasAttachPref = order?.attachmentPreference != null;
+
+    if (hasAttachPref) {
+      const hairCost = parseInt(hairCostValue, 10);
+      if (!hairCost || hairCost <= 0) { setActionError("Enter a valid hair service cost"); return; }
+      // Validate items have types filled in
+      const badAttach = attachItems.some(i => !i.type.trim());
+      const badAccess = accessItems.some(i => !i.type.trim());
+      if (badAttach || badAccess) { setActionError("Please fill in all item names"); return; }
+
+      const totalPrice = hairCost + sumItems(attachItems) + sumItems(accessItems);
+      try {
+        await setQuotedPrice(id, totalPrice, {
+          hairServiceCost: hairCost,
+          attachmentItems: attachItems,
+          accessoryItems: accessItems,
+        });
+        setQuotingId(null);
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "Failed to set price");
+      }
+    } else {
+      const price = parseInt(quoteValue, 10);
+      if (!price || price <= 0) { setActionError("Enter a valid price"); return; }
+      try {
+        await setQuotedPrice(id, price);
+        setQuotingId(null);
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "Failed to set price");
+      }
     }
   };
 
@@ -95,11 +155,14 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
       </div>
 
       <div style={{ background: t.surface, borderRadius: 12, border: `1px solid ${t.border}`, overflow: "hidden" }}>
-        {filtered.map((o, i) => (
-          <div key={o.id} style={{
+        {filtered.map((o, i) => {
+          const isHighlighted = o.id === highlightBookingId;
+          return (
+          <div key={o.id} ref={isHighlighted ? highlightRef : undefined} style={{
             padding: "16px 20px",
             borderBottom: i < filtered.length - 1 ? `1px solid ${t.border}` : "none",
-            transition: "background 0.2s",
+            transition: "background 0.8s",
+            background: isHighlighted && !highlightFading ? `${t.gold}18` : "transparent",
           }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", rowGap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
@@ -126,10 +189,18 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
                     "{o.customStyleDescription}"
                   </div>
                 )}
+                {o.attachmentPreference && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 11, color: o.attachmentPreference === "nessy_buys" ? t.gold : t.textMuted }}>
+                    <Package size={11} /> {o.attachmentPreference === "client_provides" ? "Client brings attachments" : "Nessy purchases attachments"}
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
               {quotingId === o.id ? (
+                o.attachmentPreference ? (
+                  <div style={{ fontSize: 12, color: t.textSoft }}>Quoting below…</div>
+                ) : (
                 <>
                   <input
                     type="number" value={quoteValue} onChange={(e) => setQuoteValue(e.target.value)}
@@ -148,6 +219,7 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
                     padding: "6px 12px", fontSize: 12, color: t.textSoft, cursor: "pointer",
                   }}>Cancel</button>
                 </>
+                )
               ) : (
                 <>
                   <span style={{ fontSize: 14, fontWeight: 700 }}>{o.price || "—"}</span>
@@ -198,8 +270,72 @@ export function Orders({ initialFilter = "all" }: OrdersProps) {
               </div>
             </div>
           )}
+
+          {quotingId === o.id && o.attachmentPreference && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
+              <div style={{ display: "grid", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 4, display: "block" }}>Hair Service Cost</label>
+                  <input type="number" value={hairCostValue} onChange={(e) => setHairCostValue(e.target.value)}
+                    placeholder="₦ hair service" autoFocus
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                {/* Attachment items */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>Attachments</label>
+                    <button onClick={() => addItem(attachItems, setAttachItems)} style={{ background: "none", border: "none", color: t.gold, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 2, padding: 0 }}>
+                      <Plus size={12} /> Add
+                    </button>
+                  </div>
+                  {attachItems.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                      <input value={item.type} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "type", e.target.value)} placeholder="Type" style={{ flex: 2, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
+                      <input type="number" value={item.quantity} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "quantity", e.target.value)} placeholder="Qty" style={{ width: 50, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none", textAlign: "center" }} />
+                      <input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "unitCost", e.target.value)} placeholder="₦ each" style={{ width: 80, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
+                      <button onClick={() => removeItem(attachItems, setAttachItems, idx)} style={{ background: "none", border: "none", color: "#EF4444", cursor: "pointer", padding: 2, flexShrink: 0 }}><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                  {attachItems.length > 0 && <div style={{ fontSize: 11, color: t.textSoft, textAlign: "right" }}>Subtotal: ₦{sumItems(attachItems).toLocaleString()}</div>}
+                </div>
+
+                {/* Accessory items */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>Accessories</label>
+                    <button onClick={() => addItem(accessItems, setAccessItems)} style={{ background: "none", border: "none", color: t.gold, fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 2, padding: 0 }}>
+                      <Plus size={12} /> Add
+                    </button>
+                  </div>
+                  {accessItems.map((item, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                      <input value={item.type} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "type", e.target.value)} placeholder="Type" style={{ flex: 2, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
+                      <input type="number" value={item.quantity} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "quantity", e.target.value)} placeholder="Qty" style={{ width: 50, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none", textAlign: "center" }} />
+                      <input type="number" value={item.unitCost || ""} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "unitCost", e.target.value)} placeholder="₦ each" style={{ width: 80, padding: "6px 8px", borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgAlt, fontSize: 12, color: t.text, outline: "none" }} />
+                      <button onClick={() => removeItem(accessItems, setAccessItems, idx)} style={{ background: "none", border: "none", color: "#EF4444", cursor: "pointer", padding: 2, flexShrink: 0 }}><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                  {accessItems.length > 0 && <div style={{ fontSize: 11, color: t.textSoft, textAlign: "right" }}>Subtotal: ₦{sumItems(accessItems).toLocaleString()}</div>}
+                </div>
+
+                {/* Total and actions */}
+                <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>
+                    Total: ₦{((parseInt(hairCostValue, 10) || 0) + sumItems(attachItems) + sumItems(accessItems)).toLocaleString()}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => setQuotingId(null)} style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, color: t.textSoft, cursor: "pointer" }}>Cancel</button>
+                    <button onClick={() => submitQuote(o.id)} style={{ background: t.gold, color: "#0A0A0A", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Save Quote</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

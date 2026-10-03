@@ -5,7 +5,7 @@ import { getMonthRange, getWeekRange } from "../lib/date";
 import { notify } from "../lib/notify";
 import { hourFromLabel } from "./useAvailability";
 import type { Database } from "../types/database";
-import type { Order, OrderStatus } from "../types";
+import type { AttachmentPreference, MaterialItem, Order, OrderStatus } from "../types";
 
 type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
 
@@ -28,7 +28,7 @@ function computeStats(rows: BookingRow[]): BookingStats {
     thisWeekCount: thisWeekRows.length,
     pendingReviewCount: rows.filter(r => r.status === "pending_review" || r.status === "deposit_paid").length,
     revenueThisWeek: thisWeekRows
-      .filter(r => r.status === "confirmed" || r.status === "completed")
+      .filter(r => (r.status === "confirmed" || r.status === "completed") && r.deposit_confirmed_at != null)
       .reduce((sum, r) => sum + (r.quoted_price ?? 0), 0),
     clientsThisMonthCount: new Set(thisMonthRows.map(r => r.client_phone)).size,
   };
@@ -79,6 +79,10 @@ function rowToOrder(row: BookingRow, nameById: Map<string, string>): Order {
     customStyleUrl: row.custom_style_url,
     customStyleDescription: row.custom_style_description,
     paymentProofUrl: row.payment_proof_url,
+    attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
+    attachmentItems: (row.attachment_items as unknown as MaterialItem[]) ?? [],
+    accessoryItems: (row.accessory_items as unknown as MaterialItem[]) ?? [],
+    hairServiceCost: row.hair_service_cost ?? null,
   };
 }
 
@@ -89,7 +93,11 @@ interface UseBookingsResult {
   error: string | null;
   refetch: () => Promise<void>;
   updateBookingStatus: (id: string, status: OrderStatus) => Promise<void>;
-  setQuotedPrice: (id: string, price: number) => Promise<void>;
+  setQuotedPrice: (
+    id: string,
+    price: number,
+    materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
+  ) => Promise<void>;
   confirmDepositPayment: (id: string) => Promise<void>;
   rejectDepositPayment: (id: string) => Promise<void>;
 }
@@ -146,11 +154,21 @@ export function useBookings(): UseBookingsResult {
     await fetchBookings();
   }, [rows, fetchBookings]);
 
-  const setQuotedPrice = useCallback(async (id: string, price: number) => {
+  const setQuotedPrice = useCallback(async (
+    id: string,
+    price: number,
+    materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
+  ) => {
     await assertAuthenticated();
     const existing = rows.find(r => r.id === id);
+    const updates: Database["public"]["Tables"]["bookings"]["Update"] = { quoted_price: price, status: "quoted", updated_at: new Date().toISOString() };
+    if (materials) {
+      updates.hair_service_cost = materials.hairServiceCost;
+      updates.attachment_items = materials.attachmentItems.map(i => ({ type: i.type, quantity: i.quantity, unit_cost: i.unitCost }));
+      updates.accessory_items = materials.accessoryItems.map(i => ({ type: i.type, quantity: i.quantity, unit_cost: i.unitCost }));
+    }
     const { error: updateError } = await supabase.from("bookings")
-      .update({ quoted_price: price, status: "quoted", updated_at: new Date().toISOString() }).eq("id", id);
+      .update(updates).eq("id", id);
     if (updateError) await handleWriteError(updateError);
 
     if (existing) {
@@ -229,6 +247,7 @@ export interface CreateBookingInput {
   serviceIds: string[];
   customStyleUrl?: string | null;
   customStyleDescription?: string | null;
+  attachmentPreference?: AttachmentPreference | null;
 }
 
 /**
@@ -252,6 +271,7 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
     service_ids: input.serviceIds,
     custom_style_url: input.customStyleUrl ?? null,
     custom_style_description: input.customStyleDescription ?? null,
+    attachment_preference: input.attachmentPreference ?? null,
   });
 
   if (error) throw new Error(error.message);

@@ -2,6 +2,14 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type BookingStatus = "pending_review" | "quoted" | "deposit_paid" | "confirmed" | "completed" | "cancelled";
 
+export type AttachmentPreference = "client_provides" | "nessy_buys";
+
+export interface MaterialItem {
+  type: string;
+  quantity: number;
+  unit_cost: number;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -95,6 +103,10 @@ export interface Database {
           payment_proof_url: string | null;
           created_at: string;
           updated_at: string;
+          attachment_preference: AttachmentPreference | null;
+          attachment_items: MaterialItem[];
+          accessory_items: MaterialItem[];
+          hair_service_cost: number | null;
         };
         Insert: {
           id?: string;
@@ -113,6 +125,10 @@ export interface Database {
           payment_proof_url?: string | null;
           created_at?: string;
           updated_at?: string;
+          attachment_preference?: AttachmentPreference | null;
+          attachment_items?: MaterialItem[];
+          accessory_items?: MaterialItem[];
+          hair_service_cost?: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
@@ -226,6 +242,10 @@ export interface Database {
           custom_style_url: string | null;
           custom_style_description: string | null;
           created_at: string;
+          attachment_preference: AttachmentPreference | null;
+          attachment_items: MaterialItem[];
+          accessory_items: MaterialItem[];
+          hair_service_cost: number | null;
         }[];
       };
       reschedule_booking: {

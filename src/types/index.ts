@@ -56,6 +56,14 @@ export type OrderStatus =
   | "completed"
   | "cancelled";
 
+export type AttachmentPreference = "client_provides" | "nessy_buys";
+
+export interface MaterialItem {
+  type: string;
+  quantity: number;
+  unitCost: number;
+}
+
 export interface Order {
   id: string;
   client: string;
@@ -67,6 +75,10 @@ export interface Order {
   customStyleUrl: string | null;
   customStyleDescription: string | null;
   paymentProofUrl: string | null;
+  attachmentPreference: AttachmentPreference | null;
+  attachmentItems: MaterialItem[];
+  accessoryItems: MaterialItem[];
+  hairServiceCost: number | null;
 }
 
 export type OrderFilter = "all" | OrderStatus;

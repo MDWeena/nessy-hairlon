@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { Scissors, Upload, ChevronLeft, Loader2, X } from "lucide-react";
+import { Scissors, Upload, ChevronLeft, Loader2, X, Package } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { uploadToCloudinary } from "../../lib/cloudinary";
-import type { ServiceItem } from "../../types";
+import type { AttachmentPreference, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { ServiceCard } from "./ServiceCard";
@@ -18,6 +18,8 @@ interface StepServicesProps {
   onPhotoRemoved: () => void;
   customStyleDescription: string;
   onDescriptionChange: (text: string) => void;
+  attachmentPreference: AttachmentPreference | null;
+  onAttachmentPreferenceChange: (pref: AttachmentPreference | null) => void;
   onBack: () => void;
   onContinue: () => void;
 }
@@ -25,7 +27,7 @@ interface StepServicesProps {
 export function StepServices({
   allServices, selectedServices, onToggleService, uploadMode, setUploadMode,
   customStyleUrl, onPhotoUploaded, onPhotoRemoved, customStyleDescription, onDescriptionChange,
-  onBack, onContinue,
+  attachmentPreference, onAttachmentPreferenceChange, onBack, onContinue,
 }: StepServicesProps) {
   const { t } = useTheme();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -139,6 +141,58 @@ export function StepServices({
                 }}
               />
             </div>
+          </div>
+        )}
+
+        {/* Hair Attachments & Accessories */}
+        {(selectedServices.length > 0 || !!customStyleUrl) && (
+          <div style={{
+            background: t.surface, borderRadius: 12, padding: 20,
+            border: `1px solid ${t.border}`, marginBottom: 20,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <Package size={16} color={t.gold} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>Hair Attachments / Accessories</span>
+            </div>
+            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 14, lineHeight: 1.5 }}>
+              Will you need hair attachments or accessories for this style?
+            </p>
+            <div style={{ display: "grid", gap: 8 }}>
+              {([
+                { value: "client_provides" as const, label: "I'll bring my own", desc: "You'll provide your own hair attachments/accessories" },
+                { value: "nessy_buys" as const, label: "Nessy will purchase for me", desc: "Cost of materials will be added to your quote" },
+              ]).map(({ value, label, desc }) => (
+                <button key={value} onClick={() => onAttachmentPreferenceChange(attachmentPreference === value ? null : value)} style={{
+                  display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px",
+                  borderRadius: 10, cursor: "pointer", textAlign: "left",
+                  border: attachmentPreference === value ? `2px solid ${t.gold}` : `1px solid ${t.border}`,
+                  background: attachmentPreference === value ? t.goldBg : "transparent",
+                  transition: "all 0.2s",
+                }}>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+                    border: attachmentPreference === value ? `2px solid ${t.gold}` : `2px solid ${t.border}`,
+                    background: attachmentPreference === value ? t.gold : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {attachmentPreference === value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{label}</div>
+                    <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {attachmentPreference === "nessy_buys" && (
+              <div style={{
+                marginTop: 12, padding: "10px 14px", borderRadius: 8,
+                background: t.goldBg, border: `1px solid ${t.gold}20`,
+                fontSize: 12, color: t.textSoft, lineHeight: 1.5,
+              }}>
+                💡 Your deposit will cover the full cost of materials plus 50% of the styling fee.
+              </div>
+            )}
           </div>
         )}
 

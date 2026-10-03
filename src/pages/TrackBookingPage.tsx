@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Loader2 } from "lucide-react";
+import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Loader2, Package } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { lookupBookings, rescheduleBooking, cancelBooking, markDepositPaid } from "../hooks/useBookingLookup";
 import type { TrackedBooking } from "../hooks/useBookingLookup";
@@ -68,9 +68,21 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
   const proofInputRef = useRef<HTMLInputElement | null>(null);
 
   const looksLikeReference = /[a-z]/i.test(query.trim());
-  const depositAmount = settings.deposit_percentage != null
-    ? (booking: TrackedBooking) => booking.quotedPrice != null ? Math.round((booking.quotedPrice * settings.deposit_percentage!) / 100) : null
-    : () => null;
+  const sumMaterials = (items: { quantity: number; unitCost: number }[]) => items.reduce((s, i) => s + i.quantity * i.unitCost, 0);
+
+  const depositAmount = (booking: TrackedBooking): number | null => {
+    if (booking.quotedPrice == null) return null;
+    // If Nessy buys attachments: deposit = full materials cost + 50% of hair service
+    if (booking.attachmentPreference === "nessy_buys" && booking.hairServiceCost != null) {
+      const materialsCost = sumMaterials(booking.attachmentItems) + sumMaterials(booking.accessoryItems);
+      return Math.round(materialsCost + booking.hairServiceCost * 0.5);
+    }
+    // Standard: deposit = quoted_price × deposit_percentage / 100
+    if (settings.deposit_percentage != null) {
+      return Math.round((booking.quotedPrice * settings.deposit_percentage) / 100);
+    }
+    return null;
+  };
 
   const handleSearch = async () => {
     const trimmed = query.trim();
@@ -261,6 +273,14 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                       {b.quotedPrice != null ? `₦${b.quotedPrice.toLocaleString()}` : "Pending"}
                     </span>
                   </div>
+                  {b.attachmentPreference && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Package size={13} /> Attachments</span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>
+                        {b.attachmentPreference === "client_provides" ? "I bring my own" : "Nessy purchases"}
+                      </span>
+                    </div>
+                  )}
                   {b.customStyleDescription && (
                     <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 10, marginTop: 2 }}>
                       <span style={{ color: t.textMuted, fontSize: 12, display: "block", marginBottom: 4 }}>Style notes</span>
@@ -279,7 +299,41 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                   <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
                     {(settings.bank_name || settings.account_number) && (
                       <div style={{ background: t.bgAlt, borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 13, lineHeight: 1.8 }}>
-                        {deposit != null && (
+                        {b.attachmentPreference === "nessy_buys" && b.hairServiceCost != null && (
+                          <>
+                            <div style={{ marginBottom: 4 }}>
+                              <span style={{ color: t.textMuted }}>Hair service:</span> <strong>₦{b.hairServiceCost.toLocaleString()}</strong>
+                            </div>
+                            {b.attachmentItems.length > 0 && (
+                              <div style={{ marginBottom: 4 }}>
+                                <span style={{ color: t.textMuted }}>Attachments:</span> <strong>₦{sumMaterials(b.attachmentItems).toLocaleString()}</strong>
+                                <div style={{ fontSize: 11, color: t.textMuted, paddingLeft: 8, marginTop: 2 }}>
+                                  {b.attachmentItems.map((item, i) => (
+                                    <div key={i}>{item.type} × {item.quantity} @ ₦{item.unitCost.toLocaleString()}</div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {b.accessoryItems.length > 0 && (
+                              <div style={{ marginBottom: 4 }}>
+                                <span style={{ color: t.textMuted }}>Accessories:</span> <strong>₦{sumMaterials(b.accessoryItems).toLocaleString()}</strong>
+                                <div style={{ fontSize: 11, color: t.textMuted, paddingLeft: 8, marginTop: 2 }}>
+                                  {b.accessoryItems.map((item, i) => (
+                                    <div key={i}>{item.type} × {item.quantity} @ ₦{item.unitCost.toLocaleString()}</div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 6, marginTop: 6, marginBottom: 6 }}>
+                              <span style={{ color: t.textMuted }}>Total:</span> <strong>₦{b.quotedPrice!.toLocaleString()}</strong>
+                            </div>
+                            <div>
+                              <span style={{ color: t.textMuted }}>Deposit due:</span> <strong style={{ color: t.gold }}>₦{deposit!.toLocaleString()}</strong>
+                              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>Full materials cost + 50% hair service</div>
+                            </div>
+                          </>
+                        )}
+                        {(b.attachmentPreference !== "nessy_buys" || b.hairServiceCost == null) && deposit != null && (
                           <div style={{ marginBottom: 6 }}>
                             <span style={{ color: t.textMuted }}>Deposit ({settings.deposit_percentage}%):</span> <strong style={{ color: t.gold }}>₦{deposit.toLocaleString()}</strong>
                           </div>

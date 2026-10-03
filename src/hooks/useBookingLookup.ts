@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { shortBookingReference } from "../lib/bookingReference";
 import { notify } from "../lib/notify";
-import type { OrderStatus } from "../types";
+import type { AttachmentPreference, MaterialItem, OrderStatus } from "../types";
 
 export interface TrackedBooking {
   id: string;
@@ -14,6 +14,10 @@ export interface TrackedBooking {
   serviceNames: string[];
   customStyleUrl: string | null;
   customStyleDescription: string | null;
+  attachmentPreference: AttachmentPreference | null;
+  attachmentItems: MaterialItem[];
+  accessoryItems: MaterialItem[];
+  hairServiceCost: number | null;
 }
 
 export interface LookupBookingsQuery {
@@ -54,6 +58,10 @@ export async function lookupBookings({ reference, phone }: LookupBookingsQuery):
     serviceNames: row.service_ids.map(id => nameById.get(id)).filter((n): n is string => Boolean(n)),
     customStyleUrl: row.custom_style_url,
     customStyleDescription: row.custom_style_description,
+    attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
+    attachmentItems: ((row.attachment_items ?? []) as unknown as { type: string; quantity: number; unit_cost: number }[]).map(i => ({ type: i.type, quantity: i.quantity, unitCost: i.unit_cost })),
+    accessoryItems: ((row.accessory_items ?? []) as unknown as { type: string; quantity: number; unit_cost: number }[]).map(i => ({ type: i.type, quantity: i.quantity, unitCost: i.unit_cost })),
+    hairServiceCost: row.hair_service_cost ?? null,
   }));
 }
 

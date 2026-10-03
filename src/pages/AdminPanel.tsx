@@ -16,11 +16,12 @@ import type { OrderFilter } from "../types";
 interface AdminPanelProps {
   onViewSite: () => void;
   onLogout: () => void;
+  deepLinkBookingId?: string | null;
 }
 
-export function AdminPanel({ onViewSite, onLogout }: AdminPanelProps) {
+export function AdminPanel({ onViewSite, onLogout, deepLinkBookingId }: AdminPanelProps) {
   const { t } = useTheme();
-  const [adminPage, setAdminPage] = useState("dashboard");
+  const [adminPage, setAdminPage] = useState(deepLinkBookingId ? "orders" : "dashboard");
   const [adminLoading, setAdminLoading] = useState(false);
   const [ordersFilter, setOrdersFilter] = useState<OrderFilter>("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -55,7 +56,7 @@ export function AdminPanel({ onViewSite, onLogout }: AdminPanelProps) {
           {adminLoading ? <AdminLoader /> : (
             <>
               {adminPage === "dashboard" && <Dashboard onNavigate={switchAdminPage} />}
-              {adminPage === "orders" && <Orders initialFilter={ordersFilter} />}
+              {adminPage === "orders" && <Orders initialFilter={ordersFilter} highlightBookingId={deepLinkBookingId} />}
               {adminPage === "availability" && <Availability />}
               {adminPage === "services" && <ServicesManager />}
               {adminPage === "stories" && <ClientStories />}

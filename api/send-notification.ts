@@ -58,6 +58,12 @@ async function fetchPaymentSettings(): Promise<PaymentSettings | null> {
   };
 }
 
+interface MaterialItemData {
+  type: string;
+  quantity: number;
+  unit_cost: number;
+}
+
 interface BookingNotificationData {
   id: string;
   client_name: string;
@@ -67,6 +73,10 @@ interface BookingNotificationData {
   booking_time: string;
   status: BookingStatus;
   quoted_price: number | null;
+  attachment_preference?: "client_provides" | "nessy_buys" | null;
+  attachment_items?: MaterialItemData[];
+  accessory_items?: MaterialItemData[];
+  hair_service_cost?: number | null;
 }
 
 type NotificationPayload =
@@ -77,30 +87,77 @@ type NotificationPayload =
   | { type: "deposit_claimed"; booking: BookingNotificationData }
   | { type: "payment_not_verified"; booking: BookingNotificationData };
 
+function sumMaterials(items: MaterialItemData[]): number {
+  return items.reduce((s, i) => s + i.quantity * i.unit_cost, 0);
+}
+
 function formatPrice(price: number | null): string {
   return price != null ? `₦${price.toLocaleString()}` : "Pending";
 }
 
-function renderNewBookingEmail(booking: BookingNotificationData): string {
+function adminBookingLink(siteUrl: string, bookingId: string): string {
+  return `${siteUrl}/admin?booking=${bookingId}`;
+}
+
+function renderAdminCta(siteUrl: string, bookingId: string, label: string = "Review Booking"): string {
+  const link = adminBookingLink(siteUrl, bookingId);
+  return `
+    <p style="margin-top:20px">
+      <a href="${link}" style="display:inline-block;padding:10px 24px;background:#C49A6C;color:#0A0A0A;text-decoration:none;border-radius:6px;font-weight:700;font-size:14px">${label}</a>
+    </p>
+    <p style="font-size:12px;color:#888;margin-top:8px">
+      Or open this link: <a href="${link}" style="color:#C49A6C">${link}</a>
+    </p>
+  `;
+}
+
+function renderNewBookingEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
     <h2>New booking request</h2>
     <p><strong>${booking.client_name}</strong> requested an appointment on <strong>${booking.booking_date}</strong> at <strong>${booking.booking_time}</strong>.</p>
     <p>Phone: ${booking.client_phone}</p>
     ${booking.client_email ? `<p>Email: ${booking.client_email}</p>` : ""}
     <p>Status: ${statusColors[booking.status].label}</p>
+    ${renderAdminCta(siteUrl, booking.id, "Review & Set Price")}
   `;
 }
 
 function renderQuoteReadyEmail(booking: BookingNotificationData, settings: PaymentSettings | null, siteUrl: string): string {
-  const depositAmount = booking.quoted_price != null && settings
-    ? Math.round((booking.quoted_price * settings.depositPercentage) / 100)
-    : null;
+  const isNessyBuys = booking.attachment_preference === "nessy_buys" && booking.hair_service_cost != null;
+  let depositAmount: number | null = null;
+  let breakdownHtml = "";
+
+  if (isNessyBuys) {
+    const attachCost = sumMaterials(booking.attachment_items ?? []);
+    const accessCost = sumMaterials(booking.accessory_items ?? []);
+    const materialsCost = attachCost + accessCost;
+    depositAmount = Math.round(materialsCost + booking.hair_service_cost! * 0.5);
+
+    const itemRows = (items: MaterialItemData[], label: string) => items.length > 0
+      ? `<p>${label}: <strong>${formatPrice(sumMaterials(items))}</strong><br/>
+         <span style="font-size:12px;color:#888">${items.map(i => `${i.type} × ${i.quantity} @ ₦${i.unit_cost.toLocaleString()}`).join(", ")}</span></p>`
+      : "";
+
+    breakdownHtml = `
+      <p>Hair service: <strong>${formatPrice(booking.hair_service_cost!)}</strong></p>
+      ${itemRows(booking.attachment_items ?? [], "Attachments")}
+      ${itemRows(booking.accessory_items ?? [], "Accessories")}
+      <p><strong>Total: ${formatPrice(booking.quoted_price)}</strong></p>
+      <p>Deposit due: <strong style="color:#C49A6C">${formatPrice(depositAmount)}</strong><br/>
+      <span style="font-size:12px;color:#888">Full materials cost + 50% hair service</span></p>
+    `;
+  } else if (booking.quoted_price != null && settings) {
+    depositAmount = Math.round((booking.quoted_price * settings.depositPercentage) / 100);
+    breakdownHtml = `<p>${settings.depositPercentage}% deposit: <strong>${formatPrice(depositAmount)}</strong></p>`;
+  }
+
   const paymentBlock = settings
-    ? `<p>${settings.depositPercentage}% deposit: <strong>${formatPrice(depositAmount)}</strong></p>
+    ? `${breakdownHtml}
        <p>Bank: <strong>${settings.bankName}</strong><br/>
        Account: <strong>${settings.accountNumber}</strong><br/>
        Name: <strong>${settings.accountName}</strong></p>`
     : "";
+
   return `
     <h2>Your Nessy Hairlon Quote is Ready</h2>
     <p>Your request for <strong>${booking.booking_date}</strong> at <strong>${booking.booking_time}</strong> has been priced.</p>
@@ -133,27 +190,30 @@ function renderCompletedEmail(booking: BookingNotificationData, siteUrl: string)
   `;
 }
 
-function renderClientRescheduleEmail(booking: BookingNotificationData, previousDate: string, previousTime: string): string {
+function renderClientRescheduleEmail(booking: BookingNotificationData, previousDate: string, previousTime: string, siteUrl: string): string {
   return `
     <h2>A client rescheduled their appointment</h2>
     <p><strong>${booking.client_name}</strong> (${booking.client_phone}) moved their appointment from
       <strong>${previousDate} at ${previousTime}</strong> to <strong>${booking.booking_date} at ${booking.booking_time}</strong>.</p>
+    ${renderAdminCta(siteUrl, booking.id, "View Booking")}
   `;
 }
 
-function renderClientCancellationEmail(booking: BookingNotificationData): string {
+function renderClientCancellationEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
     <h2>A client cancelled their appointment</h2>
     <p><strong>${booking.client_name}</strong> (${booking.client_phone}) cancelled their appointment on
       <strong>${booking.booking_date} at ${booking.booking_time}</strong>.</p>
+    ${renderAdminCta(siteUrl, booking.id, "View Booking")}
   `;
 }
 
-function renderDepositClaimedEmail(booking: BookingNotificationData): string {
+function renderDepositClaimedEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
     <h2>Client says they've paid their deposit</h2>
     <p><strong>${booking.client_name}</strong> (${booking.client_phone}) says they've paid the deposit for their
       appointment on <strong>${booking.booking_date} at ${booking.booking_time}</strong>. Please verify and confirm.</p>
+    ${renderAdminCta(siteUrl, booking.id, "Verify Payment")}
   `;
 }
 
@@ -224,6 +284,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const fromAddress = process.env.RESEND_FROM_EMAIL || "Nessy Hairlon <onboarding@resend.dev>";
 
   try {
+    const siteUrl = `https://${req.headers.host}`;
+
     if (payload.type === "new_booking") {
       const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
       if (adminEmail) {
@@ -231,14 +293,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           from: fromAddress,
           to: adminEmail,
           subject: `New booking request from ${payload.booking.client_name}`,
-          html: renderNewBookingEmail(payload.booking),
+          html: renderNewBookingEmail(payload.booking, siteUrl),
         });
       }
     } else if (payload.type === "status_change") {
       if (payload.booking.client_email) {
         if (payload.booking.status === "quoted") {
           const settings = await fetchPaymentSettings();
-          const siteUrl = `https://${req.headers.host}`;
           await resend.emails.send({
             from: fromAddress,
             to: payload.booking.client_email,
@@ -254,7 +315,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             html: renderBookingConfirmedEmail(payload.booking, settings),
           });
         } else if (payload.booking.status === "completed") {
-          const siteUrl = `https://${req.headers.host}`;
           await resend.emails.send({
             from: fromAddress,
             to: payload.booking.client_email,
@@ -277,7 +337,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           from: fromAddress,
           to: adminEmail,
           subject: `Client rescheduled: ${payload.booking.client_name}`,
-          html: renderClientRescheduleEmail(payload.booking, payload.previousDate, payload.previousTime),
+          html: renderClientRescheduleEmail(payload.booking, payload.previousDate, payload.previousTime, siteUrl),
         });
       }
     } else if (payload.type === "client_cancellation") {
@@ -287,7 +347,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           from: fromAddress,
           to: adminEmail,
           subject: `Client cancelled: ${payload.booking.client_name}`,
-          html: renderClientCancellationEmail(payload.booking),
+          html: renderClientCancellationEmail(payload.booking, siteUrl),
         });
       }
     } else if (payload.type === "deposit_claimed") {
@@ -297,7 +357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           from: fromAddress,
           to: adminEmail,
           subject: `Deposit claimed: ${payload.booking.client_name} — please verify`,
-          html: renderDepositClaimedEmail(payload.booking),
+          html: renderDepositClaimedEmail(payload.booking, siteUrl),
         });
       }
     } else if (payload.type === "payment_not_verified") {

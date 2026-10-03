@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Eye, Calendar, Clock, Scissors, Image, ChevronLeft, ChevronRight, Check, Mail, MessageCircle } from "lucide-react";
+import { Eye, Calendar, Clock, Scissors, Image, ChevronLeft, ChevronRight, Check, Mail, MessageCircle, Package } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { createBooking } from "../../hooks/useBookings";
 import { useSettings } from "../../hooks/useSettings";
 import { shortBookingReference } from "../../lib/bookingReference";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
-import type { BookingDay, NavigateFn, ServiceItem } from "../../types";
+import type { AttachmentPreference, BookingDay, NavigateFn, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -18,13 +18,14 @@ interface StepReviewProps {
   uploadMode: boolean;
   customStyleUrl: string | null;
   customStyleDescription: string;
+  attachmentPreference: AttachmentPreference | null;
   onBack: () => void;
   navigate: NavigateFn;
 }
 
 export function StepReview({
   allServices, selectedDay, selectedTime, selectedServices, uploadMode,
-  customStyleUrl, customStyleDescription, onBack, navigate,
+  customStyleUrl, customStyleDescription, attachmentPreference, onBack, navigate,
 }: StepReviewProps) {
   const { t } = useTheme();
   const { settings } = useSettings();
@@ -58,6 +59,7 @@ export function StepReview({
         serviceIds,
         customStyleUrl,
         customStyleDescription: customStyleDescription.trim() || (isCustom ? "Custom style photo uploaded" : null),
+        attachmentPreference,
       });
       setReference(shortBookingReference(id));
     } catch (err) {
@@ -181,6 +183,17 @@ export function StepReview({
                 );
               })}
             </div>
+
+            {attachmentPreference && (
+              <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: t.textMuted, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}><Package size={14} /> Hair Attachments</span>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>
+                    {attachmentPreference === "client_provides" ? "I'll bring my own" : "Nessy will purchase"}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
