@@ -62,115 +62,100 @@ export function LeaveReviewPage() {
   };
 
   return (
-    <section style={{ padding: "48px 24px 72px", maxWidth: 560, margin: "0 auto" }}>
+    <section className="pt-12 px-6 pb-[72px] max-w-[560px] mx-auto">
       <FadeIn>
-        <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>LEAVE A REVIEW</p>
-        <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 12 }}>
+        <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">LEAVE A REVIEW</p>
+        <h2 className="font-cursive text-5xl font-bold mb-3">
           How was your visit?
         </h2>
         {!submitted && (
-          <p style={{ fontSize: 15, color: t.textSoft, marginBottom: 32, lineHeight: 1.6 }}>
+          <p className="text-[15px] text-text-soft mb-8 leading-[1.6]">
             Find your completed appointment to leave a review.
           </p>
         )}
       </FadeIn>
 
       {submitted ? (
-        <div style={{ background: t.surface, borderRadius: 16, padding: 40, textAlign: "center", border: `1px solid ${t.border}` }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: "50%", background: t.goldBg,
-            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
-          }}>
+        <div className="bg-surface rounded-2xl p-10 text-center border border-border">
+          <div className="w-14 h-14 rounded-full bg-gold-bg flex items-center justify-center mx-auto mt-0 mb-4">
             <Check size={26} color={t.gold} />
           </div>
-          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Thank you!</h3>
-          <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+          <h3 className="text-xl font-bold mb-2">Thank you!</h3>
+          <p className="text-sm text-text-soft leading-[1.6]">
             Your review will appear on our site once approved.
           </p>
         </div>
       ) : booking === undefined || booking === null ? (
         <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <div className="flex gap-2 mb-5">
             <input
               value={query} onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               placeholder="e.g. BK-A3BF7FC4 or 080..."
-              style={{
-                flex: 1, padding: "12px 14px", borderRadius: 10, border: `1px solid ${t.border}`,
-                background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-              }}
+              className="flex-1 py-3 px-3.5 rounded-[10px] border border-border bg-bg-alt text-sm text-text outline-none box-border"
             />
-            <GoldButton onClick={handleSearch} disabled={loading} style={{
-              background: t.gold, color: "#0A0A0A", border: "none",
-              padding: "0 20px", borderRadius: 10, fontSize: 14, fontWeight: 700,
-              cursor: loading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 8,
-            }}>
+            <GoldButton
+              onClick={handleSearch} disabled={loading}
+              className={`bg-gold text-theme-black border-none py-0 px-5 rounded-[10px] text-sm font-bold flex items-center gap-2 ${loading ? "cursor-wait" : "cursor-pointer"}`}
+            >
               {loading ? <GoldSpinner size={16} color="#0A0A0A" /> : <Search size={16} />} {loading ? "Searching…" : "Search"}
             </GoldButton>
           </div>
           {lookupError && <ErrorNotice message={lookupError} />}
         </>
       ) : booking.status !== "completed" ? (
-        <div style={{ background: t.surface, borderRadius: 16, padding: 24, border: `1px solid ${t.border}` }}>
-          <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+        <div className="bg-surface rounded-2xl p-6 border border-border">
+          <p className="text-sm text-text-soft leading-[1.6]">
             This appointment hasn't been marked complete yet, so it can't be reviewed. Check back after your visit.
           </p>
         </div>
       ) : (
-        <div style={{ background: t.surface, borderRadius: 16, padding: 28, border: `1px solid ${t.border}` }}>
-          <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${t.border}` }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: t.gold }}>{booking.reference}</span>
-            <p style={{ fontSize: 14, fontWeight: 600, marginTop: 6 }}>{booking.clientName}</p>
-            <p style={{ fontSize: 13, color: t.textMuted, marginTop: 2 }}>
+        <div className="bg-surface rounded-2xl p-7 border border-border">
+          <div className="mb-5 pb-4 border-b border-border">
+            <span className="text-[13px] font-bold text-gold">{booking.reference}</span>
+            <p className="text-sm font-semibold mt-1.5">{booking.clientName}</p>
+            <p className="text-[13px] text-text-muted mt-0.5">
               {booking.date} · {booking.serviceNames.length > 0 ? booking.serviceNames.join(", ") : "Custom style"}
             </p>
           </div>
 
           {submitError && <ErrorNotice message={submitError} />}
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>
+          <div className="mb-4">
+            <label className="block text-xs text-text-muted mb-1.5 font-medium">
               Confirm the phone number you booked with
             </label>
             <input
               value={phone} onChange={(e) => setPhone(e.target.value)}
-              placeholder="080..." style={{
-                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-              }}
+              placeholder="080..."
+              className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border"
             />
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 8, fontWeight: 500 }}>Rating</label>
-            <div style={{ display: "flex", gap: 6 }}>
+          <div className="mb-4">
+            <label className="block text-xs text-text-muted mb-2 font-medium">Rating</label>
+            <div className="flex gap-1.5">
               {[1, 2, 3, 4, 5].map(n => (
-                <button key={n} onClick={() => setStars(n)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                <button key={n} onClick={() => setStars(n)} className="bg-transparent border-none cursor-pointer p-0">
                   <Star size={28} fill={n <= stars ? t.gold : "transparent"} color={n <= stars ? t.gold : t.border} />
                 </button>
               ))}
             </div>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Your review</label>
+          <div className="mb-5">
+            <label className="block text-xs text-text-muted mb-1.5 font-medium">Your review</label>
             <textarea
               value={reviewText} onChange={(e) => setReviewText(e.target.value)}
               placeholder="Tell us about your experience…" rows={4}
-              style={{
-                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                fontFamily: "inherit", resize: "vertical",
-              }}
+              className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border [font-family:inherit] resize-y"
             />
           </div>
 
-          <GoldButton onClick={handleSubmit} disabled={submitting} style={{
-            width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "14px", fontSize: 15, fontWeight: 700,
-            cursor: submitting ? "wait" : "pointer", borderRadius: 6,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}>{submitting && <GoldSpinner size={16} color="#0A0A0A" />} {submitting ? "Submitting…" : "Submit Review"}</GoldButton>
+          <GoldButton
+            onClick={handleSubmit} disabled={submitting}
+            className={`w-full bg-gold text-theme-black border-none p-3.5 text-[15px] font-bold rounded-md flex items-center justify-center gap-2 ${submitting ? "cursor-wait" : "cursor-pointer"}`}
+          >{submitting && <GoldSpinner size={16} color="#0A0A0A" />} {submitting ? "Submitting…" : "Submit Review"}</GoldButton>
         </div>
       )}
     </section>

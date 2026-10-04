@@ -30,10 +30,10 @@ export function Testimonials({ navigate }: TestimonialsProps) {
   }));
 
   return (
-    <section style={{ padding: "72px 24px", maxWidth: 800, margin: "0 auto" }}>
+    <section className="py-[72px] px-6 max-w-[800px] mx-auto">
       <FadeIn>
-        <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>CLIENT STORIES</p>
-        <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 28 }}>
+        <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">CLIENT STORIES</p>
+        <h2 className="font-cursive text-5xl font-bold mb-7">
           The proof is in the braids
         </h2>
       </FadeIn>
@@ -43,29 +43,25 @@ export function Testimonials({ navigate }: TestimonialsProps) {
 
       {!loading && visible.length > 0 && (
         <FadeIn>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap",
-            background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16,
-            padding: "24px 28px", marginBottom: 32,
-          }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: t.text }}>{average.toFixed(1)}</div>
-              <div style={{ display: "flex", gap: 2, marginTop: 6, justifyContent: "center" }}>
+          <div className="flex items-center gap-7 flex-wrap bg-surface border border-border rounded-2xl py-6 px-7 mb-8">
+            <div className="text-center">
+              <div className="text-4xl font-bold leading-none text-text">{average.toFixed(1)}</div>
+              <div className="flex gap-0.5 mt-1.5 justify-center">
                 {Array.from({ length: 5 }, (_, i) => (
                   <Star key={i} size={14} fill={i < Math.round(average) ? t.gold : "transparent"} color={t.gold} />
                 ))}
               </div>
-              <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>from {visible.length} review{visible.length === 1 ? "" : "s"}</div>
+              <div className="text-xs text-text-muted mt-1.5">from {visible.length} review{visible.length === 1 ? "" : "s"}</div>
             </div>
-            <div style={{ flex: 1, minWidth: 160, display: "grid", gap: 4 }}>
+            <div className="flex-1 min-w-[160px] grid gap-1">
               {distribution.map(({ stars, count }) => (
-                <div key={stars} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, color: t.textMuted, width: 10 }}>{stars}</span>
-                  <div style={{ flex: 1, height: 6, borderRadius: 4, background: t.border, overflow: "hidden" }}>
-                    <div style={{
-                      width: `${visible.length > 0 ? (count / visible.length) * 100 : 0}%`,
-                      height: "100%", background: t.gold, borderRadius: 4,
-                    }} />
+                <div key={stars} className="flex items-center gap-2">
+                  <span className="text-[11px] text-text-muted w-2.5">{stars}</span>
+                  <div className="flex-1 h-1.5 rounded bg-border overflow-hidden">
+                    <div
+                      className="h-full bg-gold rounded"
+                      style={{ width: `${visible.length > 0 ? (count / visible.length) * 100 : 0}%` }}
+                    />
                   </div>
                 </div>
               ))}
@@ -76,24 +72,20 @@ export function Testimonials({ navigate }: TestimonialsProps) {
 
       {!loading && visible.map((review, i) => (
         <FadeIn key={review.id} delay={0.1 * (i + 1)}>
-          <div style={{
-            background: t.surface, padding: 28, borderRadius: 12, marginBottom: 16,
-            borderLeft: `3px solid ${t.gold}`, border: `1px solid ${t.border}`,
-            borderLeftWidth: 3, borderLeftColor: t.gold,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-              <div style={{ display: "flex", gap: 2 }}>
+          <div className="bg-surface p-7 rounded-xl mb-4 border border-border border-l-[3px] border-l-gold">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex gap-0.5">
                 {Array(review.stars).fill(0).map((_, j) => <Star key={j} size={14} fill={t.gold} color={t.gold} />)}
               </div>
-              <span style={{ fontSize: 12, color: t.textMuted }}>{formatReviewMonth(review.reviewDate)}</span>
+              <span className="text-xs text-text-muted">{formatReviewMonth(review.reviewDate)}</span>
             </div>
-            <p style={{ fontSize: 15, lineHeight: 1.7, color: t.textSoft, fontStyle: "italic", marginBottom: 16 }}>
+            <p className="text-[15px] leading-[1.7] text-text-soft italic mb-4">
               "{review.text}"
             </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{review.name}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-bold text-text">{review.name}</span>
               {review.verified && (
-                <span style={{ fontSize: 11, color: t.gold, display: "flex", alignItems: "center", gap: 2 }}>
+                <span className="text-[11px] text-gold flex items-center gap-0.5">
                   <BadgeCheck size={12} /> Verified
                 </span>
               )}
@@ -103,11 +95,10 @@ export function Testimonials({ navigate }: TestimonialsProps) {
       ))}
 
       {!loading && (
-        <div style={{ textAlign: "center", marginTop: 24 }}>
-          <button onClick={() => navigate("review")} style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: t.gold, fontSize: 13, fontWeight: 600,
-          }}>Leave a Review</button>
+        <div className="text-center mt-6">
+          <button onClick={() => navigate("review")} className="bg-transparent border-none cursor-pointer text-gold text-[13px] font-semibold">
+            Leave a Review
+          </button>
         </div>
       )}
     </section>
