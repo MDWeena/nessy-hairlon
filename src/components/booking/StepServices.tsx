@@ -58,88 +58,73 @@ export function StepServices({
   return (
     <FadeIn>
       <div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+        <div className="flex gap-2 mb-7">
           {[
             { label: "Choose from menu", icon: Scissors, active: !uploadMode },
             { label: "Upload a style photo", icon: Upload, active: uploadMode },
           ].map(({ label, icon: Icon, active }) => (
-            <button key={label} onClick={() => setUploadMode(label.includes("Upload"))} style={{
-              flex: 1, padding: "14px", borderRadius: 10, cursor: "pointer",
-              border: active ? `2px solid ${t.gold}` : `1px solid ${t.border}`,
-              background: active ? t.goldBg : t.surface,
-              fontWeight: active ? 700 : 500, fontSize: 13, color: t.text,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              transition: "all 0.2s",
-            }}>
+            <button
+              key={label} onClick={() => setUploadMode(label.includes("Upload"))}
+              className={`flex-1 p-3.5 rounded-[10px] cursor-pointer text-[13px] text-text flex items-center justify-center gap-2 [transition:all_0.2s] border ${
+                active ? "border-2 border-gold bg-gold-bg font-bold" : "border-border bg-surface font-medium"
+              }`}
+            >
               <Icon size={16} color={active ? t.gold : t.textMuted} /> {label}
             </button>
           ))}
         </div>
 
         {!uploadMode ? (
-          <div style={{ display: "grid", gap: 8, marginBottom: 32 }}>
+          <div className="grid gap-2 mb-8">
             {allServices.map(s => (
               <ServiceCard key={s.name} service={s} selected={selectedServices.includes(s.name)} onToggle={() => onToggleService(s.name)} />
             ))}
           </div>
         ) : (
-          <div style={{ marginBottom: 32 }}>
-            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
+          <div className="mb-8">
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
             {uploadError && <ErrorNotice message={uploadError} />}
 
             {customStyleUrl ? (
-              <div style={{
-                border: `1px solid ${t.border}`, borderRadius: 16, padding: 20,
-                background: t.goldBg, display: "flex", alignItems: "center", gap: 16,
-              }}>
-                <img src={customStyleUrl} alt="Uploaded style" style={{
-                  width: 88, height: 88, borderRadius: 10, objectFit: "cover", border: `1px solid ${t.gold}40`, flexShrink: 0,
-                }} />
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: t.text }}>Photo uploaded</p>
-                  <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>Nessy will review and send a custom quote within 24 hours</p>
-                  <button onClick={onPhotoRemoved} style={{
-                    background: "none", border: `1px solid #EF444440`, borderRadius: 6,
-                    padding: "5px 12px", fontSize: 12, color: "#EF4444", cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}><X size={12} /> Remove</button>
+              <div className="border border-border rounded-2xl p-5 bg-gold-bg flex items-center gap-4">
+                <img
+                  src={customStyleUrl} alt="Uploaded style"
+                  className="w-[88px] h-[88px] rounded-[10px] object-cover shrink-0 border border-[#C49A6C40]"
+                />
+                <div className="flex-1">
+                  <p className="font-bold text-sm mb-1 text-text">Photo uploaded</p>
+                  <p className="text-xs text-text-muted mb-2.5">Nessy will review and send a custom quote within 24 hours</p>
+                  <button
+                    onClick={onPhotoRemoved}
+                    className="bg-transparent border border-[#EF444440] rounded-md py-[5px] px-3 text-xs text-[#EF4444] cursor-pointer flex items-center gap-1"
+                  ><X size={12} /> Remove</button>
                 </div>
               </div>
             ) : (
-              <div style={{
-                border: `2px dashed ${t.gold}40`, borderRadius: 16,
-                padding: 48, textAlign: "center",
-                background: t.goldBg,
-              }}>
+              <div className="border-2 border-dashed border-[#C49A6C40] rounded-2xl p-12 text-center bg-gold-bg">
                 <Upload size={40} color={t.gold} strokeWidth={1.5} />
-                <p style={{ fontWeight: 700, fontSize: 16, marginTop: 12, marginBottom: 6 }}>Upload your desired style</p>
-                <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>Nessy will review and send a custom quote within 24 hours</p>
-                <button onClick={triggerFilePicker} disabled={uploading} style={{
-                  background: t.surface, border: `1px solid ${t.gold}`, color: t.text,
-                  padding: "10px 24px", borderRadius: 8, fontSize: 14, fontWeight: 600,
-                  cursor: uploading ? "wait" : "pointer",
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                }}>
+                <p className="font-bold text-base mt-3 mb-1.5">Upload your desired style</p>
+                <p className="text-[13px] text-text-muted mb-5">Nessy will review and send a custom quote within 24 hours</p>
+                <button
+                  onClick={triggerFilePicker} disabled={uploading}
+                  className={`bg-surface border border-gold text-text py-2.5 px-6 rounded-lg text-sm font-semibold inline-flex items-center gap-2 ${uploading ? "cursor-wait" : "cursor-pointer"}`}
+                >
                   {uploading && <GoldSpinner size={14} />}
                   {uploading ? "Uploading..." : "Choose Photo"}
                 </button>
               </div>
             )}
 
-            <div style={{ marginTop: 20 }}>
-              <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>
+            <div className="mt-5">
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">
                 Describe the style you'd like (optional)
               </label>
               <textarea
                 value={customStyleDescription} onChange={(e) => onDescriptionChange(e.target.value)}
                 placeholder="e.g. Medium knotless braids, shoulder length, honey blonde tips…"
                 rows={3}
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                  background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                  fontFamily: "inherit", resize: "vertical",
-                }}
+                className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border [font-family:inherit] resize-y"
               />
             </div>
           </div>
@@ -147,68 +132,58 @@ export function StepServices({
 
         {/* Hair Attachments & Accessories */}
         {(selectedServices.length > 0 || !!customStyleUrl) && (
-          <div style={{
-            background: t.surface, borderRadius: 12, padding: 20,
-            border: `1px solid ${t.border}`, marginBottom: 20,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div className="bg-surface rounded-xl p-5 border border-border mb-5">
+            <div className="flex items-center gap-2 mb-3">
               <Package size={16} color={t.gold} />
-              <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>Hair Attachments / Accessories</span>
+              <span className="text-sm font-bold text-text">Hair Attachments / Accessories</span>
             </div>
-            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 14, lineHeight: 1.5 }}>
+            <p className="text-xs text-text-muted mb-3.5 leading-[1.5]">
               Will you need hair attachments or accessories for this style?
             </p>
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="grid gap-2">
               {([
                 { value: "client_provides" as const, label: "I'll bring my own", desc: "You'll provide your own hair attachments/accessories" },
                 { value: "nessy_buys" as const, label: "Nessy will purchase for me", desc: "Cost of materials will be added to your quote" },
               ]).map(({ value, label, desc }) => (
-                <button key={value} onClick={() => onAttachmentPreferenceChange(attachmentPreference === value ? null : value)} style={{
-                  display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px",
-                  borderRadius: 10, cursor: "pointer", textAlign: "left",
-                  border: attachmentPreference === value ? `2px solid ${t.gold}` : `1px solid ${t.border}`,
-                  background: attachmentPreference === value ? t.goldBg : "transparent",
-                  transition: "all 0.2s",
-                }}>
-                  <div style={{
-                    width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 1,
-                    border: attachmentPreference === value ? `2px solid ${t.gold}` : `2px solid ${t.border}`,
-                    background: attachmentPreference === value ? t.gold : "transparent",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    {attachmentPreference === value && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+                <button
+                  key={value} onClick={() => onAttachmentPreferenceChange(attachmentPreference === value ? null : value)}
+                  className={`flex items-start gap-3 py-3 px-3.5 rounded-[10px] cursor-pointer text-left [transition:all_0.2s] border ${
+                    attachmentPreference === value ? "border-2 border-gold bg-gold-bg" : "border-border bg-transparent"
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full shrink-0 mt-px flex items-center justify-center border-2 ${
+                      attachmentPreference === value ? "border-gold bg-gold" : "border-border bg-transparent"
+                    }`}
+                  >
+                    {attachmentPreference === value && <div className="w-2 h-2 rounded-full bg-white" />}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{label}</div>
-                    <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{desc}</div>
+                    <div className="text-[13px] font-semibold text-text">{label}</div>
+                    <div className="text-[11px] text-text-muted mt-0.5">{desc}</div>
                   </div>
                 </button>
               ))}
             </div>
             {attachmentPreference === "nessy_buys" && (
-              <div style={{
-                marginTop: 12, padding: "10px 14px", borderRadius: 8,
-                background: t.goldBg, border: `1px solid ${t.gold}20`,
-                fontSize: 12, color: t.textSoft, lineHeight: 1.5,
-              }}>
+              <div className="mt-3 py-2.5 px-3.5 rounded-lg bg-gold-bg border border-[#C49A6C20] text-xs text-text-soft leading-[1.5]">
                 💡 Your deposit will cover the full cost of materials plus 50% of the styling fee.
               </div>
             )}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={onBack} style={{
-            flex: 1, background: t.surface, color: t.text, border: `1px solid ${t.border}`,
-            padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", borderRadius: 6,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}><ChevronLeft size={16} /> Back</button>
-          <button onClick={onContinue} disabled={!canContinue} style={{
-            flex: 2, background: canContinue ? t.gold : t.border,
-            color: canContinue ? "#0A0A0A" : t.textMuted,
-            border: "none", padding: "12px", fontSize: 14, fontWeight: 700,
-            cursor: canContinue ? "pointer" : "default", borderRadius: 6,
-          }}>Review Booking</button>
+        <div className="flex gap-3">
+          <button
+            onClick={onBack}
+            className="flex-1 bg-surface text-text border border-border py-3 text-sm font-semibold cursor-pointer rounded-md flex items-center justify-center gap-1.5"
+          ><ChevronLeft size={16} /> Back</button>
+          <button
+            onClick={onContinue} disabled={!canContinue}
+            className={`flex-[2] border-none py-3 text-sm font-bold rounded-md ${
+              canContinue ? "bg-gold text-theme-black cursor-pointer" : "bg-border text-text-muted cursor-default"
+            }`}
+          >Review Booking</button>
         </div>
       </div>
     </FadeIn>
