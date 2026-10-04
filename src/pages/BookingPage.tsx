@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServices } from "../hooks/useServices";
 import { useAvailability } from "../hooks/useAvailability";
 import { FadeIn } from "../components/ui/FadeIn";
@@ -34,6 +34,15 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
     setSelectedServices(serviceNames.filter(name => services.flatMap(c => c.items).some(s => s.name === name)));
     setHistoryResolved(true);
   };
+
+  // Scroll to top on every step change within the wizard (and when leaving the "booked
+  // before?" screen into it) — these are in-page view swaps with no URL change, so the
+  // page-level navigation scroll-reset never runs for them.
+  const isFirstRenderRef = useRef(true);
+  useEffect(() => {
+    if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return; }
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }, [step, historyResolved]);
 
   // Arrived here via a "Book This Style/Service" CTA elsewhere on the site — pre-select
   // it, skip the "booked before?" step, and consume it so it doesn't linger on a later visit.

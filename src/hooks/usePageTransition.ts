@@ -29,7 +29,7 @@ export function usePageTransition(initialPage: string = "home"): PageTransition 
     const onPopState = () => {
       const next = pageFromLocation();
       if (next) {
-        window.scrollTo(0, 0);
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         setPage(next);
       }
     };
@@ -40,7 +40,7 @@ export function usePageTransition(initialPage: string = "home"): PageTransition 
   const navigate: NavigateFn = (p) => {
     if (p === page) return;
     setPageLoading(true);
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     setTimeout(() => {
       setPage(p);
       setPageLoading(false);

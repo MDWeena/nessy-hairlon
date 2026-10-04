@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ProtectedRoute } from "../components/admin/ProtectedRoute";
 import { AdminSidebar } from "../components/admin/AdminSidebar";
 import { AdminTopBar } from "../components/admin/AdminTopBar";
@@ -24,11 +24,15 @@ export function AdminPanel({ onViewSite, onLogout, onInactivityLogout, deepLinkB
   const [adminLoading, setAdminLoading] = useState(false);
   const [ordersFilter, setOrdersFilter] = useState<OrderFilter>("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const mainRef = useRef<HTMLElement | null>(null);
 
   const switchAdminPage = (p: string, filter?: OrderFilter) => {
     setOrdersFilter(filter ?? "all");
     if (p === adminPage) return;
     setAdminLoading(true);
+    // admin-main is its own scroll container (h-screen overflow-y-auto), not the window —
+    // window.scrollTo wouldn't do anything here.
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
     setTimeout(() => { setAdminPage(p); setAdminLoading(false); }, 500);
   };
 
@@ -47,7 +51,7 @@ export function AdminPanel({ onViewSite, onLogout, onInactivityLogout, deepLinkB
         />
 
         {/* Main content */}
-        <main className="admin-main flex-1 py-7 px-8 h-screen overflow-y-auto box-border">
+        <main ref={mainRef} className="admin-main flex-1 py-7 px-8 h-screen overflow-y-auto box-border">
           <AdminTopBar adminPage={adminPage} onMenuClick={() => setSidebarOpen(true)} />
 
           {adminLoading ? <AdminLoader /> : (

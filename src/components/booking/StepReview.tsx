@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, Calendar, Clock, Scissors, Image, ChevronLeft, ChevronRight, Check, Mail, MessageCircle, Package } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { createBooking } from "../../hooks/useBookings";
@@ -36,6 +36,12 @@ export function StepReview({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
+
+  // The confirmation screen below swaps in without a step/URL change, so it needs its own
+  // scroll-reset.
+  useEffect(() => {
+    if (reference) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }, [reference]);
 
   const isCustom = !!customStyleUrl;
 
