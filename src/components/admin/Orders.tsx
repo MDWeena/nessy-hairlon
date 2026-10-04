@@ -6,7 +6,7 @@ import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { toISODateString, getWeekRange } from "../../lib/date";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -16,6 +16,7 @@ import { MoneyInput } from "../ui/MoneyInput";
 const FILTERS: Exclude<OrderFilter, "this_week_confirmed">[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
 
 const ITEM_INPUT = "py-1.5 px-2 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
+const STEPPER_BTN = "w-6 h-6 shrink-0 rounded-md border border-border bg-bg-alt text-text-soft flex items-center justify-center cursor-pointer";
 
 function buildBalanceWhatsAppMessage(
   o: Order,
@@ -23,6 +24,43 @@ function buildBalanceWhatsAppMessage(
   settings: { bank_name?: string; account_number?: string; account_name?: string },
 ): string {
   return `Hi ${o.client}, this is Nessy Hairlon. Your appointment on ${o.date} is complete but we haven't received the remaining balance of ₦${balanceDue.toLocaleString()}. Please transfer to ${settings.bank_name ?? ""} - ${settings.account_number ?? ""} - ${settings.account_name ?? ""}. Thank you!`;
+}
+
+function buildClientChatMessage(o: Order): string {
+  return `Hi ${o.client}, regarding your ${o.service || "booking"} on ${o.date}…`;
+}
+
+interface QuantityStepperProps {
+  value: number;
+  onChange: (next: number) => void;
+}
+
+/** Lets the field go empty while typing (so "13" -> delete -> "3" isn't needed to type "3"); clamps to >=1 on blur. */
+function QuantityStepper({ value, onChange }: QuantityStepperProps) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => { setDraft(String(value)); }, [value]);
+
+  const commit = () => {
+    const parsed = parseInt(draft, 10);
+    const next = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    setDraft(String(next));
+    if (next !== value) onChange(next);
+  };
+
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      <button type="button" onClick={() => onChange(Math.max(1, value - 1))} className={STEPPER_BTN}><Minus size={12} /></button>
+      <input
+        type="text" inputMode="numeric" value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/\D/g, ""))}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        className={`w-9 text-center ${ITEM_INPUT}`}
+      />
+      <button type="button" onClick={() => onChange(value + 1)} className={STEPPER_BTN}><Plus size={12} /></button>
+    </div>
+  );
 }
 
 interface OrdersProps {
@@ -288,6 +326,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 <>
                   <span className="text-sm font-bold">{o.price || "—"}</span>
                   <StatusBadge status={o.status} />
+                  <a
+                    href={buildWhatsAppUrl(o.clientPhone, buildClientChatMessage(o))}
+                    target="_blank" rel="noopener noreferrer" title={`WhatsApp ${o.client}`}
+                    className="text-[#22c55e] p-1 rounded-md flex items-center justify-center shrink-0"
+                  ><MessageCircle size={16} /></a>
                   {o.status === "pending_review" && (
                     <button
                       onClick={() => startQuote(o.id)}
@@ -394,9 +437,12 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     </button>
                   </div>
                   {attachItems.map((item, idx) => (
-                    <div key={idx} className="flex gap-1.5 mb-1.5 items-center">
-                      <input value={item.type} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "type", e.target.value)} placeholder="Type" className={`flex-[2] ${ITEM_INPUT}`} />
-                      <input type="number" value={item.quantity} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "quantity", e.target.value)} placeholder="Qty" className={`w-[50px] text-center ${ITEM_INPUT}`} />
+                    <div key={idx} className="flex flex-wrap gap-1.5 mb-1.5 items-center">
+                      <input
+                        value={item.type} onChange={(e) => updateItem(attachItems, setAttachItems, idx, "type", e.target.value)}
+                        placeholder="Type" className={`w-full sm:w-auto sm:flex-[2] ${ITEM_INPUT}`}
+                      />
+                      <QuantityStepper value={item.quantity} onChange={(next) => updateItem(attachItems, setAttachItems, idx, "quantity", String(next))} />
                       <MoneyInput value={item.unitCost} onChange={(v) => updateItem(attachItems, setAttachItems, idx, "unitCost", String(v))} placeholder="each" style={{ width: 80, fontSize: 12 }} />
                       <button onClick={() => removeItem(attachItems, setAttachItems, idx)} className="bg-transparent border-none text-[#EF4444] cursor-pointer p-0.5 shrink-0"><Trash2 size={14} /></button>
                     </div>
@@ -413,9 +459,12 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     </button>
                   </div>
                   {accessItems.map((item, idx) => (
-                    <div key={idx} className="flex gap-1.5 mb-1.5 items-center">
-                      <input value={item.type} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "type", e.target.value)} placeholder="Type" className={`flex-[2] ${ITEM_INPUT}`} />
-                      <input type="number" value={item.quantity} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "quantity", e.target.value)} placeholder="Qty" className={`w-[50px] text-center ${ITEM_INPUT}`} />
+                    <div key={idx} className="flex flex-wrap gap-1.5 mb-1.5 items-center">
+                      <input
+                        value={item.type} onChange={(e) => updateItem(accessItems, setAccessItems, idx, "type", e.target.value)}
+                        placeholder="Type" className={`w-full sm:w-auto sm:flex-[2] ${ITEM_INPUT}`}
+                      />
+                      <QuantityStepper value={item.quantity} onChange={(next) => updateItem(accessItems, setAccessItems, idx, "quantity", String(next))} />
                       <MoneyInput value={item.unitCost} onChange={(v) => updateItem(accessItems, setAccessItems, idx, "unitCost", String(v))} placeholder="each" style={{ width: 80, fontSize: 12 }} />
                       <button onClick={() => removeItem(accessItems, setAccessItems, idx)} className="bg-transparent border-none text-[#EF4444] cursor-pointer p-0.5 shrink-0"><Trash2 size={14} /></button>
                     </div>
@@ -424,13 +473,13 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 </div>
 
                 {/* Total and actions */}
-                <div className="border-t border-border pt-2.5 flex justify-between items-center">
+                <div className="border-t border-border pt-2.5 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2.5">
                   <div className="text-[13px] font-bold">
                     Total: ₦{(hairCostValue + sumItems(attachItems) + sumItems(accessItems)).toLocaleString()}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => setQuotingId(null)} className="bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer">Cancel</button>
-                    <button onClick={() => submitQuote(o.id)} className="bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer">Save Quote</button>
+                    <button onClick={() => setQuotingId(null)} className="flex-1 sm:flex-initial bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer">Cancel</button>
+                    <button onClick={() => submitQuote(o.id)} className="flex-1 sm:flex-initial bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer">Save Quote</button>
                   </div>
                 </div>
               </div>
