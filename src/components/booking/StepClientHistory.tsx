@@ -52,16 +52,16 @@ export function StepClientHistory({ navigate, onContinueFresh, onBookAgain }: St
 
         {!searched ? (
           <>
-            <div className="flex gap-2 mb-3">
+            <div className="flex gap-2 mb-3 w-full">
               <input
                 value={phone} onChange={(e) => setPhone(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="080..."
-                className="flex-1 py-3 px-3.5 rounded-[10px] border border-border bg-bg-alt text-sm text-text outline-none box-border"
+                className="flex-1 min-w-0 py-3 px-3.5 rounded-[10px] border border-border bg-bg-alt text-sm text-text outline-none box-border"
               />
               <GoldButton
                 onClick={handleSearch} disabled={loading}
-                className={`bg-gold text-theme-black border-none py-3 px-4 rounded-[10px] text-sm font-bold flex items-center gap-2 shrink-0 whitespace-nowrap ${loading ? "cursor-wait" : "cursor-pointer"}`}
+                className={`bg-gold text-theme-black border-none py-2.5 px-3 rounded-[10px] text-sm font-bold flex items-center gap-2 shrink-0 whitespace-nowrap ${loading ? "cursor-wait" : "cursor-pointer"}`}
               >
                 {loading ? <GoldSpinner size={16} color="#0A0A0A" /> : <Search size={16} />} {loading ? "Searching…" : "Find me"}
               </GoldButton>
