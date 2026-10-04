@@ -1,5 +1,4 @@
 import { Home, Scissors, Image, Calendar } from "lucide-react";
-import { useTheme } from "../../context/ThemeContext";
 import type { NavigateFn } from "../../types";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
@@ -13,24 +12,15 @@ const NAV_KEYS = ["home", "services", "gallery", "book"] as const;
 const NAV_LABELS: Record<string, string> = { home: "Home", services: "Services", gallery: "Gallery", book: "Book Now" };
 
 export function MobileDrawer({ navigate, page, open }: MobileDrawerProps) {
-  const { t } = useTheme();
-
   if (!open) return null;
 
   return (
-    <div className="mobile-drawer" style={{
-      position: "fixed", top: 64, left: 0, right: 0, bottom: 0, zIndex: 99,
-      background: t.bg, padding: "24px", animation: "slideUp 0.3s ease forwards",
-    }}>
+    <div className="mobile-drawer fixed top-16 inset-x-0 bottom-0 z-[99] bg-bg p-6 [animation:slideUp_0.3s_ease_forwards]">
       {NAV_KEYS.map(key => (
-        <button key={key} onClick={() => navigate(key)} style={{
-          display: "flex", alignItems: "center", gap: 12, width: "100%",
-          padding: "16px 0", borderBottom: `1px solid ${t.border}`,
-          background: "none", border: "none", borderBottomWidth: 1,
-          borderBottomStyle: "solid", borderBottomColor: t.border,
-          cursor: "pointer", color: page === key ? t.gold : t.text,
-          fontWeight: page === key ? 700 : 500, fontSize: 16,
-        }}>
+        <button
+          key={key} onClick={() => navigate(key)}
+          className={`flex items-center gap-3 w-full py-4 px-0 bg-transparent border-0 border-b border-b-border cursor-pointer text-base ${page === key ? "text-gold font-bold" : "text-text font-medium"}`}
+        >
           {key === "home" && <Home size={18} />}
           {key === "services" && <Scissors size={18} />}
           {key === "gallery" && <Image size={18} />}
@@ -38,8 +28,8 @@ export function MobileDrawer({ navigate, page, open }: MobileDrawerProps) {
           {NAV_LABELS[key]}
         </button>
       ))}
-      <div style={{ marginTop: 24 }}>
-        <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 12, letterSpacing: 2 }}>THEME</p>
+      <div className="mt-6">
+        <p className="text-xs text-text-muted mb-3 tracking-[2px]">THEME</p>
         <ThemeToggle variant="labeled" />
       </div>
     </div>

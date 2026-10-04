@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import { useTheme } from "../../context/ThemeContext";
 
 /** Digits-only display with comma grouping — these inputs always represent whole-naira amounts, never kobo. */
 export function formatMoneyDisplay(value: number): string {
@@ -21,24 +20,16 @@ interface MoneyInputProps {
 
 /** A ₦-prefixed money input with comma-formatted display and no spinner arrows (type="text" under the hood, digits-only). */
 export function MoneyInput({ value, onChange, placeholder, autoFocus, style }: MoneyInputProps) {
-  const { t } = useTheme();
   return (
-    <div style={{ position: "relative", ...style }}>
-      <span style={{
-        position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)",
-        fontSize: "inherit", color: t.textMuted, pointerEvents: "none",
-      }}>₦</span>
+    <div className="relative" style={style}>
+      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none [font-size:inherit]">₦</span>
       <input
         type="text" inputMode="numeric"
         value={formatMoneyDisplay(value)}
         onChange={(e) => onChange(parseMoneyInput(e.target.value))}
         placeholder={placeholder}
         autoFocus={autoFocus}
-        style={{
-          width: "100%", padding: "6px 8px 6px 20px", borderRadius: 6, border: `1px solid ${t.border}`,
-          background: t.bgAlt, fontSize: "inherit", color: t.text, outline: "none", boxSizing: "border-box",
-          fontFamily: "inherit",
-        }}
+        className="w-full py-1.5 pr-2 pl-5 rounded-md border border-border bg-bg-alt text-text outline-none box-border [font-size:inherit] [font-family:inherit]"
       />
     </div>
   );

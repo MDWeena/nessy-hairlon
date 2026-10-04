@@ -8,9 +8,9 @@ interface StatusBadgeProps {
 export function StatusBadge({ status }: StatusBadgeProps) {
   const cfg = statusColors[status];
   return (
-    <span style={{
-      fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 12,
-      background: cfg.bg, color: cfg.text,
-    }}>{cfg.label}</span>
+    <span
+      className="text-[11px] font-semibold py-[3px] px-[10px] rounded-[12px]"
+      style={{ background: cfg.bg, color: cfg.text }}
+    >{cfg.label}</span>
   );
 }

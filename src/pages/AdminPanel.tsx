@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useTheme } from "../context/ThemeContext";
 import { ProtectedRoute } from "../components/admin/ProtectedRoute";
 import { AdminSidebar } from "../components/admin/AdminSidebar";
 import { AdminTopBar } from "../components/admin/AdminTopBar";
@@ -20,7 +19,6 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ onViewSite, onLogout, deepLinkBookingId }: AdminPanelProps) {
-  const { t } = useTheme();
   const [adminPage, setAdminPage] = useState(deepLinkBookingId ? "orders" : "dashboard");
   const [adminLoading, setAdminLoading] = useState(false);
   const [ordersFilter, setOrdersFilter] = useState<OrderFilter>("all");
@@ -35,13 +33,11 @@ export function AdminPanel({ onViewSite, onLogout, deepLinkBookingId }: AdminPan
 
   return (
     <ProtectedRoute onBack={onViewSite}>
-      <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", color: t.text, background: t.bg, height: "100vh", display: "flex", overflow: "hidden" }}>
+      <div className="font-sans text-text bg-bg h-screen flex overflow-hidden">
         <link href="https://fonts.googleapis.com/css2?family=Tangerine:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
 
         {sidebarOpen && (
-          <div className="admin-sidebar-backdrop" onClick={() => setSidebarOpen(false)} style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 199,
-          }} />
+          <div className="admin-sidebar-backdrop fixed inset-0 bg-black/50 z-[199]" onClick={() => setSidebarOpen(false)} />
         )}
 
         <AdminSidebar
@@ -50,7 +46,7 @@ export function AdminPanel({ onViewSite, onLogout, deepLinkBookingId }: AdminPan
         />
 
         {/* Main content */}
-        <main className="admin-main" style={{ flex: 1, padding: "28px 32px", height: "100vh", overflowY: "auto", boxSizing: "border-box" }}>
+        <main className="admin-main flex-1 py-7 px-8 h-screen overflow-y-auto box-border">
           <AdminTopBar adminPage={adminPage} onMenuClick={() => setSidebarOpen(true)} />
 
           {adminLoading ? <AdminLoader /> : (

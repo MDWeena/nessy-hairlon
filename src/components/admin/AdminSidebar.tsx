@@ -29,61 +29,45 @@ export function AdminSidebar({ adminPage, onSwitchPage, onViewSite, onLogout, op
   const pendingReviewCount = testimonials.filter(story => story.verified && !story.visible).length;
 
   return (
-    <aside className={`admin-sidebar${open ? " open" : ""}`} style={{
-      width: 220, background: t.surface, borderRight: `1px solid ${t.border}`,
-      padding: "20px 12px", display: "flex", flexDirection: "column",
-      height: "100vh", overflowY: "auto", boxSizing: "border-box", flexShrink: 0,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px 20px", borderBottom: `1px solid ${t.border}` }}>
-        <img src={LOGO_ICON} alt="" style={{ width: 32, height: 32, borderRadius: "50%" }} />
-        <span style={{ fontFamily: "'Tangerine', cursive", fontSize: 28, fontWeight: 700, flex: 1 }}>Nessy <span style={{ color: t.gold }}>Hairlon</span></span>
-        <button className="admin-sidebar-close tap-target-sm" onClick={onClose} style={{
-          display: "none", background: "none", border: "none", cursor: "pointer", flexShrink: 0,
-        }}>
+    <aside
+      className={`admin-sidebar${open ? " open" : ""} bg-surface border-r border-border py-5 px-3 flex flex-col h-screen overflow-y-auto box-border shrink-0`}
+      style={{ width: 220 /* must stay inline: .admin-sidebar's mobile width:260px rule has no !important, so a Tailwind class here would out-rank it and break the drawer width */ }}
+    >
+      <div className="flex items-center gap-2 px-2 pb-5 border-b border-border">
+        <img src={LOGO_ICON} alt="" className="w-8 h-8 rounded-full" />
+        <span className="font-cursive text-[28px] font-bold flex-1">Nessy <span className="text-gold">Hairlon</span></span>
+        <button className="admin-sidebar-close tap-target-sm hidden bg-transparent border-none cursor-pointer shrink-0" onClick={onClose}>
           <X size={20} color={t.textMuted} />
         </button>
       </div>
-      <p style={{ fontSize: 10, color: t.textMuted, padding: "8px 12px 16px", letterSpacing: 2 }}>ADMIN PANEL</p>
+      <p className="text-[10px] text-text-muted pt-2 pb-4 px-3 tracking-[2px]">ADMIN PANEL</p>
 
-      <div style={{ flex: 1 }}>
+      <div className="flex-1">
         {SIDEBAR_ITEMS.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => { onSwitchPage(key); onClose(); }} style={{
-            display: "flex", alignItems: "center", gap: 10, width: "100%",
-            padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-            background: adminPage === key ? t.goldBg : "transparent",
-            color: adminPage === key ? t.gold : t.textSoft,
-            fontWeight: adminPage === key ? 700 : 500, fontSize: 13,
-            marginBottom: 2, transition: "all 0.2s ease",
-          }}>
+          <button
+            key={key} onClick={() => { onSwitchPage(key); onClose(); }}
+            className={`flex items-center gap-2.5 w-full py-2.5 px-3 rounded-lg border-none cursor-pointer text-[13px] mb-0.5 [transition:all_0.2s_ease] ${
+              adminPage === key ? "bg-gold-bg text-gold font-bold" : "bg-transparent text-text-soft font-medium"
+            }`}
+          >
             <Icon size={16} strokeWidth={1.5} /> {label}
             {key === "stories" && pendingReviewCount > 0 && (
-              <span style={{
-                marginLeft: "auto", background: t.gold, color: "#0A0A0A",
-                fontSize: 10, fontWeight: 700, borderRadius: 10, padding: "1px 7px",
-              }}>{pendingReviewCount}</span>
+              <span className="ml-auto bg-gold text-theme-black text-[10px] font-bold rounded-[10px] py-px px-[7px]">{pendingReviewCount}</span>
             )}
           </button>
         ))}
       </div>
 
       {/* Theme toggle */}
-      <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 12, marginBottom: 12 }}>
+      <div className="border-t border-border pt-3 mb-3">
         <ThemeToggle variant="sidebar" />
       </div>
 
-      <button onClick={onViewSite} style={{
-        display: "flex", alignItems: "center", gap: 8, width: "100%",
-        padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-        background: "transparent", color: t.textMuted, fontSize: 13,
-      }}>
+      <button onClick={onViewSite} className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border-none cursor-pointer bg-transparent text-text-muted text-[13px]">
         <ExternalLink size={16} strokeWidth={1.5} /> View site
       </button>
 
-      <button onClick={onLogout} style={{
-        display: "flex", alignItems: "center", gap: 8, width: "100%",
-        padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-        background: "transparent", color: t.textMuted, fontSize: 13,
-      }}>
+      <button onClick={onLogout} className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border-none cursor-pointer bg-transparent text-text-muted text-[13px]">
         <LogOut size={16} strokeWidth={1.5} /> Sign Out
       </button>
     </aside>

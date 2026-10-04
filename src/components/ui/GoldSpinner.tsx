@@ -11,10 +11,9 @@ export function GoldSpinner({ size = 16, color }: GoldSpinnerProps) {
   const { t } = useTheme();
   const ringColor = color ?? t.gold;
   return (
-    <span style={{
-      display: "inline-block", width: size, height: size, borderRadius: "50%", flexShrink: 0,
-      border: `2px solid ${ringColor}30`, borderTopColor: ringColor,
-      animation: "loaderSpin 0.8s linear infinite",
-    }} />
+    <span
+      className="inline-block rounded-full shrink-0 [animation:loaderSpin_0.8s_linear_infinite]"
+      style={{ width: size, height: size, border: `2px solid ${ringColor}30`, borderTopColor: ringColor }}
+    />
   );
 }

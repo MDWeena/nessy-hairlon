@@ -20,50 +20,46 @@ export function StepDateTime({ bookingDays, selectedDayIdx, onSelectDay, selecte
   return (
     <FadeIn>
       <div>
-        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+        <h3 className="text-base font-bold mb-5 flex items-center gap-2">
           <Calendar size={18} color={t.gold} strokeWidth={1.5} /> Pick a day
         </h3>
-        <div className="day-picker-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8, marginBottom: 32 }}>
+        <div className="day-picker-grid grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-2 mb-8">
           {bookingDays.map((day, i) => (
-            <button key={i} onClick={() => onSelectDay(i)} className="hover-lift" style={{
-              padding: "14px 8px", borderRadius: 10, cursor: "pointer",
-              border: selectedDayIdx === i ? `2px solid ${t.gold}` : `1px solid ${t.border}`,
-              background: selectedDayIdx === i ? t.goldBg : t.surface,
-              color: t.text, fontWeight: selectedDayIdx === i ? 700 : 400,
-              fontSize: 13, textAlign: "center", transition: "all 0.2s ease",
-            }}>
-              <div style={{ fontWeight: 600 }}>{day.label}</div>
-              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>{day.slotCount} slots available</div>
+            <button
+              key={i} onClick={() => onSelectDay(i)}
+              className={`hover-lift py-3.5 px-2 rounded-[10px] cursor-pointer text-text text-[13px] text-center [transition:all_0.2s_ease] ${
+                selectedDayIdx === i ? "border-2 border-gold bg-gold-bg font-bold" : "border border-border bg-surface font-normal"
+              }`}
+            >
+              <div className="font-semibold">{day.label}</div>
+              <div className="text-[11px] text-text-muted mt-1">{day.slotCount} slots available</div>
             </button>
           ))}
         </div>
 
         {selectedDay && (
           <>
-            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <h3 className="text-base font-bold mb-4 flex items-center gap-2">
               <Clock size={18} color={t.gold} strokeWidth={1.5} /> Choose a time
             </h3>
-            <div className="time-slot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 8, marginBottom: 32 }}>
+            <div className="time-slot-grid grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-2 mb-8">
               {selectedDay.slots.map(time => (
-                <button key={time} onClick={() => onSelectTime(time)} style={{
-                  padding: "12px 8px", borderRadius: 8, cursor: "pointer",
-                  border: selectedTime === time ? `2px solid ${t.gold}` : `1px solid ${t.border}`,
-                  background: selectedTime === time ? t.goldBg : t.surface,
-                  fontWeight: selectedTime === time ? 700 : 400,
-                  fontSize: 14, color: t.text, transition: "all 0.2s",
-                }}>{time}</button>
+                <button
+                  key={time} onClick={() => onSelectTime(time)}
+                  className={`py-3 px-2 rounded-lg cursor-pointer text-sm text-text [transition:all_0.2s] ${
+                    selectedTime === time ? "border-2 border-gold bg-gold-bg font-bold" : "border border-border bg-surface font-normal"
+                  }`}
+                >{time}</button>
               ))}
             </div>
           </>
         )}
 
         {selectedDay && selectedTime && (
-          <GoldButton onClick={onContinue} style={{
-            background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "14px 0", fontSize: 14, fontWeight: 700,
-            cursor: "pointer", borderRadius: 6, width: "100%",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}>
+          <GoldButton
+            onClick={onContinue}
+            className="bg-gold text-theme-black border-none py-3.5 px-0 text-sm font-bold cursor-pointer rounded-md w-full flex items-center justify-center gap-2"
+          >
             Continue <ChevronRight size={16} />
           </GoldButton>
         )}

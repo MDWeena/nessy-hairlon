@@ -16,20 +16,18 @@ const OPTIONS: { mode: ThemeMode; Icon: typeof Sun; label: string }[] = [
 ];
 
 export function ThemeToggle({ variant = "nav", transparent = false, spaced = true }: ThemeToggleProps) {
-  const { themeMode, setThemeMode, t } = useTheme();
+  const { themeMode, setThemeMode } = useTheme();
 
   if (variant === "labeled") {
     return (
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         {OPTIONS.map(({ mode, Icon, label }) => (
-          <button key={mode} onClick={() => setThemeMode(mode)} style={{
-            flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer",
-            background: themeMode === mode ? t.goldBg : t.surface,
-            border: `1px solid ${themeMode === mode ? t.gold : t.border}`,
-            color: themeMode === mode ? t.gold : t.textSoft,
-            fontWeight: themeMode === mode ? 700 : 400, fontSize: 12,
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-          }}>
+          <button
+            key={mode} onClick={() => setThemeMode(mode)}
+            className={`flex-1 p-2.5 rounded-lg cursor-pointer border text-xs flex flex-col items-center gap-1 ${
+              themeMode === mode ? "bg-gold-bg border-gold text-gold font-bold" : "bg-surface border-border text-text-soft font-normal"
+            }`}
+          >
             <Icon size={16} /> {label}
           </button>
         ))}
@@ -39,33 +37,28 @@ export function ThemeToggle({ variant = "nav", transparent = false, spaced = tru
 
   if (variant === "sidebar") {
     return (
-      <div style={{ display: "flex", background: t.bgAlt, borderRadius: 8, padding: 3 }}>
+      <div className="flex bg-bg-alt rounded-lg p-[3px]">
         {OPTIONS.map(({ mode, Icon }) => (
-          <button key={mode} onClick={() => setThemeMode(mode)} style={{
-            flex: 1, background: themeMode === mode ? t.gold : "transparent",
-            border: "none", borderRadius: 6, padding: "6px", cursor: "pointer",
-            color: themeMode === mode ? "#fff" : t.textMuted,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "all 0.2s",
-          }}><Icon size={14} /></button>
+          <button
+            key={mode} onClick={() => setThemeMode(mode)}
+            className={`flex-1 border-none rounded-md p-1.5 cursor-pointer flex items-center justify-center [transition:all_0.2s] ${
+              themeMode === mode ? "bg-gold text-white" : "bg-transparent text-text-muted"
+            }`}
+          ><Icon size={14} /></button>
         ))}
       </div>
     );
   }
 
   return (
-    <div style={{
-      display: "flex", background: transparent ? "rgba(255,255,255,0.1)" : t.bgAlt, borderRadius: 20, padding: 3,
-      border: `1px solid ${transparent ? "rgba(255,255,255,0.15)" : t.border}`,
-      ...(spaced ? { marginLeft: 8, transition: "all 0.4s ease" } : {}),
-    }}>
+    <div className={`flex rounded-[20px] p-[3px] border ${transparent ? "bg-white/10 border-white/15" : "bg-bg-alt border-border"} ${spaced ? "ml-2 [transition:all_0.4s_ease]" : ""}`}>
       {OPTIONS.map(({ mode, Icon }) => (
-        <button key={mode} onClick={() => setThemeMode(mode)} style={{
-          background: themeMode === mode ? t.gold : "transparent",
-          border: "none", borderRadius: 16, padding: "5px 8px", cursor: "pointer",
-          color: themeMode === mode ? "#fff" : (transparent ? "#999" : t.textMuted),
-          display: "flex", alignItems: "center", transition: "all 0.3s ease",
-        }}><Icon size={14} /></button>
+        <button
+          key={mode} onClick={() => setThemeMode(mode)}
+          className={`border-none rounded-2xl py-[5px] px-2 cursor-pointer flex items-center [transition:all_0.3s_ease] ${
+            themeMode === mode ? "bg-gold text-white" : `bg-transparent ${transparent ? "text-[#999]" : "text-text-muted"}`
+          }`}
+        ><Icon size={14} /></button>
       ))}
     </div>
   );

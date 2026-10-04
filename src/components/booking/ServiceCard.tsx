@@ -1,5 +1,4 @@
 import { Check } from "lucide-react";
-import { useTheme } from "../../context/ThemeContext";
 import type { ServiceItem } from "../../types";
 
 interface ServiceCardProps {
@@ -9,35 +8,29 @@ interface ServiceCardProps {
 }
 
 export function ServiceCard({ service, selected, onToggle }: ServiceCardProps) {
-  const { t } = useTheme();
   return (
-    <button onClick={onToggle} style={{
-      display: "flex", justifyContent: "space-between", alignItems: "center",
-      padding: "14px 16px", borderRadius: 10, cursor: "pointer",
-      border: selected ? `2px solid ${t.gold}` : `1px solid ${t.border}`,
-      background: selected ? t.goldBg : t.surface,
-      textAlign: "left", transition: "all 0.2s",
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+    <button
+      onClick={onToggle}
+      className={`flex justify-between items-center py-3.5 px-4 rounded-[10px] cursor-pointer text-left [transition:all_0.2s] ${
+        selected ? "border-2 border-gold bg-gold-bg" : "border border-border bg-surface"
+      }`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
         {service.imageUrl ? (
-          <img src={service.imageUrl} alt="" style={{
-            width: 40, height: 40, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}`, flexShrink: 0,
-          }} />
+          <img src={service.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-border shrink-0" />
         ) : null}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{service.name}</div>
-          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>{service.desc}</div>
+        <div className="min-w-0">
+          <div className="font-semibold text-sm text-text truncate">{service.name}</div>
+          <div className="text-xs text-text-muted mt-0.5">{service.desc}</div>
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 12, flexShrink: 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: service.price ? t.text : t.gold }}>{service.price || service.priceRange || "Quote"}</span>
-        <div style={{
-          width: 22, height: 22, borderRadius: "50%",
-          border: selected ? "none" : `2px solid ${t.border}`,
-          background: selected ? t.gold : "transparent",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all 0.2s",
-        }}>{selected && <Check size={14} color="#fff" strokeWidth={3} />}</div>
+      <div className="flex items-center gap-2.5 ml-3 shrink-0">
+        <span className={`text-[13px] font-bold ${service.price ? "text-text" : "text-gold"}`}>{service.price || service.priceRange || "Quote"}</span>
+        <div
+          className={`w-[22px] h-[22px] rounded-full flex items-center justify-center [transition:all_0.2s] ${
+            selected ? "border-none bg-gold" : "border-2 border-border bg-transparent"
+          }`}
+        >{selected && <Check size={14} color="#fff" strokeWidth={3} />}</div>
       </div>
     </button>
   );

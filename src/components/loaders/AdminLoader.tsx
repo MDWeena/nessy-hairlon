@@ -4,15 +4,21 @@ import { useTheme } from "../../context/ThemeContext";
 export function AdminLoader() {
   const { t } = useTheme();
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: t.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
-      <div style={{ width: 160, height: 160, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1px solid ${t.gold}15` }} />
-        <div style={{ position: "absolute", inset: 10, borderRadius: "50%", border: `1px solid ${t.gold}10` }} />
-        <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "2.5px solid transparent", borderTopColor: t.gold, borderBottomColor: `${t.gold}30`, animation: "loaderSpin 1.4s linear infinite" }} />
-        <div style={{ position: "absolute", inset: 10, borderRadius: "50%", border: "2px solid transparent", borderLeftColor: "#D4B896", borderRightColor: "#D4B89640", animation: "loaderSpin 2s linear infinite reverse" }} />
-        <img src={LOGO_ICON} alt="" style={{ width: 100, height: 100, borderRadius: "50%", position: "relative", zIndex: 2, animation: "loaderPulseAdmin 2.4s ease-in-out infinite" }} />
+    <div className="fixed inset-0 z-[9999] bg-bg flex flex-col items-center justify-center gap-6">
+      <div className="w-40 h-40 relative flex items-center justify-center">
+        <div className="absolute inset-0 rounded-full" style={{ border: `1px solid ${t.gold}15` }} />
+        <div className="absolute inset-2.5 rounded-full" style={{ border: `1px solid ${t.gold}10` }} />
+        <div
+          className="absolute inset-0 rounded-full border-[2.5px] border-transparent [animation:loaderSpin_1.4s_linear_infinite]"
+          style={{ borderTopColor: t.gold, borderBottomColor: `${t.gold}30` }}
+        />
+        <div
+          className="absolute inset-2.5 rounded-full border-2 border-transparent [animation:loaderSpin_2s_linear_infinite_reverse]"
+          style={{ borderLeftColor: "#D4B896", borderRightColor: "#D4B89640" }}
+        />
+        <img src={LOGO_ICON} alt="" className="w-[100px] h-[100px] rounded-full relative z-[2] [animation:loaderPulseAdmin_2.4s_ease-in-out_infinite]" />
       </div>
-      <span style={{ fontSize: 14, color: t.textMuted }}>Loading...</span>
+      <span className="text-sm text-text-muted">Loading...</span>
     </div>
   );
 }

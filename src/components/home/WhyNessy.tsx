@@ -11,34 +11,28 @@ const ITEMS = [
 export function WhyNessy() {
   const { t } = useTheme();
   return (
-    <section style={{ padding: "72px 24px", maxWidth: 800, margin: "0 auto" }}>
+    <section className="py-[72px] px-6 max-w-[800px] mx-auto">
       <FadeIn>
-        <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>WHY NESSY</p>
-        <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 20, lineHeight: 1.1 }}>
+        <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">WHY NESSY</p>
+        <h2 className="font-cursive text-5xl font-bold mb-5 leading-[1.1]">
           People travel to her chair for a reason
         </h2>
       </FadeIn>
       <FadeIn delay={0.15}>
-        <p style={{ fontSize: 15, lineHeight: 1.8, color: t.textSoft, maxWidth: 560 }}>
+        <p className="text-[15px] leading-[1.8] text-text-soft max-w-[560px]">
           Natural hair isn't just a category — it's a craft. Every session starts with understanding your hair's unique texture, porosity, and needs before a single braid goes in. That's why clients come from across the city and beyond.
         </p>
       </FadeIn>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, marginTop: 40 }}>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-5 mt-10">
         {ITEMS.map((item, i) => (
           <FadeIn key={item.title} delay={0.1 * (i + 1)}>
-            <div className="hover-lift" style={{
-              background: t.surface, borderRadius: 12, padding: 28,
-              border: `1px solid ${t.border}`, cursor: "default",
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 10, background: t.goldBg,
-                display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16,
-              }}>
+            <div className="hover-lift bg-surface rounded-xl p-7 border border-border cursor-default">
+              <div className="w-11 h-11 rounded-[10px] bg-gold-bg flex items-center justify-center mb-4">
                 <item.icon size={20} color={t.gold} strokeWidth={1.5} />
               </div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{item.title}</h3>
-              <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6 }}>{item.desc}</p>
+              <h3 className="text-base font-bold mb-1.5">{item.title}</h3>
+              <p className="text-[13px] text-text-soft leading-[1.6]">{item.desc}</p>
             </div>
           </FadeIn>
         ))}

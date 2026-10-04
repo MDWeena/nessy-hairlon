@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useTheme } from "../context/ThemeContext";
 import { useServices } from "../hooks/useServices";
 import { useAvailability } from "../hooks/useAvailability";
 import { FadeIn } from "../components/ui/FadeIn";
@@ -19,7 +18,6 @@ interface BookingPageProps {
 }
 
 export function BookingPage({ navigate, preselectedService, onConsumePreselectedService }: BookingPageProps) {
-  const { t } = useTheme();
   const { services, loading: servicesLoading, error: servicesError } = useServices();
   const { bookingDays, loading: availabilityLoading, error: availabilityError } = useAvailability();
   const [historyResolved, setHistoryResolved] = useState(false);
@@ -64,10 +62,10 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
   const error = servicesError || availabilityError;
 
   return (
-    <section style={{ padding: "48px 24px 72px", maxWidth: 680, margin: "0 auto" }}>
+    <section className="pt-12 px-6 pb-[72px] max-w-[680px] mx-auto">
       <FadeIn>
-        <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>BOOK APPOINTMENT</p>
-        <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 36 }}>
+        <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">BOOK APPOINTMENT</p>
+        <h2 className="font-cursive text-5xl font-bold mb-9">
           Let's get you booked in
         </h2>
       </FadeIn>

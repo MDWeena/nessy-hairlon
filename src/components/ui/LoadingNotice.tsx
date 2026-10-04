@@ -1,5 +1,4 @@
 import { LOGO_ICON } from "../../assets/logos";
-import { useTheme } from "../../context/ThemeContext";
 
 interface LoadingNoticeProps {
   label?: string;
@@ -8,33 +7,32 @@ interface LoadingNoticeProps {
 }
 
 export function LoadingNotice({ label = "Loading…", fullPage = false }: LoadingNoticeProps) {
-  const { t } = useTheme();
-  const boxSize = fullPage ? 160 : 72;
-  const logoSize = fullPage ? 120 : 52;
-  const ringInset = fullPage ? -10 : -4;
+  const boxSizeClass = fullPage ? "w-40 h-40" : "w-[72px] h-[72px]";
+  const logoSizeClass = fullPage ? "w-[120px] h-[120px]" : "w-[52px] h-[52px]";
+  const ringInsetClass = fullPage ? "-inset-2.5" : "-inset-1";
 
   const mark = (
-    <div style={{ width: boxSize, height: boxSize, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ position: "absolute", inset: ringInset, borderRadius: "50%", border: `1.5px solid ${t.gold}`, opacity: 0, animation: "ringExpand 2s ease-out infinite" }} />
-      <div style={{ position: "absolute", inset: ringInset, borderRadius: "50%", border: `1.5px solid ${t.gold}`, opacity: 0, animation: "ringExpand 2s ease-out 0.6s infinite" }} />
-      <div style={{ position: "absolute", inset: ringInset, borderRadius: "50%", border: `1.5px solid ${t.gold}`, opacity: 0, animation: "ringExpand 2s ease-out 1.2s infinite" }} />
-      <img src={LOGO_ICON} alt="" style={{ width: logoSize, height: logoSize, borderRadius: "50%", position: "relative", zIndex: 2, animation: "loaderPulse 2s ease-in-out infinite" }} />
+    <div className={`${boxSizeClass} relative flex items-center justify-center`}>
+      <div className={`absolute ${ringInsetClass} rounded-full border-[1.5px] border-gold opacity-0 [animation:ringExpand_2s_ease-out_infinite]`} />
+      <div className={`absolute ${ringInsetClass} rounded-full border-[1.5px] border-gold opacity-0 [animation:ringExpand_2s_ease-out_0.6s_infinite]`} />
+      <div className={`absolute ${ringInsetClass} rounded-full border-[1.5px] border-gold opacity-0 [animation:ringExpand_2s_ease-out_1.2s_infinite]`} />
+      <img src={LOGO_ICON} alt="" className={`${logoSizeClass} rounded-full relative z-[2] [animation:loaderPulse_2s_ease-in-out_infinite]`} />
     </div>
   );
 
   if (fullPage) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: t.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
+      <div className="fixed inset-0 z-[9999] bg-bg flex flex-col items-center justify-center gap-6">
         {mark}
-        <span style={{ fontFamily: "'Tangerine', cursive", fontSize: 32, color: t.gold, opacity: 0.7 }}>{label}</span>
+        <span className="font-cursive text-[32px] text-gold opacity-70">{label}</span>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: "32px 0" }}>
+    <div className="flex flex-col items-center justify-center gap-3.5 py-8">
       {mark}
-      <span style={{ fontSize: 13, color: t.textMuted }}>{label}</span>
+      <span className="text-[13px] text-text-muted">{label}</span>
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import { useTheme } from "../../context/ThemeContext";
 import { FadeIn } from "../ui/FadeIn";
 
 const STEPS = [
@@ -9,26 +8,22 @@ const STEPS = [
 ];
 
 export function HowItWorks() {
-  const { t } = useTheme();
   return (
-    <section style={{ background: t.bgAlt, padding: "72px 24px" }}>
-      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+    <section className="bg-bg-alt py-[72px] px-6">
+      <div className="max-w-[800px] mx-auto">
         <FadeIn>
-          <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>HOW IT WORKS</p>
-          <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 48 }}>
+          <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">HOW IT WORKS</p>
+          <h2 className="font-cursive text-5xl font-bold mb-12">
             Four steps to your appointment
           </h2>
         </FadeIn>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 28 }}>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-7">
           {STEPS.map((step, i) => (
             <FadeIn key={step.n} delay={0.1 * (i + 1)}>
-              <div style={{ position: "relative" }}>
-                <span style={{
-                  fontFamily: "'Tangerine', cursive", fontSize: 56, fontWeight: 700,
-                  color: t.gold, opacity: 0.3, lineHeight: 1,
-                }}>{step.n}</span>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginTop: -8, marginBottom: 6 }}>{step.title}</h3>
-                <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6 }}>{step.desc}</p>
+              <div className="relative">
+                <span className="font-cursive text-[56px] font-bold text-gold opacity-30 leading-none">{step.n}</span>
+                <h3 className="text-base font-bold -mt-2 mb-1.5">{step.title}</h3>
+                <p className="text-[13px] text-text-soft leading-[1.6]">{step.desc}</p>
               </div>
             </FadeIn>
           ))}
