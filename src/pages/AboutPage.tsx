@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Award, Users, Heart, ArrowRight } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
+import { useSettings } from "../hooks/useSettings";
 import type { NavigateFn } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
@@ -14,8 +16,25 @@ const STATS = [
   { icon: Heart, value: "100%", label: "Natural hair focused" },
 ];
 
+export const DEFAULT_ABOUT_TEXT_1 =
+  "Hair has always been more than a service to me — it's a form of care. I started braiding for friends and family years ago, and that love for natural hair grew into a full-time craft. Every head that sits in my chair gets the same thing: patience, gentle hands, and techniques chosen for your hair's unique texture — never one-size-fits-all.";
+
+export const DEFAULT_ABOUT_TEXT_2 =
+  "Whether you're protecting your edges with a fresh set of braids, nursing your locs back to health, or just need a style that'll hold up for weeks, I treat your hair like it's my own. People travel across the city for this chair, and I don't take that for granted.";
+
 export function AboutPage({ navigate }: AboutPageProps) {
   const { t, isDark } = useTheme();
+  const { settings } = useSettings();
+  const [photoFailed, setPhotoFailed] = useState(false);
+
+  const photoUrl = settings.about_photo_url;
+  const text1 = settings.about_text_1 || DEFAULT_ABOUT_TEXT_1;
+  const text2 = settings.about_text_2 || DEFAULT_ABOUT_TEXT_2;
+
+  // Reset the broken-image fallback if the admin uploads a new photo while this page is open.
+  useEffect(() => { setPhotoFailed(false); }, [photoUrl]);
+
+  const showPhoto = !!photoUrl && !photoFailed;
 
   return (
     <section className="pt-12 px-6 pb-[72px] max-w-[800px] mx-auto">
@@ -28,20 +47,23 @@ export function AboutPage({ navigate }: AboutPageProps) {
 
       <FadeIn delay={0.1}>
         <div className="flex flex-col sm:flex-row gap-8 items-center sm:items-start mb-10">
-          {/* TODO: Replace with Nessy's photo */}
-          <div className="w-[200px] h-[200px] sm:w-[220px] sm:h-[220px] rounded-full shrink-0 bg-[linear-gradient(135deg,#C49A6C30,#C49A6C10)] border border-[#C49A6C40] flex items-center justify-center mx-auto">
-            <span className="font-cursive text-[96px] font-bold text-gold">N</span>
-          </div>
+          {showPhoto ? (
+            <img
+              src={photoUrl} alt="Nessy" onError={() => setPhotoFailed(true)}
+              className="w-[200px] h-[200px] sm:w-[220px] sm:h-[220px] rounded-full shrink-0 object-cover border border-[#C49A6C40] mx-auto"
+            />
+          ) : (
+            // TODO: Replace with Nessy's photo
+            <div className="w-[200px] h-[200px] sm:w-[220px] sm:h-[220px] rounded-full shrink-0 bg-[linear-gradient(135deg,#C49A6C30,#C49A6C10)] border border-[#C49A6C40] flex items-center justify-center mx-auto">
+              <span className="font-cursive text-[96px] font-bold text-gold">N</span>
+            </div>
+          )}
 
           <div className="min-w-0 text-center sm:text-left">
             <h3 className="text-2xl font-bold mb-1">Nessy</h3>
             <p className="text-sm text-gold font-semibold tracking-[0.5px] mb-4">Natural Hair Specialist</p>
-            <p className="text-[15px] text-text-soft leading-[1.8]">
-              Hair has always been more than a service to me — it's a form of care. I started braiding for friends and family years ago, and that love for natural hair grew into a full-time craft. Every head that sits in my chair gets the same thing: patience, gentle hands, and techniques chosen for your hair's unique texture — never one-size-fits-all.
-            </p>
-            <p className="text-[15px] text-text-soft leading-[1.8] mt-4">
-              Whether you're protecting your edges with a fresh set of braids, nursing your locs back to health, or just need a style that'll hold up for weeks, I treat your hair like it's my own. People travel across the city for this chair, and I don't take that for granted.
-            </p>
+            <p className="text-[15px] text-text-soft leading-[1.8] whitespace-pre-line">{text1}</p>
+            <p className="text-[15px] text-text-soft leading-[1.8] mt-4 whitespace-pre-line">{text2}</p>
           </div>
         </div>
       </FadeIn>

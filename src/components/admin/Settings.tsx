@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Settings as SettingsIcon, DollarSign, Clock, Info, CalendarRange } from "lucide-react";
+import { useRef, useState } from "react";
+import { Settings as SettingsIcon, DollarSign, Clock, Info, CalendarRange, UserRound, Upload } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useSettings } from "../../hooks/useSettings";
 import type { SettingsMap } from "../../hooks/useSettings";
 import { useScheduleRules } from "../../hooks/useAvailability";
 import type { ScheduleRule } from "../../hooks/useAvailability";
+import { DEFAULT_ABOUT_TEXT_1, DEFAULT_ABOUT_TEXT_2 } from "../../pages/AboutPage";
 import { GoldButton } from "../ui/GoldButton";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -178,6 +179,110 @@ function BookingRulesSection() {
   );
 }
 
+function AboutPageSection() {
+  const { t } = useTheme();
+  const { settings, updateSetting, uploadAboutPhoto } = useSettings();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const [draftText1, setDraftText1] = useState<string | null>(null);
+  const [draftText2, setDraftText2] = useState<string | null>(null);
+  const [savingText, setSavingText] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const photoUrl = settings.about_photo_url;
+  const showPhoto = !!photoUrl && !photoFailed;
+  const text1 = draftText1 ?? settings.about_text_1 ?? DEFAULT_ABOUT_TEXT_1;
+  const text2 = draftText2 ?? settings.about_text_2 ?? DEFAULT_ABOUT_TEXT_2;
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setActionError(null);
+    try {
+      await uploadAboutPhoto(file);
+      setPhotoFailed(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to upload photo");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const saveText = async () => {
+    setSavingText(true);
+    setActionError(null);
+    try {
+      await updateSetting("about_text_1", text1);
+      await updateSetting("about_text_2", text2);
+      setDraftText1(null);
+      setDraftText2(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to save About page text");
+    } finally {
+      setSavingText(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface rounded-xl p-6 border border-border mb-5">
+      <h3 className="text-[15px] font-bold flex items-center gap-2 mb-5 pb-3 border-b border-border">
+        <UserRound size={16} color={t.gold} /> About Page
+      </h3>
+
+      {actionError && <ErrorNotice message={actionError} />}
+
+      {/* Photo */}
+      <div className="flex items-center gap-4 mb-5">
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+        {showPhoto ? (
+          <img
+            src={photoUrl} alt="" onError={() => setPhotoFailed(true)}
+            className="w-16 h-16 rounded-full object-cover border border-[#C49A6C40] shrink-0"
+          />
+        ) : (
+          <div className="w-16 h-16 rounded-full shrink-0 bg-[linear-gradient(135deg,#C49A6C30,#C49A6C10)] border border-[#C49A6C40] flex items-center justify-center">
+            <span className="font-cursive text-3xl font-bold text-gold">N</span>
+          </div>
+        )}
+        <div>
+          <p className="text-xs text-text-muted mb-2">Shown on the public "Meet Nessy" page.</p>
+          <button
+            onClick={() => fileInputRef.current?.click()} disabled={uploading}
+            className={`bg-gold-bg border border-[#C49A6C30] rounded-md py-1.5 px-3.5 text-xs font-semibold text-gold flex items-center gap-1.5 ${uploading ? "cursor-wait" : "cursor-pointer"}`}
+          >{uploading ? <GoldSpinner size={12} /> : <Upload size={12} />} {uploading ? "Uploading…" : photoUrl ? "Replace Photo" : "Upload Photo"}</button>
+        </div>
+      </div>
+
+      {/* Bio text */}
+      <div className="grid gap-3 mb-3">
+        <div>
+          <label className="block text-[11px] text-text-muted mb-1 font-semibold">Bio — Part 1</label>
+          <textarea
+            value={text1} onChange={(e) => setDraftText1(e.target.value)}
+            rows={4}
+            className="w-full py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none [font-family:inherit] resize-y box-border"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] text-text-muted mb-1 font-semibold">Bio — Part 2</label>
+          <textarea
+            value={text2} onChange={(e) => setDraftText2(e.target.value)}
+            rows={4}
+            className="w-full py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none [font-family:inherit] resize-y box-border"
+          />
+        </div>
+      </div>
+      <GoldButton
+        onClick={saveText} disabled={savingText}
+        className={`bg-gold text-theme-black border-none py-2 px-5 rounded-md text-xs font-bold w-fit flex items-center gap-1.5 ${savingText ? "cursor-wait" : "cursor-pointer"}`}
+      >{savingText && <GoldSpinner size={12} color="#0A0A0A" />} {savingText ? "Saving…" : "Save"}</GoldButton>
+    </div>
+  );
+}
+
 export function Settings() {
   const { t } = useTheme();
   const { settings, loading, error, updateSetting } = useSettings();
@@ -275,6 +380,7 @@ export function Settings() {
         );
       })}
       <BookingRulesSection />
+      <AboutPageSection />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
+import { uploadImage } from "../lib/cloudinary";
 import type { Database, Json } from "../types/database";
 
 type SettingsRow = Database["public"]["Tables"]["settings"]["Row"];
@@ -16,6 +17,9 @@ export interface SettingsMap {
   slot_duration_minutes: number;
   min_booking_notice_hours: number;
   location_url: string;
+  about_photo_url: string;
+  about_text_1: string;
+  about_text_2: string;
 }
 
 interface UseSettingsResult {
@@ -24,6 +28,7 @@ interface UseSettingsResult {
   error: string | null;
   refetch: () => Promise<void>;
   updateSetting: (key: keyof SettingsMap, value: string | number) => Promise<void>;
+  uploadAboutPhoto: (file: File) => Promise<void>;
 }
 
 export function useSettings(): UseSettingsResult {
@@ -55,7 +60,17 @@ export function useSettings(): UseSettingsResult {
     await fetchSettings();
   }, [fetchSettings]);
 
+  const uploadAboutPhoto = useCallback(async (file: File) => {
+    await assertAuthenticated();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const url = await uploadImage(file, sessionData.session?.access_token);
+    const { error: upsertError } = await supabase.from("settings")
+      .upsert({ key: "about_photo_url", value: url as Json }, { onConflict: "key" });
+    if (upsertError) await handleWriteError(upsertError);
+    await fetchSettings();
+  }, [fetchSettings]);
+
   const settings = Object.fromEntries(rows.map(r => [r.key, r.value])) as Partial<SettingsMap>;
 
-  return { settings, loading, error, refetch: fetchSettings, updateSetting };
+  return { settings, loading, error, refetch: fetchSettings, updateSetting, uploadAboutPhoto };
 }
