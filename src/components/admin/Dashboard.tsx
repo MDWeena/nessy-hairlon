@@ -23,6 +23,25 @@ function getUpcomingBookings(bookings: Order[], days: number): Order[] {
   );
 }
 
+function BookingAvatar({ client, customStyleUrl, linked }: { client: string; customStyleUrl: string | null; linked?: boolean }) {
+  if (customStyleUrl) {
+    const img = (
+      <img
+        src={customStyleUrl} alt={linked ? "Requested style" : ""}
+        className={`w-9 h-9 rounded-full object-cover border border-[#C49A6C40] shrink-0 ${linked ? "cursor-pointer" : ""}`}
+      />
+    );
+    return linked ? (
+      <a href={customStyleUrl} target="_blank" rel="noopener noreferrer" title="Open full photo" className="shrink-0">{img}</a>
+    ) : img;
+  }
+  return (
+    <div className="w-9 h-9 rounded-full shrink-0 bg-[linear-gradient(135deg,#C49A6C30,#C49A6C10)] flex items-center justify-center text-sm font-bold text-gold">
+      {client[0]}
+    </div>
+  );
+}
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { t } = useTheme();
   const { bookings, stats, revenueBreakdown, loading, error } = useBookings();
@@ -50,76 +69,74 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {error && <ErrorNotice message={error} />}
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 28 }}>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-7">
         {statCards.map((s) => (
-          <div key={s.label} className={s.onClick ? "hover-lift" : undefined} role={s.onClick ? "button" : undefined} tabIndex={s.onClick ? 0 : undefined}
+          <div
+            key={s.label} role={s.onClick ? "button" : undefined} tabIndex={s.onClick ? 0 : undefined}
             onClick={s.onClick}
             onKeyDown={s.onClick ? (e) => { if (e.key === "Enter" || e.key === " ") s.onClick!(); } : undefined}
-            style={{
-              background: t.surface, borderRadius: 12, padding: 20,
-              border: `1px solid ${t.border}`, cursor: s.onClick ? "pointer" : "default",
-            }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-              <span style={{ fontSize: 12, color: t.textMuted }}>{s.label}</span>
-              <div style={{
-                width: 32, height: 32, borderRadius: 8, background: `${s.color}15`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}><s.icon size={16} color={s.color} /></div>
+            className={`bg-surface rounded-xl p-5 border border-border ${s.onClick ? "hover-lift cursor-pointer" : "cursor-default"}`}
+          >
+            <div className="flex justify-between items-start mb-3">
+              <span className="text-xs text-text-muted">{s.label}</span>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${s.color}15` }}>
+                <s.icon size={16} color={s.color} />
+              </div>
             </div>
-            <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: t.textMuted, marginTop: 4 }}>{s.sub}</div>
+            <div className="text-[28px] font-bold leading-none">{s.value}</div>
+            <div className="text-xs text-text-muted mt-1">{s.sub}</div>
           </div>
         ))}
       </div>
 
       {/* Revenue breakdown — all-time audit view, independent of the weekly stat card above */}
-      <div style={{ background: t.surface, borderRadius: 12, padding: 24, border: `1px solid ${t.border}`, marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      <div className="bg-surface rounded-xl p-6 border border-border mb-5">
+        <div className="flex items-center gap-2 mb-4">
           <PieChart size={18} color={t.gold} />
-          <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Revenue Breakdown</h3>
-          <span style={{ fontSize: 11, color: t.textMuted, marginLeft: "auto" }}>All-time · received payments only</span>
+          <h3 className="text-base font-bold m-0">Revenue Breakdown</h3>
+          <span className="text-[11px] text-text-muted ml-auto">All-time · received payments only</span>
         </div>
 
         {/* Primary: Payments Received */}
-        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+        <div className="text-[10px] font-bold text-text-muted tracking-[0.5px] uppercase mb-2.5">
           Payments Received
         </div>
-        <div style={{ display: "grid", gap: 10 }}>
+        <div className="grid gap-2.5">
           {[
             { label: "Deposits received", value: revenueBreakdown.depositsReceived, color: t.gold },
             { label: "Balance received", value: revenueBreakdown.balanceReceived, color: "#10B981" },
           ].map(row => (
-            <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, color: t.textSoft, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: row.color, flexShrink: 0 }} />
+            <div key={row.label} className="flex justify-between items-center">
+              <span className="text-[13px] text-text-soft flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
                 {row.label}
               </span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>₦{row.value.toLocaleString()}</span>
+              <span className="text-[13px] font-semibold">₦{row.value.toLocaleString()}</span>
             </div>
           ))}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${t.border}`, paddingTop: 10, marginTop: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Total received</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: t.gold }}>₦{revenueBreakdown.totalReceived.toLocaleString()}</span>
+          <div className="flex justify-between items-center border-t border-border pt-2.5 mt-0.5">
+            <span className="text-[13px] font-bold">Total received</span>
+            <span className="text-sm font-bold text-gold">₦{revenueBreakdown.totalReceived.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Secondary: Material Costs (Nessy-supplied) — only when relevant */}
         {(revenueBreakdown.attachmentMaterialCosts > 0 || revenueBreakdown.accessoryMaterialCosts > 0) && (
-          <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px dashed ${t.border}` }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+          <div className="mt-5 pt-4 border-t border-dashed border-border">
+            <div className="text-[10px] font-bold text-text-muted tracking-[0.5px] uppercase mb-2.5">
               Material costs (Nessy-supplied)
             </div>
-            <div style={{ display: "grid", gap: 10 }}>
+            <div className="grid gap-2.5">
               {[
                 { label: "Attachments (wigs, extensions)", value: revenueBreakdown.attachmentMaterialCosts, color: "#6366F1" },
                 { label: "Accessories (clips, pins)", value: revenueBreakdown.accessoryMaterialCosts, color: "#F59E0B" },
               ].map(row => (
-                <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: t.textSoft, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: row.color, flexShrink: 0 }} />
+                <div key={row.label} className="flex justify-between items-center">
+                  <span className="text-[13px] text-text-soft flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
                     {row.label}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>₦{row.value.toLocaleString()}</span>
+                  <span className="text-[13px] font-semibold">₦{row.value.toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -129,104 +146,74 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* Needs Attention section */}
       {needsAttention.length > 0 && (
-        <div style={{ background: t.surface, borderRadius: 12, padding: 24, border: `1px solid ${t.border}`, marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div className="bg-surface rounded-xl p-6 border border-border mb-5">
+          <div className="flex items-center gap-2 mb-4">
             <AlertCircle size={18} color="#F59E0B" />
-            <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Needs Your Attention</h3>
-            <span style={{ fontSize: 12, color: t.textMuted, marginLeft: "auto" }}>
+            <h3 className="text-base font-bold m-0">Needs Your Attention</h3>
+            <span className="text-xs text-text-muted ml-auto">
               {needsAttention.length} booking{needsAttention.length !== 1 ? "s" : ""}
             </span>
           </div>
           {needsAttention.slice(0, 5).map((o, i) => (
-            <div key={o.id} onClick={() => onNavigate("orders", o.status === "pending_review" ? "pending_review" : "deposit_paid")}
-              className="hover-lift" role="button" tabIndex={0}
+            <div
+              key={o.id} onClick={() => onNavigate("orders", o.status === "pending_review" ? "pending_review" : "deposit_paid")}
+              className={`hover-lift flex justify-between items-center py-3 px-3.5 rounded-[10px] cursor-pointer flex-wrap gap-y-2 [transition:background_0.15s] ${
+                i % 2 === 0 ? "bg-[#C49A6C08]" : "bg-transparent"
+              }`}
+              role="button" tabIndex={0}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onNavigate("orders", o.status === "pending_review" ? "pending_review" : "deposit_paid"); }}
-              style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: "12px 14px", borderRadius: 10,
-                background: i % 2 === 0 ? `${t.gold}08` : "transparent",
-                cursor: "pointer", flexWrap: "wrap", rowGap: 8,
-                transition: "background 0.15s",
-              }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                {o.customStyleUrl ? (
-                  <img src={o.customStyleUrl} alt="" style={{
-                    width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: `1px solid ${t.gold}40`, flexShrink: 0,
-                  }} />
-                ) : (
-                  <div style={{
-                    width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                    background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}10)`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 14, fontWeight: 700, color: t.gold,
-                  }}>{o.client[0]}</div>
-                )}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.client}</div>
-                  <div style={{ fontSize: 12, color: t.textMuted }}>{o.date} at {o.time}</div>
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <BookingAvatar client={o.client} customStyleUrl={o.customStyleUrl} />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{o.client}</div>
+                  <div className="text-xs text-text-muted">{o.date} at {o.time}</div>
                 </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                {o.price && <span style={{ fontSize: 13, fontWeight: 600 }}>{o.price}</span>}
+              <div className="flex items-center gap-2.5 shrink-0">
+                {o.price && <span className="text-[13px] font-semibold">{o.price}</span>}
                 <StatusBadge status={o.status} />
-                <span style={{ fontSize: 18, color: t.textMuted }}>›</span>
+                <span className="text-lg text-text-muted">›</span>
               </div>
             </div>
           ))}
           {needsAttention.length > 5 && (
-            <button onClick={() => onNavigate("orders", "pending_review")} style={{
-              display: "block", width: "100%", marginTop: 12, padding: "8px 0", fontSize: 12,
-              color: t.gold, background: "none", border: "none", cursor: "pointer", fontWeight: 600,
-            }}>View all {needsAttention.length} items →</button>
+            <button
+              onClick={() => onNavigate("orders", "pending_review")}
+              className="block w-full mt-3 py-2 text-xs text-gold bg-transparent border-none cursor-pointer font-semibold"
+            >View all {needsAttention.length} items →</button>
           )}
         </div>
       )}
 
       {/* Today's schedule */}
-      <div style={{ background: t.surface, borderRadius: 12, padding: 24, border: `1px solid ${t.border}`, marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      <div className="bg-surface rounded-xl p-6 border border-border mb-5">
+        <div className="flex items-center gap-2 mb-4">
           <Clock size={18} color={t.gold} />
-          <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Today's Schedule</h3>
+          <h3 className="text-base font-bold m-0">Today's Schedule</h3>
           {todaysBookings.length > 0 && (
-            <span style={{
-              fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-              background: `${t.gold}20`, color: t.gold, marginLeft: 6,
-            }}>{todaysBookings.length}</span>
+            <span className="text-[11px] font-bold py-0.5 px-2 rounded-[10px] bg-[#C49A6C20] text-gold ml-1.5">{todaysBookings.length}</span>
           )}
         </div>
         {todaysBookings.length === 0 ? (
-          <p style={{ fontSize: 13, color: t.textMuted, textAlign: "center", padding: "16px 0" }}>
+          <p className="text-[13px] text-text-muted text-center py-4">
             No confirmed appointments for today.
           </p>
         ) : todaysBookings.map((o, i) => (
-          <div key={o.id} style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "14px 0", borderBottom: i < todaysBookings.length - 1 ? `1px solid ${t.border}` : "none",
-            flexWrap: "wrap", rowGap: 8,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-              {o.customStyleUrl ? (
-                <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" title="Open full photo" style={{ flexShrink: 0 }}>
-                  <img src={o.customStyleUrl} alt="Requested style" style={{
-                    width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: `1px solid ${t.gold}40`, cursor: "pointer",
-                  }} />
-                </a>
-              ) : (
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                  background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}10)`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, fontWeight: 700, color: t.gold,
-                }}>{o.client[0]}</div>
-              )}
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.client}</div>
-                <div style={{ fontSize: 12, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.service}</div>
+          <div
+            key={o.id}
+            className={`flex justify-between items-center py-3.5 flex-wrap gap-y-2 ${i < todaysBookings.length - 1 ? "border-b border-border" : "border-b-0"}`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <BookingAvatar client={o.client} customStyleUrl={o.customStyleUrl} linked />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{o.client}</div>
+                <div className="text-xs text-text-muted overflow-hidden text-ellipsis whitespace-nowrap">{o.service}</div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: t.textSoft }}>{o.time}</span>
-              {o.price && <span style={{ fontSize: 13, fontWeight: 700 }}>{o.price}</span>}
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-[13px] font-semibold text-text-soft">{o.time}</span>
+              {o.price && <span className="text-[13px] font-bold">{o.price}</span>}
               <StatusBadge status={o.status} />
             </div>
           </div>
@@ -234,50 +221,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </div>
 
       {/* Upcoming this week */}
-      <div style={{ background: t.surface, borderRadius: 12, padding: 24, border: `1px solid ${t.border}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+      <div className="bg-surface rounded-xl p-6 border border-border">
+        <div className="flex items-center gap-2 mb-4">
           <CheckCircle size={18} color="#10B981" />
-          <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Upcoming This Week</h3>
+          <h3 className="text-base font-bold m-0">Upcoming This Week</h3>
           {upcomingConfirmed.length > 0 && (
-            <span style={{
-              fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-              background: "#10B98120", color: "#10B981", marginLeft: 6,
-            }}>{upcomingConfirmed.length}</span>
+            <span className="text-[11px] font-bold py-0.5 px-2 rounded-[10px] bg-[#10B98120] text-[#10B981] ml-1.5">{upcomingConfirmed.length}</span>
           )}
         </div>
         {upcomingConfirmed.length === 0 ? (
-          <p style={{ fontSize: 13, color: t.textMuted, textAlign: "center", padding: "16px 0" }}>
+          <p className="text-[13px] text-text-muted text-center py-4">
             No upcoming confirmed appointments this week.
           </p>
         ) : upcomingConfirmed.map((o, i) => (
-          <div key={o.id} style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "14px 0", borderBottom: i < upcomingConfirmed.length - 1 ? `1px solid ${t.border}` : "none",
-            flexWrap: "wrap", rowGap: 8,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-              {o.customStyleUrl ? (
-                <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" title="Open full photo" style={{ flexShrink: 0 }}>
-                  <img src={o.customStyleUrl} alt="Requested style" style={{
-                    width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: `1px solid ${t.gold}40`, cursor: "pointer",
-                  }} />
-                </a>
-              ) : (
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                  background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}10)`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14, fontWeight: 700, color: t.gold,
-                }}>{o.client[0]}</div>
-              )}
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.client}</div>
-                <div style={{ fontSize: 12, color: t.textMuted }}>{o.date} · {o.service}</div>
+          <div
+            key={o.id}
+            className={`flex justify-between items-center py-3.5 flex-wrap gap-y-2 ${i < upcomingConfirmed.length - 1 ? "border-b border-border" : "border-b-0"}`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <BookingAvatar client={o.client} customStyleUrl={o.customStyleUrl} linked />
+              <div className="min-w-0">
+                <div className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{o.client}</div>
+                <div className="text-xs text-text-muted">{o.date} · {o.service}</div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: t.textSoft }}>{o.time}</span>
-              {o.price && <span style={{ fontSize: 13, fontWeight: 700 }}>{o.price}</span>}
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-[13px] font-semibold text-text-soft">{o.time}</span>
+              {o.price && <span className="text-[13px] font-bold">{o.price}</span>}
               <StatusBadge status={o.status} />
             </div>
           </div>
