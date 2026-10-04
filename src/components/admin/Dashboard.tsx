@@ -1,6 +1,7 @@
 import { Calendar, Eye, TrendingUp, Users, Clock, AlertCircle, CheckCircle, PieChart } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useBookings } from "../../hooks/useBookings";
+import { hourFromLabel } from "../../hooks/useAvailability";
 import { toISODateString } from "../../lib/date";
 import type { Order, OrderFilter } from "../../types";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -48,7 +49,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const today = toISODateString(new Date());
   const todaysBookings = bookings.filter(o => o.date === today && (o.status === "confirmed" || o.status === "completed"));
-  const needsAttention = bookings.filter(o => o.status === "pending_review" || o.status === "deposit_paid");
+  // Soonest appointment first — the booking date/time, not when the request came in.
+  const needsAttention = bookings
+    .filter(o => o.status === "pending_review" || o.status === "deposit_paid")
+    .sort((a, b) => a.date !== b.date
+      ? a.date.localeCompare(b.date)
+      : (hourFromLabel(a.time) ?? 0) - (hourFromLabel(b.time) ?? 0));
   const upcomingConfirmed = getUpcomingBookings(bookings, 7).filter(o => o.date > today);
 
   const statCards = [
