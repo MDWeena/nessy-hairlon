@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "./context/ThemeContext";
 import { useScrollPosition } from "./hooks/useScrollPosition";
 import { usePageTransition } from "./hooks/usePageTransition";
@@ -8,6 +8,7 @@ import { Navbar } from "./components/layout/Navbar";
 import { MobileDrawer } from "./components/layout/MobileDrawer";
 import { Footer } from "./components/layout/Footer";
 import { ClientLoader } from "./components/loaders/ClientLoader";
+import { SessionToast } from "./components/ui/SessionToast";
 import { HomePage } from "./pages/HomePage";
 import { ServicesPage } from "./pages/ServicesPage";
 import { AboutPage } from "./pages/AboutPage";
@@ -36,6 +37,12 @@ export default function App() {
   const [preselectedService, setPreselectedService] = useState<string | null>(null);
   const [trackReference, setTrackReference] = useState<string | null>(null);
   const [deepLinkBookingId] = useState<string | null>(() => page === "admin" ? getDeepLinkBookingId() : null);
+  const [showInactivityToast, setShowInactivityToast] = useState(false);
+  const inactivityToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (inactivityToastTimerRef.current) clearTimeout(inactivityToastTimerRef.current); };
+  }, []);
 
   const navigate: NavigateFn = (p, param) => {
     setMobileNavOpen(false);
@@ -53,6 +60,12 @@ export default function App() {
       <AdminPanel
         onViewSite={() => { setIsAdmin(false); navigate("home"); }}
         onLogout={async () => { await signOut(); setIsAdmin(false); navigate("home"); }}
+        onInactivityLogout={() => {
+          setIsAdmin(false);
+          navigate("home");
+          setShowInactivityToast(true);
+          inactivityToastTimerRef.current = setTimeout(() => setShowInactivityToast(false), 5000);
+        }}
         deepLinkBookingId={deepLinkBookingId}
       />
     );
@@ -113,6 +126,8 @@ export default function App() {
 
       <Footer navigate={navigate} onManageClick={() => setIsAdmin(true)} />
       <WhatsAppButton />
+
+      {showInactivityToast && <SessionToast message="You've been signed out due to inactivity" />}
     </div>
   );
 }

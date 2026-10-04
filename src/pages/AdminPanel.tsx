@@ -15,10 +15,11 @@ import type { OrderFilter } from "../types";
 interface AdminPanelProps {
   onViewSite: () => void;
   onLogout: () => void;
+  onInactivityLogout: () => void;
   deepLinkBookingId?: string | null;
 }
 
-export function AdminPanel({ onViewSite, onLogout, deepLinkBookingId }: AdminPanelProps) {
+export function AdminPanel({ onViewSite, onLogout, onInactivityLogout, deepLinkBookingId }: AdminPanelProps) {
   const [adminPage, setAdminPage] = useState(deepLinkBookingId ? "orders" : "dashboard");
   const [adminLoading, setAdminLoading] = useState(false);
   const [ordersFilter, setOrdersFilter] = useState<OrderFilter>("all");
@@ -32,7 +33,7 @@ export function AdminPanel({ onViewSite, onLogout, deepLinkBookingId }: AdminPan
   };
 
   return (
-    <ProtectedRoute onBack={onViewSite}>
+    <ProtectedRoute onBack={onViewSite} onInactivityLogout={onInactivityLogout}>
       <div className="font-sans text-text bg-bg h-screen flex overflow-hidden">
         <link href="https://fonts.googleapis.com/css2?family=Tangerine:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
 
