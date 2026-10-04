@@ -1,4 +1,4 @@
-import { Home, Scissors, Image, Calendar } from "lucide-react";
+import { Home, Scissors, Image, Calendar, Search } from "lucide-react";
 import type { NavigateFn } from "../../types";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
@@ -8,8 +8,8 @@ interface MobileDrawerProps {
   open: boolean;
 }
 
-const NAV_KEYS = ["home", "services", "gallery", "book"] as const;
-const NAV_LABELS: Record<string, string> = { home: "Home", services: "Services", gallery: "Gallery", book: "Book Now" };
+const NAV_KEYS = ["home", "services", "gallery", "book", "track"] as const;
+const NAV_LABELS: Record<string, string> = { home: "Home", services: "Services", gallery: "Gallery", book: "Book Now", track: "Track Booking" };
 
 export function MobileDrawer({ navigate, page, open }: MobileDrawerProps) {
   if (!open) return null;
@@ -25,6 +25,7 @@ export function MobileDrawer({ navigate, page, open }: MobileDrawerProps) {
           {key === "services" && <Scissors size={18} />}
           {key === "gallery" && <Image size={18} />}
           {key === "book" && <Calendar size={18} />}
+          {key === "track" && <Search size={18} />}
           {NAV_LABELS[key]}
         </button>
       ))}

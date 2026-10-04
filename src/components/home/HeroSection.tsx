@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import { HERO_BG, LOGO_WHITE_TEXT } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
 import type { NavigateFn } from "../../types";
@@ -75,6 +75,13 @@ export function HeroSection({ navigate }: HeroSectionProps) {
             View Services
           </OutlineButton>
         </div>
+
+        <button
+          onClick={() => navigate("track")}
+          className="bg-transparent border-none text-gold text-[13px] font-semibold cursor-pointer mt-5 flex items-center gap-1.5 mx-auto"
+        >
+          <Search size={14} /> Already booked? Track your booking
+        </button>
       </div>
     </section>
   );

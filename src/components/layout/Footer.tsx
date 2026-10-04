@@ -1,9 +1,10 @@
-import { Phone, Camera, MapPin } from "lucide-react";
+import { Phone, Camera, MapPin, Search } from "lucide-react";
 import { LOGO_ICON } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
 import { useSettings } from "../../hooks/useSettings";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import type { NavigateFn } from "../../types";
+import { GoldButton } from "../ui/GoldButton";
 import { WeenaCredit } from "./WeenaCredit";
 
 interface FooterProps {
@@ -29,13 +30,17 @@ export function Footer({ navigate, onManageClick }: FooterProps) {
             <img src={LOGO_ICON} alt="" className="w-12 h-12 rounded-full" />
             <span className="font-cursive text-[40px] text-white">Nessy <span className="text-gold">Hairlon</span></span>
           </div>
-          <p className="text-[13px] text-[#777] leading-[1.6]">Natural hair specialist. Braiding, locs, treatments & styling done with care and intention.</p>
+          <p className="text-[13px] text-[#777] leading-[1.6] mb-4">Natural hair specialist. Braiding, locs, treatments & styling done with care and intention.</p>
+          <GoldButton
+            onClick={() => navigate("track")}
+            className="bg-gold text-theme-black border-none py-2.5 px-5 rounded-md text-[13px] font-bold cursor-pointer flex items-center gap-2 w-fit"
+          ><Search size={14} /> Track My Booking</GoldButton>
         </div>
         <div>
           <h4 className="text-[#ccc] text-[13px] font-bold mb-4 tracking-[0.5px]">Quick links</h4>
-          {["Home", "Services", "Book Now", "Track Booking"].map(l => (
+          {["Home", "Services", "Book Now"].map(l => (
             <button
-              key={l} onClick={() => navigate(l === "Book Now" ? "book" : l === "Track Booking" ? "track" : l.toLowerCase())}
+              key={l} onClick={() => navigate(l === "Book Now" ? "book" : l.toLowerCase())}
               className="block bg-transparent border-none text-[#888] cursor-pointer text-[13px] py-1 px-0 mb-1 [transition:color_0.2s]"
             >{l}</button>
           ))}
