@@ -122,197 +122,141 @@ export function AdminLogin({ onBack }: AdminLoginProps) {
   };
 
   return (
-    <div style={{
-      fontFamily: "'DM Sans', system-ui, sans-serif",
-      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: isDark ? "#0E0B08" : "#FFFCF8",
-      position: "relative", overflow: "hidden",
-    }}>
+    <div className="font-sans min-h-screen flex items-center justify-center bg-bg relative overflow-hidden">
       <link href="https://fonts.googleapis.com/css2?family=Tangerine:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
 
       {/* Logo watermark background */}
-      <div style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: 500, height: 500,
-        backgroundImage: `url(${LOGO_ICON})`,
-        backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center",
-        opacity: isDark ? 0.04 : 0.06,
-        pointerEvents: "none",
-      }} />
+      <div
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-contain bg-no-repeat bg-center pointer-events-none ${
+          isDark ? "opacity-[0.04]" : "opacity-[0.06]"
+        }`}
+        style={{ backgroundImage: `url(${LOGO_ICON})` }}
+      />
 
       {/* Background decoration */}
-      <div style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)", width: 500, height: 500,
-        borderRadius: "50%", border: `1px solid ${t.gold}10`,
-        pointerEvents: "none",
-      }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full border border-[#C49A6C10] pointer-events-none" />
 
-      <div style={{ width: "100%", maxWidth: 400, padding: 24, position: "relative", zIndex: 2 }}>
+      <div className="w-full max-w-[400px] p-6 relative z-[2]">
         {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <img src={LOGO_ICON} alt="Nessy Hairlon" style={{ width: 64, height: 64, borderRadius: "50%", marginBottom: 16, display: "block", margin: "0 auto 16px" }} />
-          <div style={{ fontFamily: "'Tangerine', cursive", fontSize: 36, fontWeight: 700, color: t.text }}>
-            Nessy <span style={{ color: t.gold }}>Hairlon</span>
+        <div className="text-center mb-10">
+          <img src={LOGO_ICON} alt="Nessy Hairlon" className="w-16 h-16 rounded-full block mx-auto mb-4" />
+          <div className="font-cursive text-[36px] font-bold text-text">
+            Nessy <span className="text-gold">Hairlon</span>
           </div>
-          <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>Admin Portal</p>
+          <p className="text-[13px] text-text-muted mt-1">Admin Portal</p>
         </div>
 
         {/* Login / reset card */}
-        <div style={{
-          background: t.surface, borderRadius: 16, padding: 32,
-          border: `1px solid ${t.border}`,
-          boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.3)" : "0 8px 32px rgba(26,18,7,0.08)",
-        }}>
+        <div
+          className={`bg-surface rounded-2xl p-8 border border-border ${
+            isDark ? "shadow-[0_8px_32px_rgba(0,0,0,0.3)]" : "shadow-[0_8px_32px_rgba(26,18,7,0.08)]"
+          }`}
+        >
           {mode === "login" ? (
             loading ? (
               <LoadingNotice label="Signing in…" />
             ) : (
             <>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Welcome back</h2>
-              <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>Sign in to manage your bookings</p>
+              <h2 className="text-lg font-bold mb-1 text-text">Welcome back</h2>
+              <p className="text-[13px] text-text-muted mb-7">Sign in to manage your bookings</p>
 
               {(isLocked || error) && (
-                <div style={{
-                  background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 8,
-                  padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#DC2626",
-                  display: "flex", alignItems: "center", gap: 8,
-                }}>
+                <div className="bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg py-2.5 px-3.5 mb-4 text-[13px] text-[#DC2626] flex items-center gap-2">
                   <X size={14} /> {isLocked ? "Too many attempts. Try again in 5 minutes." : error}
                 </div>
               )}
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email</label>
+              <div className="mb-4">
+                <label className="block text-xs text-text-muted mb-1.5 font-medium">Email</label>
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
-                  style={{
-                    width: "100%", padding: "12px 14px", borderRadius: 10,
-                    border: `1px solid ${t.border}`, background: t.bgAlt,
-                    fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                    transition: "border-color 0.2s",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = t.gold)}
-                  onBlur={(e) => (e.target.style.borderColor = t.border)}
+                  className="w-full py-3 px-3.5 rounded-[10px] border border-border focus:border-gold bg-bg-alt text-sm text-text outline-none box-border [transition:border-color_0.2s]"
                 />
               </div>
 
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Password</label>
+              <div className="mb-3">
+                <label className="block text-xs text-text-muted mb-1.5 font-medium">Password</label>
                 <input
                   type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                  style={{
-                    width: "100%", padding: "12px 14px", borderRadius: 10,
-                    border: `1px solid ${t.border}`, background: t.bgAlt,
-                    fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                    transition: "border-color 0.2s",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = t.gold)}
-                  onBlur={(e) => (e.target.style.borderColor = t.border)}
+                  className="w-full py-3 px-3.5 rounded-[10px] border border-border focus:border-gold bg-bg-alt text-sm text-text outline-none box-border [transition:border-color_0.2s]"
                 />
               </div>
 
-              <div style={{ textAlign: "right", marginBottom: 24 }}>
-                <button onClick={openResetMode} style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: t.textMuted, fontSize: 12, padding: 0, textDecoration: "underline",
-                  transition: "color 0.2s",
-                }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = t.gold)}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = t.textMuted)}
+              <div className="text-right mb-6">
+                <button
+                  onClick={openResetMode}
+                  className="bg-transparent border-none cursor-pointer text-text-muted hover:text-gold text-xs p-0 underline [transition:color_0.2s]"
                 >Forgot password?</button>
               </div>
 
-              <GoldButton onClick={handleSubmit} disabled={isLocked} style={{
-                width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-                padding: "14px", fontSize: 15, fontWeight: 700,
-                cursor: isLocked ? "wait" : "pointer", borderRadius: 10,
-                opacity: isLocked ? 0.7 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}>
+              <GoldButton
+                onClick={handleSubmit} disabled={isLocked}
+                className={`w-full bg-gold text-theme-black border-none p-3.5 text-[15px] font-bold rounded-[10px] flex items-center justify-center gap-2 ${
+                  isLocked ? "cursor-wait opacity-70" : "cursor-pointer opacity-100"
+                }`}
+              >
                 Sign In <ArrowRight size={16} />
               </GoldButton>
             </>
             )
           ) : (
             <>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Reset your password</h2>
-              <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>
+              <h2 className="text-lg font-bold mb-1 text-text">Reset your password</h2>
+              <p className="text-[13px] text-text-muted mb-7">
                 Enter your email and we'll send you a link to reset it.
               </p>
 
               {resetSent ? (
-                <div style={{
-                  background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 8,
-                  padding: "14px 16px", marginBottom: 20, fontSize: 13, color: t.textSoft,
-                  display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5,
-                }}>
-                  <Mail size={16} color={t.gold} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div className="bg-gold-bg border border-[#C49A6C30] rounded-lg py-3.5 px-4 mb-5 text-[13px] text-text-soft flex items-start gap-2.5 leading-[1.5]">
+                  <Mail size={16} color={t.gold} className="shrink-0 mt-px" />
                   <span>If an account exists with that email, you'll receive a password reset link shortly. Check your inbox.</span>
                 </div>
               ) : (
-                <div style={{ marginBottom: 24 }}>
-                  <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email</label>
+                <div className="mb-6">
+                  <label className="block text-xs text-text-muted mb-1.5 font-medium">Email</label>
                   <input
                     type="email" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)}
                     placeholder="Enter your email"
                     onKeyDown={(e) => e.key === "Enter" && handleResetSubmit()}
-                    style={{
-                      width: "100%", padding: "12px 14px", borderRadius: 10,
-                      border: `1px solid ${t.border}`, background: t.bgAlt,
-                      fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                      transition: "border-color 0.2s",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = t.gold)}
-                    onBlur={(e) => (e.target.style.borderColor = t.border)}
+                    className="w-full py-3 px-3.5 rounded-[10px] border border-border focus:border-gold bg-bg-alt text-sm text-text outline-none box-border [transition:border-color_0.2s]"
                   />
                 </div>
               )}
 
               {!resetSent && (
-                <GoldButton onClick={handleResetSubmit} disabled={resetLoading || !resetEmail} style={{
-                  width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-                  padding: "14px", fontSize: 15, fontWeight: 700,
-                  cursor: resetLoading ? "wait" : "pointer", borderRadius: 10,
-                  opacity: resetLoading || !resetEmail ? 0.7 : 1,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                }}>
+                <GoldButton
+                  onClick={handleResetSubmit} disabled={resetLoading || !resetEmail}
+                  className={`w-full bg-gold text-theme-black border-none p-3.5 text-[15px] font-bold rounded-[10px] flex items-center justify-center gap-2 ${
+                    resetLoading || !resetEmail ? "cursor-wait opacity-70" : "cursor-pointer opacity-100"
+                  }`}
+                >
                   {resetLoading && <GoldSpinner size={16} color="#0A0A0A" />}
                   {resetLoading ? "Sending..." : "Send Reset Link"}
                   {!resetLoading && <ArrowRight size={16} />}
                 </GoldButton>
               )}
 
-              <button onClick={backToLogin} style={{
-                display: "block", margin: "20px auto 0", background: "none", border: "none",
-                cursor: "pointer", color: t.textMuted, fontSize: 13, transition: "color 0.2s",
-              }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = t.gold)}
-                onMouseLeave={(e) => (e.currentTarget.style.color = t.textMuted)}
+              <button
+                onClick={backToLogin}
+                className="block mx-auto mt-5 bg-transparent border-none cursor-pointer text-text-muted hover:text-gold text-[13px] [transition:color_0.2s]"
               >Back to login</button>
             </>
           )}
         </div>
 
         {/* Back to site */}
-        <button onClick={onBack} style={{
-          display: "flex", alignItems: "center", gap: 6, margin: "24px auto 0",
-          background: "none", border: "none", cursor: "pointer",
-          color: t.textMuted, fontSize: 13,
-          transition: "color 0.2s",
-        }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = t.gold)}
-          onMouseLeave={(e) => (e.currentTarget.style.color = t.textMuted)}
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 mx-auto mt-6 bg-transparent border-none cursor-pointer text-text-muted hover:text-gold text-[13px] [transition:color_0.2s]"
         >
           <ChevronLeft size={14} /> Back to website
         </button>
 
         {/* Theme toggle */}
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+        <div className="flex justify-center mt-5">
           <ThemeToggle variant="nav" spaced={false} />
         </div>
       </div>

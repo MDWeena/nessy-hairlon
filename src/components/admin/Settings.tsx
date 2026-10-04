@@ -74,7 +74,6 @@ interface BookingRuleCardProps {
 }
 
 function BookingRuleCard({ title, rule, onSave }: BookingRuleCardProps) {
-  const { t } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [maxSlots, setMaxSlots] = useState(rule?.maxSlotsPerDay ?? 3);
   const [gapHours, setGapHours] = useState(rule?.minGapHours ?? 3);
@@ -102,55 +101,51 @@ function BookingRuleCard({ title, rule, onSave }: BookingRuleCardProps) {
   };
 
   return (
-    <div style={{
-      background: t.bgAlt, borderRadius: 10, padding: 18,
-      border: `1px solid ${t.border}`, marginBottom: 12,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isEditing ? 14 : 0 }}>
-        <span style={{ fontSize: 13, fontWeight: 700 }}>{title}</span>
-        <button onClick={() => isEditing ? setIsEditing(false) : startEdit()} style={{
-          background: isEditing ? t.goldBg : "none", border: `1px solid ${isEditing ? t.gold : t.border}`,
-          borderRadius: 6, padding: "4px 12px", fontSize: 11, fontWeight: 600,
-          cursor: "pointer", color: isEditing ? t.gold : t.textMuted,
-        }}>{isEditing ? "Cancel" : "Edit"}</button>
+    <div className="bg-bg-alt rounded-[10px] p-[18px] border border-border mb-3">
+      <div className={`flex justify-between items-center ${isEditing ? "mb-3.5" : "mb-0"}`}>
+        <span className="text-[13px] font-bold">{title}</span>
+        <button
+          onClick={() => isEditing ? setIsEditing(false) : startEdit()}
+          className={`rounded-md py-1 px-3 text-[11px] font-semibold cursor-pointer border ${
+            isEditing ? "bg-gold-bg border-gold text-gold" : "bg-transparent border-border text-text-muted"
+          }`}
+        >{isEditing ? "Cancel" : "Edit"}</button>
       </div>
       {actionError && <ErrorNotice message={actionError} />}
       {isEditing ? (
-        <div style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: t.textMuted }}>Max bookings per day</span>
-            <select value={maxSlots} onChange={(e) => setMaxSlots(Number(e.target.value))} style={{
-              padding: "6px 10px", borderRadius: 8, border: `1px solid ${t.border}`,
-              background: t.surface, fontSize: 13, color: t.text, outline: "none",
-            }}>
+        <div className="grid gap-3">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-text-muted">Max bookings per day</span>
+            <select
+              value={maxSlots} onChange={(e) => setMaxSlots(Number(e.target.value))}
+              className="py-1.5 px-2.5 rounded-lg border border-border bg-surface text-[13px] text-text outline-none"
+            >
               {MAX_SLOTS_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: t.textMuted }}>Min gap between bookings (hours)</span>
-            <select value={gapHours} onChange={(e) => setGapHours(Number(e.target.value))} style={{
-              padding: "6px 10px", borderRadius: 8, border: `1px solid ${t.border}`,
-              background: t.surface, fontSize: 13, color: t.text, outline: "none",
-            }}>
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-text-muted">Min gap between bookings (hours)</span>
+            <select
+              value={gapHours} onChange={(e) => setGapHours(Number(e.target.value))}
+              className="py-1.5 px-2.5 rounded-lg border border-border bg-surface text-[13px] text-text outline-none"
+            >
               {GAP_HOURS_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
-          <GoldButton onClick={save} disabled={saving} style={{
-            background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700,
-            cursor: saving ? "wait" : "pointer", width: "fit-content",
-            display: "flex", alignItems: "center", gap: 6,
-          }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save"}</GoldButton>
+          <GoldButton
+            onClick={save} disabled={saving}
+            className={`bg-gold text-theme-black border-none py-2 px-5 rounded-md text-xs font-bold w-fit flex items-center gap-1.5 ${saving ? "cursor-wait" : "cursor-pointer"}`}
+          >{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save"}</GoldButton>
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 20, marginTop: 10 }}>
+        <div className="flex gap-5 mt-2.5">
           <div>
-            <span style={{ fontSize: 11, color: t.textMuted, display: "block" }}>Max per day</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>{rule ? rule.maxSlotsPerDay : "—"}</span>
+            <span className="text-[11px] text-text-muted block">Max per day</span>
+            <span className="text-sm font-semibold">{rule ? rule.maxSlotsPerDay : "—"}</span>
           </div>
           <div>
-            <span style={{ fontSize: 11, color: t.textMuted, display: "block" }}>Min gap</span>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>{rule ? `${rule.minGapHours} hrs` : "—"}</span>
+            <span className="text-[11px] text-text-muted block">Min gap</span>
+            <span className="text-sm font-semibold">{rule ? `${rule.minGapHours} hrs` : "—"}</span>
           </div>
         </div>
       )}
@@ -163,14 +158,11 @@ function BookingRulesSection() {
   const { weekday, sunday, loading, error, updateWeekday, updateSunday } = useScheduleRules();
 
   return (
-    <div style={{
-      background: t.surface, borderRadius: 12, padding: 24,
-      border: `1px solid ${t.border}`, marginBottom: 20,
-    }}>
-      <h3 style={{ fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 20, paddingBottom: 12, borderBottom: `1px solid ${t.border}` }}>
+    <div className="bg-surface rounded-xl p-6 border border-border mb-5">
+      <h3 className="text-[15px] font-bold flex items-center gap-2 mb-5 pb-3 border-b border-border">
         <CalendarRange size={16} color={t.gold} /> Booking Rules
       </h3>
-      <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 16 }}>
+      <p className="text-xs text-text-muted mb-4">
         Caps how many appointments can land on one day, and how far apart they're spaced. Sunday is set separately since hours are shorter.
       </p>
       {error && <ErrorNotice message={error} />}
@@ -224,67 +216,58 @@ export function Settings() {
   if (loading) return <LoadingNotice label="Loading settings…" />;
 
   return (
-    <div style={{ maxWidth: 600 }}>
+    <div className="max-w-[600px]">
       {error && <ErrorNotice message={error} />}
       {actionError && <ErrorNotice message={actionError} />}
       {SECTIONS.map(section => {
         const isEditing = editing === section.key;
         return (
-          <div key={section.key} style={{
-            background: t.surface, borderRadius: 12, padding: 24,
-            border: `1px solid ${t.border}`, marginBottom: 20,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, paddingBottom: 12, borderBottom: `1px solid ${t.border}` }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+          <div key={section.key} className="bg-surface rounded-xl p-6 border border-border mb-5">
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-border">
+              <h3 className="text-[15px] font-bold flex items-center gap-2">
                 <section.icon size={16} color={t.gold} /> {section.title}
               </h3>
-              <button onClick={() => isEditing ? setEditing(null) : startEdit(section)} style={{
-                background: isEditing ? t.goldBg : "none", border: `1px solid ${isEditing ? t.gold : t.border}`,
-                borderRadius: 6, padding: "5px 14px", fontSize: 12, fontWeight: 600,
-                cursor: "pointer", color: isEditing ? t.gold : t.textMuted,
-                transition: "all 0.2s",
-              }}>{isEditing ? "Cancel" : "Edit"}</button>
+              <button
+                onClick={() => isEditing ? setEditing(null) : startEdit(section)}
+                className={`rounded-md py-[5px] px-3.5 text-xs font-semibold cursor-pointer border [transition:all_0.2s] ${
+                  isEditing ? "bg-gold-bg border-gold text-gold" : "bg-transparent border-border text-text-muted"
+                }`}
+              >{isEditing ? "Cancel" : "Edit"}</button>
             </div>
             {section.fields.map(f => (
-              <div key={f.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-                <span style={{ fontSize: 13, color: t.textMuted }}>{f.label}</span>
+              <div key={f.label} className="flex justify-between items-center mb-3.5 flex-wrap gap-2">
+                <span className="text-[13px] text-text-muted">{f.label}</span>
                 {isEditing ? (
                   f.kind !== "text" ? (
-                    <select value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })} style={{
-                      padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                      background: t.bgAlt, fontSize: 13, color: t.text, outline: "none",
-                      minWidth: 160, maxWidth: "100%",
-                    }}>
+                    <select
+                      value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })}
+                      className="py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none min-w-[160px] max-w-full"
+                    >
                       {SELECT_OPTIONS[f.kind].map(o => {
                         const rawValue = o.replace(/[%]|\s(minutes|hours)$/, "");
                         return <option key={o} value={rawValue}>{o}</option>;
                       })}
                     </select>
                   ) : (
-                    <input value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })} style={{
-                      padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                      background: t.bgAlt, fontSize: 13, color: t.text, outline: "none",
-                      textAlign: "right", width: 180, maxWidth: "100%", boxSizing: "border-box",
-                    }} />
+                    <input
+                      value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })}
+                      className="py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none text-right w-[180px] max-w-full box-border"
+                    />
                   )
                 ) : (
-                  <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{displayValue(f.kind, settings[f.settingKey])}</span>
+                  <span className="text-sm font-semibold text-text">{displayValue(f.kind, settings[f.settingKey])}</span>
                 )}
               </div>
             ))}
             {isEditing && (
-              <GoldButton onClick={() => save(section)} disabled={saving} style={{
-                background: t.gold, color: "#0A0A0A", border: "none",
-                padding: "10px 24px", borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: saving ? "wait" : "pointer", marginTop: 8,
-                display: "flex", alignItems: "center", gap: 6, width: "fit-content",
-              }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save Changes"}</GoldButton>
+              <GoldButton
+                onClick={() => save(section)} disabled={saving}
+                className={`bg-gold text-theme-black border-none py-2.5 px-6 rounded-md text-[13px] font-bold mt-2 flex items-center gap-1.5 w-fit ${saving ? "cursor-wait" : "cursor-pointer"}`}
+              >{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save Changes"}</GoldButton>
             )}
             {section.key === "schedule" && (
-              <div style={{
-                display: "flex", alignItems: "flex-start", gap: 8, marginTop: 16, paddingTop: 16,
-                borderTop: `1px solid ${t.border}`, fontSize: 12, color: t.textMuted,
-              }}>
-                <Info size={14} color={t.gold} style={{ flexShrink: 0, marginTop: 1 }} />
+              <div className="flex items-start gap-2 mt-4 pt-4 border-t border-border text-xs text-text-muted">
+                <Info size={14} color={t.gold} className="shrink-0 mt-px" />
                 <span>Booking reminders are sent daily at 6:00 AM.</span>
               </div>
             )}
