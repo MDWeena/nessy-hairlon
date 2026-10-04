@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, Upload, X } from "lucide-react";
 import { useServices } from "../../hooks/useServices";
 import type { ServiceInput } from "../../hooks/useServices";
@@ -69,6 +69,18 @@ export function ServicesManager() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const addFormRef = useRef<HTMLDivElement | null>(null);
+
+  // Only one category's "add" form can be open at a time, so one ref is enough — scroll it
+  // into view once the DOM has actually updated (rAF, after the state change commits/paints)
+  // rather than right when startAdd() sets state, when the form doesn't exist yet.
+  useEffect(() => {
+    if (!addingCategory) return;
+    const raf = requestAnimationFrame(() => {
+      addFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [addingCategory]);
 
   const startEdit = (id: string, hasFixedPrice: boolean, current: ServiceDraft) => {
     setActionError(null);
@@ -278,7 +290,7 @@ export function ServicesManager() {
               })}
 
               {isAddingHere && (
-                <div className="py-4 px-5">
+                <div ref={addFormRef} className="py-4 px-5">
                   <div className="grid gap-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>

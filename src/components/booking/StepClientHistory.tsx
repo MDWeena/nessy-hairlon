@@ -61,7 +61,7 @@ export function StepClientHistory({ navigate, onContinueFresh, onBookAgain }: St
               />
               <GoldButton
                 onClick={handleSearch} disabled={loading}
-                className={`bg-gold text-theme-black border-none py-0 px-5 rounded-[10px] text-sm font-bold flex items-center gap-2 ${loading ? "cursor-wait" : "cursor-pointer"}`}
+                className={`bg-gold text-theme-black border-none py-0 px-5 rounded-[10px] text-sm font-bold flex items-center gap-2 shrink-0 whitespace-nowrap ${loading ? "cursor-wait" : "cursor-pointer"}`}
               >
                 {loading ? <GoldSpinner size={16} color="#0A0A0A" /> : <Search size={16} />} {loading ? "Searching…" : "Find me"}
               </GoldButton>
