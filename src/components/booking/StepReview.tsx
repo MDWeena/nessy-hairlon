@@ -74,60 +74,53 @@ export function StepReview({
     const whatsappHref = buildWhatsAppUrl(settings.phone, `Hi Nessy, I have a question about my booking ${reference}`);
     return (
       <FadeIn>
-        <div style={{ background: t.surface, borderRadius: 16, padding: 40, border: `1px solid ${t.border}` }}>
-          <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: "50%", background: t.goldBg,
-              display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
-            }}>
+        <div className="bg-surface rounded-2xl p-10 border border-border">
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-full bg-gold-bg flex items-center justify-center mx-auto mt-0 mb-4">
               <Check size={26} color={t.gold} />
             </div>
-            <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Booking Request Submitted!</h3>
-            <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.6 }}>
+            <h3 className="text-xl font-bold mb-2">Booking Request Submitted!</h3>
+            <p className="text-sm text-text-soft leading-[1.6]">
               Thanks {clientName.trim()}! Your booking request has been received. Nessy will review it and send you a price quote within 24 hours.
             </p>
           </div>
 
-          <div style={{
-            background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 10,
-            padding: "12px 16px", fontSize: 13, color: t.textSoft, textAlign: "center", marginBottom: 20,
-          }}>
-            Your reference: <strong style={{ color: t.gold }}>{reference}</strong>
+          <div className="bg-gold-bg rounded-[10px] py-3 px-4 text-[13px] text-text-soft text-center mb-5 border border-[#C49A6C30]">
+            Your reference: <strong className="text-gold">{reference}</strong>
           </div>
 
-          <div style={{ display: "grid", gap: 10, marginBottom: 20, paddingBottom: 20, borderBottom: `1px solid ${t.border}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Calendar size={13} /> Date</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{selectedDay ? selectedDay.label : "—"}</span>
+          <div className="grid gap-2.5 mb-5 pb-5 border-b border-border">
+            <div className="flex justify-between">
+              <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Calendar size={13} /> Date</span>
+              <span className="text-[13px] font-semibold">{selectedDay ? selectedDay.label : "—"}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Clock size={13} /> Time</span>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>{selectedTime || "—"}</span>
+            <div className="flex justify-between">
+              <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Clock size={13} /> Time</span>
+              <span className="text-[13px] font-semibold">{selectedTime || "—"}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Scissors size={13} /> Service</span>
-              <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>
+            <div className="flex justify-between">
+              <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Scissors size={13} /> Service</span>
+              <span className="text-[13px] font-semibold text-right">
                 {isCustom ? "Custom style (quote pending)" : selectedServices.join(", ") || "—"}
               </span>
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 10, fontSize: 13, color: t.textSoft, marginBottom: 24 }}>
+          <div className="grid gap-2.5 text-[13px] text-text-soft mb-6">
             {clientEmail.trim() && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Mail size={14} color={t.gold} /> You'll receive an email at <strong style={{ color: t.text }}>{clientEmail.trim()}</strong> when your quote is ready.
+              <div className="flex items-center gap-2">
+                <Mail size={14} color={t.gold} /> You'll receive an email at <strong className="text-text">{clientEmail.trim()}</strong> when your quote is ready.
               </div>
             )}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <MessageCircle size={14} color={t.gold} /> Questions? <a href={whatsappHref} target="_blank" rel="noopener noreferrer" style={{ color: t.gold, fontWeight: 600 }}>WhatsApp Nessy directly</a>
+            <div className="flex items-center gap-2">
+              <MessageCircle size={14} color={t.gold} /> Questions? <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="text-gold font-semibold">WhatsApp Nessy directly</a>
             </div>
           </div>
 
-          <button onClick={() => navigate("track")} style={{
-            width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "12px", fontSize: 14, fontWeight: 700, cursor: "pointer", borderRadius: 6,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}>Track your booking status <ChevronRight size={16} /></button>
+          <button
+            onClick={() => navigate("track")}
+            className="w-full bg-gold text-theme-black border-none py-3 text-sm font-bold cursor-pointer rounded-md flex items-center justify-center gap-1.5"
+          >Track your booking status <ChevronRight size={16} /></button>
         </div>
       </FadeIn>
     );
@@ -136,60 +129,59 @@ export function StepReview({
   return (
     <FadeIn>
       <div>
-        <div style={{ background: t.surface, borderRadius: 16, padding: 28, marginBottom: 20, border: `1px solid ${t.border}` }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, paddingBottom: 12, borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="bg-surface rounded-2xl p-7 mb-5 border border-border">
+          <h3 className="text-base font-bold mb-5 pb-3 border-b border-border flex items-center gap-2">
             <Eye size={18} color={t.gold} strokeWidth={1.5} /> Booking Summary
           </h3>
-          <div style={{ display: "grid", gap: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: t.textMuted, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}><Calendar size={14} /> Date</span>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{selectedDay ? selectedDay.label : "—"}</span>
+          <div className="grid gap-3.5">
+            <div className="flex justify-between items-center">
+              <span className="text-text-muted text-sm flex items-center gap-1.5"><Calendar size={14} /> Date</span>
+              <span className="font-bold text-sm">{selectedDay ? selectedDay.label : "—"}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: t.textMuted, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}><Clock size={14} /> Time</span>
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{selectedTime || "—"}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-text-muted text-sm flex items-center gap-1.5"><Clock size={14} /> Time</span>
+              <span className="font-bold text-sm">{selectedTime || "—"}</span>
             </div>
-            <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 14 }}>
-              <span style={{ color: t.textMuted, fontSize: 14, display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}><Scissors size={14} /> Services</span>
+            <div className="border-t border-border pt-3.5">
+              <span className="text-text-muted text-sm flex items-center gap-1.5 mb-3"><Scissors size={14} /> Services</span>
               {isCustom ? (
                 <div>
-                  <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: customStyleDescription ? 10 : 0 }}>
-                    <img src={customStyleUrl ?? undefined} alt="Requested style" style={{
-                      width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}`, flexShrink: 0,
-                    }} />
-                    <div style={{ flex: 1 }}>
-                      <span style={{
-                        fontSize: 11, color: t.gold, background: t.goldBg,
-                        padding: "3px 10px", borderRadius: 12, fontWeight: 600,
-                        border: `1px solid ${t.gold}30`, display: "inline-flex", alignItems: "center", gap: 4,
-                      }}><Image size={11} /> Custom Style (quote pending)</span>
-                      <p style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>Nessy will review and send you a price within 24 hours</p>
+                  <div className={`flex gap-3 items-start ${customStyleDescription ? "mb-2.5" : "mb-0"}`}>
+                    <img
+                      src={customStyleUrl ?? undefined} alt="Requested style"
+                      className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
+                    />
+                    <div className="flex-1">
+                      <span className="text-[11px] text-gold bg-gold-bg py-[3px] px-2.5 rounded-xl font-semibold border border-[#C49A6C30] inline-flex items-center gap-1">
+                        <Image size={11} /> Custom Style (quote pending)
+                      </span>
+                      <p className="text-xs text-text-muted mt-1.5">Nessy will review and send you a price within 24 hours</p>
                     </div>
                   </div>
                   {customStyleDescription && (
-                    <p style={{ fontSize: 13, color: t.textSoft, fontStyle: "italic", paddingLeft: 68 }}>"{customStyleDescription}"</p>
+                    <p className="text-[13px] text-text-soft italic pl-[68px]">"{customStyleDescription}"</p>
                   )}
                 </div>
               ) : uploadMode && selectedServices.length === 0 ? (
-                <div style={{ background: t.goldBg, padding: 12, borderRadius: 8, fontSize: 13, color: t.gold, display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="bg-gold-bg p-3 rounded-lg text-[13px] text-gold flex items-center gap-2">
                   <Image size={16} /> Custom style photo uploaded — quote pending
                 </div>
               ) : selectedServices.map(name => {
                 const s = allServices.find(x => x.name === name);
                 return (
-                  <div key={name} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 14 }}>{name}</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: s?.price ? t.text : t.gold }}>{s?.price || "Pending"}</span>
+                  <div key={name} className="flex justify-between mb-2">
+                    <span className="text-sm">{name}</span>
+                    <span className={`text-sm font-semibold ${s?.price ? "text-text" : "text-gold"}`}>{s?.price || "Pending"}</span>
                   </div>
                 );
               })}
             </div>
 
             {attachmentPreference && (
-              <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ color: t.textMuted, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}><Package size={14} /> Hair Attachments</span>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>
+              <div className="border-t border-border pt-3.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-text-muted text-sm flex items-center gap-1.5"><Package size={14} /> Hair Attachments</span>
+                  <span className="font-bold text-sm">
                     {attachmentPreference === "client_provides" ? "I'll bring my own" : "Nessy will purchase"}
                   </span>
                 </div>
@@ -199,47 +191,44 @@ export function StepReview({
         </div>
 
         {/* Contact details */}
-        <div style={{ background: t.surface, borderRadius: 16, padding: 28, marginBottom: 20, border: `1px solid ${t.border}` }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Your details</h3>
-          <div style={{ display: "grid", gap: 12 }}>
+        <div className="bg-surface rounded-2xl p-7 mb-5 border border-border">
+          <h3 className="text-base font-bold mb-4">Your details</h3>
+          <div className="grid gap-3">
             <div>
-              <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Full Name</label>
-              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Your name" style={{
-                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-              }} />
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">Full Name</label>
+              <input
+                value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Your name"
+                className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-sm text-text outline-none box-border"
+              />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Phone Number</label>
-              <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="080..." style={{
-                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-              }} />
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">Phone Number</label>
+              <input
+                value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="080..."
+                className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-sm text-text outline-none box-border"
+              />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Email (optional)</label>
-              <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="you@example.com" style={{
-                width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-              }} />
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">Email (optional)</label>
+              <input
+                type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="you@example.com"
+                className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-sm text-text outline-none box-border"
+              />
             </div>
           </div>
         </div>
 
         {submitError && <ErrorNotice message={submitError} />}
 
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={onBack} style={{
-            flex: 1, background: t.surface, color: t.text, border: `1px solid ${t.border}`,
-            padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", borderRadius: 6,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}><ChevronLeft size={16} /> Back</button>
-          <GoldButton onClick={handleConfirm} disabled={submitting} style={{
-            flex: 2, background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "14px", fontSize: 15, fontWeight: 700,
-            cursor: submitting ? "wait" : "pointer", borderRadius: 6, display: "flex",
-            alignItems: "center", justifyContent: "center", gap: 8,
-          }}>
+        <div className="flex gap-3">
+          <button
+            onClick={onBack}
+            className="flex-1 bg-surface text-text border border-border py-3 text-sm font-semibold cursor-pointer rounded-md flex items-center justify-center gap-1.5"
+          ><ChevronLeft size={16} /> Back</button>
+          <GoldButton
+            onClick={handleConfirm} disabled={submitting}
+            className={`flex-[2] bg-gold text-theme-black border-none p-3.5 text-[15px] font-bold rounded-md flex items-center justify-center gap-2 ${submitting ? "cursor-wait" : "cursor-pointer"}`}
+          >
             {submitting ? <GoldSpinner size={18} color="#0A0A0A" /> : <Check size={18} />} {submitting ? "Submitting…" : "Submit Booking Request"}
           </GoldButton>
         </div>
