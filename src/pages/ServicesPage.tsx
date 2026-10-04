@@ -31,11 +31,11 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
   };
 
   return (
-    <section style={{ padding: "48px 24px 72px", maxWidth: 800, margin: "0 auto" }}>
+    <section className="pt-12 px-6 pb-[72px] max-w-[800px] mx-auto">
       <FadeIn>
-        <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>OUR SERVICES</p>
-        <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 8 }}>What we offer</h2>
-        <p style={{ fontSize: 15, color: t.textSoft, marginBottom: 36, maxWidth: 500, lineHeight: 1.6 }}>
+        <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">OUR SERVICES</p>
+        <h2 className="font-cursive text-5xl font-bold mb-2">What we offer</h2>
+        <p className="text-[15px] text-text-soft mb-9 max-w-[500px] leading-[1.6]">
           Fixed-price treatments listed below. For braiding, locs, and custom styles — send a picture and get a personalised quote.
         </p>
       </FadeIn>
@@ -46,60 +46,51 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
       {!loading && (
         <>
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 32, background: t.bgAlt, borderRadius: 8, padding: 4, width: "fit-content" }}>
+      <div className="flex gap-1 mb-8 bg-bg-alt rounded-lg p-1 w-fit">
         {services.map(s => (
-          <button key={s.cat} onClick={() => setActiveTab(s.cat)} style={{
-            padding: "10px 24px", borderRadius: 6, border: "none", cursor: "pointer",
-            background: activeTab === s.cat ? t.gold : "transparent",
-            color: activeTab === s.cat ? "#0A0A0A" : t.textSoft,
-            fontWeight: activeTab === s.cat ? 700 : 500, fontSize: 13,
-            transition: "all 0.3s ease",
-          }}>{s.cat}</button>
+          <button
+            key={s.cat} onClick={() => setActiveTab(s.cat)}
+            className={`py-2.5 px-6 rounded-md border-none cursor-pointer text-[13px] [transition:all_0.3s_ease] ${
+              activeTab === s.cat ? "bg-gold text-theme-black font-bold" : "bg-transparent text-text-soft font-medium"
+            }`}
+          >{s.cat}</button>
         ))}
       </div>
 
       {/* Service cards */}
-      <div style={{ display: "grid", gap: 12 }}>
+      <div className="grid gap-3">
         {services.find(s => s.cat === activeTab)?.items.map((s, i) => (
           <FadeIn key={s.name} delay={0.05 * (i + 1)}>
-            <div className="hover-lift" onClick={() => setSelectedService(s)} style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "20px 24px", background: t.surface, borderRadius: 12,
-              border: `1px solid ${t.border}`, cursor: "pointer", flexWrap: "wrap", rowGap: 12,
-            }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 16, minWidth: 0 }}>
+            <div
+              className="hover-lift flex justify-between items-center py-5 px-6 bg-surface rounded-xl border border-border cursor-pointer flex-wrap gap-y-3"
+              onClick={() => setSelectedService(s)}
+            >
+              <div className="flex items-start gap-4 min-w-0">
                 {s.imageUrl ? (
-                  <img src={s.imageUrl} alt="" style={{
-                    width: 48, height: 48, borderRadius: 10, objectFit: "cover", flexShrink: 0,
-                    border: `1px solid ${t.border}`,
-                  }} />
+                  <img src={s.imageUrl} alt="" className="w-12 h-12 rounded-[10px] object-cover shrink-0 border border-border" />
                 ) : (
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10, background: t.goldBg, flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
+                  <div className="w-10 h-10 rounded-[10px] bg-gold-bg shrink-0 flex items-center justify-center">
                     <s.icon size={18} color={t.gold} strokeWidth={1.5} />
                   </div>
                 )}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
-                  <div style={{ fontSize: 13, color: t.textMuted }}>{s.desc}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, fontSize: 12, color: t.gold }}>
+                <div className="min-w-0">
+                  <div className="font-bold text-[15px] mb-[3px] truncate">{s.name}</div>
+                  <div className="text-[13px] text-text-muted">{s.desc}</div>
+                  <div className="flex items-center gap-1 mt-1.5 text-xs text-gold">
                     <Clock size={12} /> {s.duration}
                   </div>
                 </div>
               </div>
-              <div style={{ textAlign: "right", marginLeft: 16, flexShrink: 0 }}>
+              <div className="text-right ml-4 shrink-0">
                 {s.price ? (
-                  <span style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{s.price}</span>
+                  <span className="text-lg font-bold text-text">{s.price}</span>
                 ) : (
-                  <div style={{ textAlign: "right" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: t.text, display: "block", marginBottom: 4 }}>{s.priceRange || ""}</span>
-                    <span style={{
-                      fontSize: 11, color: t.gold, background: t.goldBg,
-                      padding: "3px 10px", borderRadius: 12, fontWeight: 600,
-                      border: `1px solid ${t.gold}30`,
-                    }}>Final price on request</span>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-text block mb-1">{s.priceRange || ""}</span>
+                    <span
+                      className="text-[11px] text-gold bg-gold-bg py-[3px] px-2.5 rounded-xl font-semibold"
+                      style={{ border: `1px solid ${t.gold}30` }}
+                    >Final price on request</span>
                   </div>
                 )}
               </div>
@@ -110,22 +101,18 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
 
       {/* Custom style CTA */}
       <FadeIn delay={0.3}>
-        <div style={{
-          background: isDark ? "#1A1510" : t.black, borderRadius: 16, padding: 36,
-          textAlign: "center", marginTop: 40,
-        }}>
-          <Image size={32} color={t.gold} strokeWidth={1.5} style={{ marginBottom: 12 }} />
-          <h3 style={{ fontFamily: "'Tangerine', cursive", fontSize: 36, color: "#fff", marginBottom: 8 }}>
+        <div className={`rounded-2xl p-9 text-center mt-10 ${isDark ? "bg-[#1A1510]" : "bg-theme-black"}`}>
+          <Image size={32} color={t.gold} strokeWidth={1.5} className="mb-3" />
+          <h3 className="font-cursive text-4xl text-white mb-2">
             Have a specific style in mind?
           </h3>
-          <p style={{ fontSize: 14, color: "#999", marginBottom: 24, maxWidth: 380, margin: "0 auto 24px" }}>
+          <p className="text-sm text-[#999] max-w-[380px] mx-auto mt-0 mb-6">
             Upload a picture during booking and get a personalised quote within 24 hours.
           </p>
-          <GoldButton onClick={() => navigate("book")} style={{
-            background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "12px 32px", fontSize: 14, fontWeight: 700,
-            cursor: "pointer", borderRadius: 6,
-          }}>Start Booking</GoldButton>
+          <GoldButton
+            onClick={() => navigate("book")}
+            className="bg-gold text-theme-black border-none py-3 px-8 text-sm font-bold cursor-pointer rounded-md"
+          >Start Booking</GoldButton>
         </div>
       </FadeIn>
         </>

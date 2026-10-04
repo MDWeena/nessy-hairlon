@@ -54,61 +54,44 @@ export function ResetPasswordPage({ onGoToAdmin }: ResetPasswordPageProps) {
   };
 
   return (
-    <div style={{
-      fontFamily: "'DM Sans', system-ui, sans-serif",
-      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: isDark ? "#0E0B08" : "#FFFCF8",
-      position: "relative", overflow: "hidden",
-    }}>
+    <div className={`font-sans min-h-screen flex items-center justify-center relative overflow-hidden ${isDark ? "bg-[#0E0B08]" : "bg-[#FFFCF8]"}`}>
       <link href="https://fonts.googleapis.com/css2?family=Tangerine:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
 
       {/* Logo watermark background */}
-      <div style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: 500, height: 500,
-        backgroundImage: `url(${LOGO_ICON})`,
-        backgroundSize: "contain", backgroundRepeat: "no-repeat", backgroundPosition: "center",
-        opacity: isDark ? 0.04 : 0.06,
-        pointerEvents: "none",
-      }} />
+      <div
+        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-contain bg-no-repeat bg-center pointer-events-none ${isDark ? "opacity-[0.04]" : "opacity-[0.06]"}`}
+        style={{ backgroundImage: `url(${LOGO_ICON})` }}
+      />
 
       {/* Background decoration */}
-      <div style={{
-        position: "absolute", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)", width: 500, height: 500,
-        borderRadius: "50%", border: `1px solid ${t.gold}10`,
-        pointerEvents: "none",
-      }} />
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full pointer-events-none"
+        style={{ border: `1px solid ${t.gold}10` }}
+      />
 
-      <div style={{ width: "100%", maxWidth: 400, padding: 24, position: "relative", zIndex: 2 }}>
+      <div className="w-full max-w-[400px] p-6 relative z-[2]">
         {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <img src={LOGO_ICON} alt="Nessy Hairlon" style={{ width: 64, height: 64, borderRadius: "50%", marginBottom: 16, display: "block", margin: "0 auto 16px" }} />
-          <div style={{ fontFamily: "'Tangerine', cursive", fontSize: 36, fontWeight: 700, color: t.text }}>
-            Nessy <span style={{ color: t.gold }}>Hairlon</span>
+        <div className="text-center mb-10">
+          <img src={LOGO_ICON} alt="Nessy Hairlon" className="w-16 h-16 rounded-full block mx-auto mt-0 mb-4" />
+          <div className="font-cursive text-4xl font-bold text-text">
+            Nessy <span className="text-gold">Hairlon</span>
           </div>
-          <p style={{ fontSize: 13, color: t.textMuted, marginTop: 4 }}>Admin Portal</p>
+          <p className="text-[13px] text-text-muted mt-1">Admin Portal</p>
         </div>
 
         {/* Card */}
-        <div style={{
-          background: t.surface, borderRadius: 16, padding: 32,
-          border: `1px solid ${t.border}`,
-          boxShadow: isDark ? "0 8px 32px rgba(0,0,0,0.3)" : "0 8px 32px rgba(26,18,7,0.08)",
-        }}>
+        <div className={`bg-surface rounded-2xl p-8 border border-border ${isDark ? "shadow-[0_8px_32px_rgba(0,0,0,0.3)]" : "shadow-[0_8px_32px_rgba(26,18,7,0.08)]"}`}>
           {success ? (
             <>
-              <div style={{ textAlign: "center", marginBottom: 8 }}>
-                <CheckCircle2 size={40} color={t.gold} style={{ marginBottom: 12 }} />
-                <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Password updated successfully!</h2>
-                <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 24 }}>You can now sign in to the admin panel.</p>
+              <div className="text-center mb-2">
+                <CheckCircle2 size={40} color={t.gold} className="mb-3" />
+                <h2 className="text-lg font-bold mb-1 text-text">Password updated successfully!</h2>
+                <p className="text-[13px] text-text-muted mb-6">You can now sign in to the admin panel.</p>
               </div>
-              <GoldButton onClick={onGoToAdmin} style={{
-                width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-                padding: "14px", fontSize: 15, fontWeight: 700, cursor: "pointer", borderRadius: 10,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}>
+              <GoldButton
+                onClick={onGoToAdmin}
+                className="w-full bg-gold text-theme-black border-none p-3.5 text-[15px] font-bold cursor-pointer rounded-[10px] flex items-center justify-center gap-2"
+              >
                 Go to Admin <ArrowRight size={16} />
               </GoldButton>
             </>
@@ -116,59 +99,38 @@ export function ResetPasswordPage({ onGoToAdmin }: ResetPasswordPageProps) {
             <LoadingNotice label="Verifying your reset link…" />
           ) : (
             <>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: t.text }}>Set new password</h2>
-              <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 28 }}>Choose a new password for your admin account</p>
+              <h2 className="text-lg font-bold mb-1 text-text">Set new password</h2>
+              <p className="text-[13px] text-text-muted mb-7">Choose a new password for your admin account</p>
 
               {error && (
-                <div style={{
-                  background: "#FEE2E2", border: "1px solid #FCA5A5", borderRadius: 8,
-                  padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#DC2626",
-                  display: "flex", alignItems: "center", gap: 8,
-                }}>
+                <div className="bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg py-2.5 px-3.5 mb-4 text-[13px] text-[#DC2626] flex items-center gap-2">
                   <X size={14} /> {error}
                 </div>
               )}
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>New password</label>
+              <div className="mb-4">
+                <label className="block text-xs text-text-muted mb-1.5 font-medium">New password</label>
                 <input
                   type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 8 characters"
-                  style={{
-                    width: "100%", padding: "12px 14px", borderRadius: 10,
-                    border: `1px solid ${t.border}`, background: t.bgAlt,
-                    fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                    transition: "border-color 0.2s",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = t.gold)}
-                  onBlur={(e) => (e.target.style.borderColor = t.border)}
+                  className="w-full py-3 px-3.5 rounded-[10px] border border-border bg-bg-alt text-sm text-text outline-none box-border [transition:border-color_0.2s] focus:border-gold"
                 />
               </div>
 
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>Confirm password</label>
+              <div className="mb-6">
+                <label className="block text-xs text-text-muted mb-1.5 font-medium">Confirm password</label>
                 <input
                   type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter your password"
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                  style={{
-                    width: "100%", padding: "12px 14px", borderRadius: 10,
-                    border: `1px solid ${t.border}`, background: t.bgAlt,
-                    fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                    transition: "border-color 0.2s",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = t.gold)}
-                  onBlur={(e) => (e.target.style.borderColor = t.border)}
+                  className="w-full py-3 px-3.5 rounded-[10px] border border-border bg-bg-alt text-sm text-text outline-none box-border [transition:border-color_0.2s] focus:border-gold"
                 />
               </div>
 
-              <GoldButton onClick={handleSubmit} disabled={loading} style={{
-                width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-                padding: "14px", fontSize: 15, fontWeight: 700,
-                cursor: loading ? "wait" : "pointer", borderRadius: 10,
-                opacity: loading ? 0.7 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}>
+              <GoldButton
+                onClick={handleSubmit} disabled={loading}
+                className={`w-full bg-gold text-theme-black border-none p-3.5 text-[15px] font-bold rounded-[10px] flex items-center justify-center gap-2 ${loading ? "cursor-wait opacity-70" : "cursor-pointer opacity-100"}`}
+              >
                 {loading && <GoldSpinner size={16} color="#0A0A0A" />}
                 {loading ? "Updating..." : "Update Password"}
                 {!loading && <ArrowRight size={16} />}
@@ -178,7 +140,7 @@ export function ResetPasswordPage({ onGoToAdmin }: ResetPasswordPageProps) {
         </div>
 
         {/* Theme toggle */}
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+        <div className="flex justify-center mt-5">
           <ThemeToggle variant="nav" spaced={false} />
         </div>
       </div>
