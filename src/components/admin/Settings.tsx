@@ -339,31 +339,44 @@ export function Settings() {
                 }`}
               >{isEditing ? "Cancel" : "Edit"}</button>
             </div>
-            {section.fields.map(f => (
-              <div key={f.label} className="flex justify-between items-center mb-3.5 flex-wrap gap-2">
-                <span className="text-[13px] text-text-muted">{f.label}</span>
-                {isEditing ? (
-                  f.kind !== "text" ? (
-                    <select
-                      value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })}
-                      className="py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none min-w-[160px] max-w-full"
-                    >
-                      {SELECT_OPTIONS[f.kind].map(o => {
-                        const rawValue = o.replace(/[%]|\s(minutes|hours)$/, "");
-                        return <option key={o} value={rawValue}>{o}</option>;
-                      })}
-                    </select>
+            {section.fields.map(f => {
+              const display = displayValue(f.kind, settings[f.settingKey]);
+              const isUrl = /^https?:\/\//i.test(display);
+              return (
+                <div key={f.label} className="flex justify-between items-center mb-3.5 flex-wrap gap-2">
+                  <span className="text-[13px] text-text-muted shrink-0">{f.label}</span>
+                  {isEditing ? (
+                    f.kind !== "text" ? (
+                      <select
+                        value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })}
+                        className="py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none min-w-[160px] max-w-full"
+                      >
+                        {SELECT_OPTIONS[f.kind].map(o => {
+                          const rawValue = o.replace(/[%]|\s(minutes|hours)$/, "");
+                          return <option key={o} value={rawValue}>{o}</option>;
+                        })}
+                      </select>
+                    ) : (
+                      <input
+                        value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })}
+                        className="py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none text-right w-[180px] max-w-full box-border"
+                      />
+                    )
+                  ) : isUrl ? (
+                    // Truncated + tappable rather than wrapped — a long Maps URL stays on one
+                    // line and usable instead of breaking across the card.
+                    <a
+                      href={display} target="_blank" rel="noopener noreferrer"
+                      className="text-sm font-semibold text-gold truncate min-w-0 flex-1 text-right hover:underline"
+                    >{display}</a>
                   ) : (
-                    <input
-                      value={draft[f.label] ?? ""} onChange={(e) => setDraft({ ...draft, [f.label]: e.target.value })}
-                      className="py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none text-right w-[180px] max-w-full box-border"
-                    />
-                  )
-                ) : (
-                  <span className="text-sm font-semibold text-text">{displayValue(f.kind, settings[f.settingKey])}</span>
-                )}
-              </div>
-            ))}
+                    // General fallback for any other long value — wraps within the card
+                    // instead of overflowing it.
+                    <span className="text-sm font-semibold text-text break-words min-w-0 flex-1 text-right">{display}</span>
+                  )}
+                </div>
+              );
+            })}
             {isEditing && (
               <GoldButton
                 onClick={() => save(section)} disabled={saving}
