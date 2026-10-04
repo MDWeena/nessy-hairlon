@@ -8,7 +8,7 @@ interface StylesCarouselProps {
   navigate: NavigateFn;
 }
 
-const ROTATE_MS = 4500;
+const ROTATE_MS = 1500;
 
 export function StylesCarousel({ navigate }: StylesCarouselProps) {
   const { entries } = useGallery();
