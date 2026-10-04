@@ -20,6 +20,9 @@ interface ServiceDraft {
 
 const EMPTY_DRAFT: ServiceDraft = { name: "", duration: "", description: "", price: "", minPrice: "", maxPrice: "", imageUrl: null };
 
+const FIELD_INPUT = "w-full py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border";
+const FIELD_LABEL = "block text-[11px] text-text-muted mb-1";
+
 interface ServiceImageFieldProps {
   imageUrl: string | null;
   uploading: boolean;
@@ -31,27 +34,25 @@ function ServiceImageField({ imageUrl, uploading, onChoose, onRemove }: ServiceI
   const { t } = useTheme();
   return (
     <div>
-      <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Photo</label>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <label className={FIELD_LABEL}>Photo</label>
+      <div className="flex items-center gap-3">
         {imageUrl ? (
-          <img src={imageUrl} alt="" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}` }} />
+          <img src={imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover border border-border" />
         ) : (
-          <div style={{
-            width: 48, height: 48, borderRadius: 8, background: t.bgAlt, border: `1px dashed ${t.border}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}><Upload size={16} color={t.textMuted} /></div>
+          <div className="w-12 h-12 rounded-lg bg-bg-alt border border-dashed border-border flex items-center justify-center">
+            <Upload size={16} color={t.textMuted} />
+          </div>
         )}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={onChoose} disabled={uploading} style={{
-            background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
-            padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: uploading ? "wait" : "pointer", color: t.gold,
-            display: "flex", alignItems: "center", gap: 6,
-          }}>{uploading && <GoldSpinner size={12} />} {uploading ? "Uploading…" : imageUrl ? "Change" : "Upload"}</button>
+        <div className="flex gap-2">
+          <button
+            type="button" onClick={onChoose} disabled={uploading}
+            className={`bg-gold-bg border border-[#C49A6C30] rounded-md py-1.5 px-3 text-xs font-semibold text-gold flex items-center gap-1.5 ${uploading ? "cursor-wait" : "cursor-pointer"}`}
+          >{uploading && <GoldSpinner size={12} />} {uploading ? "Uploading…" : imageUrl ? "Change" : "Upload"}</button>
           {imageUrl && (
-            <button type="button" onClick={onRemove} style={{
-              background: "none", border: "1px solid #EF444440", borderRadius: 6,
-              padding: "6px 10px", fontSize: 12, color: "#EF4444", cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-            }}><X size={12} /> Remove</button>
+            <button
+              type="button" onClick={onRemove}
+              className="bg-transparent border border-[#EF444440] rounded-md py-1.5 px-2.5 text-xs text-[#EF4444] cursor-pointer flex items-center gap-1"
+            ><X size={12} /> Remove</button>
           )}
         </div>
       </div>
@@ -60,7 +61,6 @@ function ServiceImageField({ imageUrl, uploading, onChoose, onRemove }: ServiceI
 }
 
 export function ServicesManager() {
-  const { t } = useTheme();
   const { services, loading, error, addService, updateService, deleteService, uploadServiceImage } = useServices();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingCategory, setAddingCategory] = useState<string | null>(null);
@@ -169,83 +169,75 @@ export function ServicesManager() {
 
   return (
     <>
-      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImageChange} />
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
       {error && <ErrorNotice message={error} />}
       {actionError && <ErrorNotice message={actionError} />}
       {services.map(cat => {
         const isAddingHere = addingCategory === cat.cat;
         return (
-          <div key={cat.cat} style={{ marginBottom: 32 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700 }}>{cat.cat}</h3>
-              <button onClick={() => startAdd(cat.cat)} style={{
-                background: t.goldBg, color: t.gold, border: `1px solid ${t.gold}30`,
-                padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600,
-                cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-              }}><Sparkles size={12} /> Add Service</button>
+          <div key={cat.cat} className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-bold">{cat.cat}</h3>
+              <button
+                onClick={() => startAdd(cat.cat)}
+                className="bg-gold-bg text-gold border border-[#C49A6C30] py-1.5 px-3.5 rounded-md text-xs font-semibold cursor-pointer flex items-center gap-1"
+              ><Sparkles size={12} /> Add Service</button>
             </div>
-            <div style={{ background: t.surface, borderRadius: 12, border: `1px solid ${t.border}`, overflow: "hidden" }}>
+            <div className="bg-surface rounded-xl border border-border overflow-hidden">
               {cat.items.map((s, i) => {
                 const isEditing = editingId === s.id;
                 const hasFixedPrice = !!s.price;
                 return (
-                  <div key={s.id} style={{
-                    padding: "16px 20px",
-                    borderBottom: (i < cat.items.length - 1 || isAddingHere) ? `1px solid ${t.border}` : "none",
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", rowGap: 10 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div>
-                        <div style={{ fontSize: 12, color: t.textMuted }}>{s.desc}</div>
+                  <div
+                    key={s.id}
+                    className={`py-4 px-5 ${(i < cat.items.length - 1 || isAddingHere) ? "border-b border-border" : "border-b-0"}`}
+                  >
+                    <div className="flex justify-between items-center flex-wrap gap-y-2.5">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{s.name}</div>
+                        <div className="text-xs text-text-muted">{s.desc}</div>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                        <div style={{ textAlign: "right" }}>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right">
                           {s.price ? (
-                            <span style={{ fontSize: 14, fontWeight: 700 }}>{s.price}</span>
+                            <span className="text-sm font-bold">{s.price}</span>
                           ) : (
                             <>
-                              <span style={{ fontSize: 13, fontWeight: 700, display: "block" }}>{s.priceRange}</span>
-                              <span style={{ fontSize: 11, color: t.textMuted }}>price range</span>
+                              <span className="text-[13px] font-bold block">{s.priceRange}</span>
+                              <span className="text-[11px] text-text-muted">price range</span>
                             </>
                           )}
                         </div>
-                        <button onClick={() => isEditing ? cancel() : startEdit(s.id, hasFixedPrice, {
-                          name: s.name, duration: s.duration, description: s.desc,
-                          price: s.price ?? "",
-                          minPrice: s.priceRange ? s.priceRange.split("–")[0].replace(/[^\d]/g, "") : "",
-                          maxPrice: s.priceRange ? s.priceRange.split("–")[1].replace(/[^\d]/g, "") : "",
-                          imageUrl: s.imageUrl,
-                        })} style={{
-                          background: isEditing ? t.goldBg : "none", border: `1px solid ${isEditing ? t.gold : t.border}`, borderRadius: 6,
-                          padding: "5px 10px", fontSize: 12, color: isEditing ? t.gold : t.textSoft, cursor: "pointer", fontWeight: isEditing ? 600 : 400,
-                        }}>{isEditing ? "Cancel" : "Edit"}</button>
+                        <button
+                          onClick={() => isEditing ? cancel() : startEdit(s.id, hasFixedPrice, {
+                            name: s.name, duration: s.duration, description: s.desc,
+                            price: s.price ?? "",
+                            minPrice: s.priceRange ? s.priceRange.split("–")[0].replace(/[^\d]/g, "") : "",
+                            maxPrice: s.priceRange ? s.priceRange.split("–")[1].replace(/[^\d]/g, "") : "",
+                            imageUrl: s.imageUrl,
+                          })}
+                          className={`rounded-md py-[5px] px-2.5 text-xs cursor-pointer border ${
+                            isEditing ? "bg-gold-bg border-gold text-gold font-semibold" : "bg-transparent border-border text-text-soft font-normal"
+                          }`}
+                        >{isEditing ? "Cancel" : "Edit"}</button>
                       </div>
                     </div>
 
                     {isEditing && (
-                      <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}`, display: "grid", gap: 12 }}>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="mt-4 pt-4 border-t border-border grid gap-3">
+                        <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Service Name</label>
-                            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{
-                              width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                              background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                            }} />
+                            <label className={FIELD_LABEL}>Service Name</label>
+                            <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={FIELD_INPUT} />
                           </div>
                           <div>
-                            <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Duration</label>
-                            <input value={draft.duration} onChange={(e) => setDraft({ ...draft, duration: e.target.value })} style={{
-                              width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                              background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                            }} />
+                            <label className={FIELD_LABEL}>Duration</label>
+                            <input value={draft.duration} onChange={(e) => setDraft({ ...draft, duration: e.target.value })} className={FIELD_INPUT} />
                           </div>
                         </div>
                         <div>
-                          <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Description</label>
-                          <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} style={{
-                            width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                            background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                          }} />
+                          <label className={FIELD_LABEL}>Description</label>
+                          <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className={FIELD_INPUT} />
                         </div>
                         <ServiceImageField
                           imageUrl={draft.imageUrl} uploading={uploadingImage}
@@ -254,40 +246,30 @@ export function ServicesManager() {
                         />
                         {hasFixedPrice ? (
                           <div>
-                            <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Fixed Price</label>
-                            <input value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} style={{
-                              width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                              background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                            }} />
+                            <label className={FIELD_LABEL}>Fixed Price</label>
+                            <input value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} className={FIELD_INPUT} />
                           </div>
                         ) : (
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                          <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Min Price (₦)</label>
-                              <input value={draft.minPrice} onChange={(e) => setDraft({ ...draft, minPrice: e.target.value })} placeholder="e.g. 15000" style={{
-                                width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                                background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                              }} />
+                              <label className={FIELD_LABEL}>Min Price (₦)</label>
+                              <input value={draft.minPrice} onChange={(e) => setDraft({ ...draft, minPrice: e.target.value })} placeholder="e.g. 15000" className={FIELD_INPUT} />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Max Price (₦)</label>
-                              <input value={draft.maxPrice} onChange={(e) => setDraft({ ...draft, maxPrice: e.target.value })} placeholder="e.g. 45000" style={{
-                                width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                                background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                              }} />
+                              <label className={FIELD_LABEL}>Max Price (₦)</label>
+                              <input value={draft.maxPrice} onChange={(e) => setDraft({ ...draft, maxPrice: e.target.value })} placeholder="e.g. 45000" className={FIELD_INPUT} />
                             </div>
                           </div>
                         )}
-                        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                          <GoldButton onClick={() => saveEdit(s.id, hasFixedPrice)} disabled={saving} style={{
-                            background: t.gold, color: "#0A0A0A", border: "none",
-                            padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: saving ? "wait" : "pointer",
-                            display: "flex", alignItems: "center", gap: 6,
-                          }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save"}</GoldButton>
-                          <button onClick={() => remove(s.id)} style={{
-                            background: "none", border: `1px solid #EF444440`, borderRadius: 6,
-                            padding: "8px 16px", fontSize: 12, color: "#EF4444", cursor: "pointer",
-                          }}>Delete</button>
+                        <div className="flex gap-2 mt-1">
+                          <GoldButton
+                            onClick={() => saveEdit(s.id, hasFixedPrice)} disabled={saving}
+                            className={`bg-gold text-theme-black border-none py-2 px-5 rounded-md text-xs font-bold flex items-center gap-1.5 ${saving ? "cursor-wait" : "cursor-pointer"}`}
+                          >{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Save"}</GoldButton>
+                          <button
+                            onClick={() => remove(s.id)}
+                            className="bg-transparent border border-[#EF444440] rounded-md py-2 px-4 text-xs text-[#EF4444] cursor-pointer"
+                          >Delete</button>
                         </div>
                       </div>
                     )}
@@ -296,30 +278,21 @@ export function ServicesManager() {
               })}
 
               {isAddingHere && (
-                <div style={{ padding: "16px 20px" }}>
-                  <div style={{ display: "grid", gap: 12 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="py-4 px-5">
+                  <div className="grid gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Service Name</label>
-                        <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{
-                          width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                          background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                        }} />
+                        <label className={FIELD_LABEL}>Service Name</label>
+                        <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={FIELD_INPUT} />
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Duration</label>
-                        <input value={draft.duration} onChange={(e) => setDraft({ ...draft, duration: e.target.value })} placeholder="e.g. 1 hr" style={{
-                          width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                          background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                        }} />
+                        <label className={FIELD_LABEL}>Duration</label>
+                        <input value={draft.duration} onChange={(e) => setDraft({ ...draft, duration: e.target.value })} placeholder="e.g. 1 hr" className={FIELD_INPUT} />
                       </div>
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Description</label>
-                      <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} style={{
-                        width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                        background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                      }} />
+                      <label className={FIELD_LABEL}>Description</label>
+                      <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className={FIELD_INPUT} />
                     </div>
                     <ServiceImageField
                       imageUrl={draft.imageUrl} uploading={uploadingImage}
@@ -328,40 +301,30 @@ export function ServicesManager() {
                     />
                     {cat.cat === "Treatments" ? (
                       <div>
-                        <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Fixed Price</label>
-                        <input value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} placeholder="e.g. ₦8,000" style={{
-                          width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                          background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                        }} />
+                        <label className={FIELD_LABEL}>Fixed Price</label>
+                        <input value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} placeholder="e.g. ₦8,000" className={FIELD_INPUT} />
                       </div>
                     ) : (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Min Price (₦)</label>
-                          <input value={draft.minPrice} onChange={(e) => setDraft({ ...draft, minPrice: e.target.value })} placeholder="e.g. 15000" style={{
-                            width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                            background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                          }} />
+                          <label className={FIELD_LABEL}>Min Price (₦)</label>
+                          <input value={draft.minPrice} onChange={(e) => setDraft({ ...draft, minPrice: e.target.value })} placeholder="e.g. 15000" className={FIELD_INPUT} />
                         </div>
                         <div>
-                          <label style={{ display: "block", fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Max Price (₦)</label>
-                          <input value={draft.maxPrice} onChange={(e) => setDraft({ ...draft, maxPrice: e.target.value })} placeholder="e.g. 45000" style={{
-                            width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                            background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                          }} />
+                          <label className={FIELD_LABEL}>Max Price (₦)</label>
+                          <input value={draft.maxPrice} onChange={(e) => setDraft({ ...draft, maxPrice: e.target.value })} placeholder="e.g. 45000" className={FIELD_INPUT} />
                         </div>
                       </div>
                     )}
-                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                      <GoldButton onClick={() => saveNew(cat.cat)} disabled={saving} style={{
-                        background: t.gold, color: "#0A0A0A", border: "none",
-                        padding: "8px 20px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: saving ? "wait" : "pointer",
-                        display: "flex", alignItems: "center", gap: 6,
-                      }}>{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Add"}</GoldButton>
-                      <button onClick={cancel} style={{
-                        background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
-                        padding: "8px 16px", fontSize: 12, color: t.textSoft, cursor: "pointer",
-                      }}>Cancel</button>
+                    <div className="flex gap-2 mt-1">
+                      <GoldButton
+                        onClick={() => saveNew(cat.cat)} disabled={saving}
+                        className={`bg-gold text-theme-black border-none py-2 px-5 rounded-md text-xs font-bold flex items-center gap-1.5 ${saving ? "cursor-wait" : "cursor-pointer"}`}
+                      >{saving && <GoldSpinner size={12} color="#0A0A0A" />} {saving ? "Saving…" : "Add"}</GoldButton>
+                      <button
+                        onClick={cancel}
+                        className="bg-transparent border border-border rounded-md py-2 px-4 text-xs text-text-soft cursor-pointer"
+                      >Cancel</button>
                     </div>
                   </div>
                 </div>
