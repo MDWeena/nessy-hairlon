@@ -39,84 +39,69 @@ export function StyleDetailModal({
   return (
     <div
       onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, zIndex: 300,
-        background: isDark ? "rgba(0,0,0,0.75)" : "rgba(10,8,6,0.6)",
-        backdropFilter: "blur(4px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 16, boxSizing: "border-box",
-        animation: "modalOverlayIn 0.25s ease",
-      }}
+      className={`fixed inset-0 z-[300] backdrop-blur-sm flex items-center justify-center p-4 box-border [animation:modalOverlayIn_0.25s_ease] ${
+        isDark ? "bg-[rgba(0,0,0,0.75)]" : "bg-[rgba(10,8,6,0.6)]"
+      }`}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: t.surface, borderRadius: 20, overflow: "hidden",
-          width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto",
-          border: `1px solid ${t.border}`, position: "relative",
-          animation: "modalContentIn 0.3s cubic-bezier(0.25,0.1,0.25,1)",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
-        }}
+        className="bg-surface rounded-[20px] overflow-hidden w-full max-w-[600px] max-h-[90vh] overflow-y-auto border border-border relative [animation:modalContentIn_0.3s_cubic-bezier(0.25,0.1,0.25,1)] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
       >
-        <button onClick={onClose} className="tap-target-sm" style={{
-          position: "absolute", top: 12, right: 12, zIndex: 2,
-          background: isDark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.85)",
-          backdropFilter: "blur(8px)", border: `1px solid ${t.border}`,
-          borderRadius: "50%", width: 36, height: 36,
-          display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-        }}>
+        <button
+          onClick={onClose}
+          className={`tap-target-sm absolute top-3 right-3 z-[2] backdrop-blur border border-border rounded-full w-9 h-9 flex items-center justify-center cursor-pointer ${
+            isDark ? "bg-[rgba(0,0,0,0.5)]" : "bg-[rgba(255,255,255,0.85)]"
+          }`}
+        >
           <X size={18} color={t.text} />
         </button>
 
         {imageUrl ? (
-          <img src={imageUrl} alt={title} style={{
-            width: "100%", maxWidth: 600, aspectRatio: "4 / 3", objectFit: "cover", display: "block",
-          }} />
+          <img src={imageUrl} alt={title} className="w-full max-w-[600px] aspect-[4/3] object-cover block" />
         ) : (
-          <div style={{
-            width: "100%", aspectRatio: "4 / 3",
-            background: `linear-gradient(135deg, ${t.gold}25, ${t.gold}08)`,
-          }} />
+          <div
+            className="w-full aspect-[4/3]"
+            style={{ background: `linear-gradient(135deg, ${t.gold}25, ${t.gold}08)` }}
+          />
         )}
 
-        <div style={{ padding: "28px 28px 32px" }}>
+        <div className="pt-7 px-7 pb-8">
           {subtitle && (
-            <p style={{ color: t.gold, fontSize: 11, fontWeight: 600, letterSpacing: 2, marginBottom: 8, textTransform: "uppercase" }}>
+            <p className="text-gold text-[11px] font-semibold tracking-[2px] mb-2 uppercase">
               {subtitle}
             </p>
           )}
-          <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 40, fontWeight: 700, marginBottom: 12, color: t.text }}>
+          <h2 className="font-cursive text-[40px] font-bold mb-3 text-text">
             {title}
           </h2>
 
           {description && (
-            <p style={{ fontSize: 14, color: t.textSoft, lineHeight: 1.7, marginBottom: 16 }}>{description}</p>
+            <p className="text-sm text-text-soft leading-[1.7] mb-4">{description}</p>
           )}
 
           {(duration || price) && (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12,
-              background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 12, padding: "14px 18px", marginBottom: 24,
-            }}>
+            <div
+              className="flex items-center justify-between flex-wrap gap-3 bg-gold-bg rounded-xl py-3.5 px-[18px] mb-6"
+              style={{ border: `1px solid ${t.gold}30` }}
+            >
               {duration && (
-                <span style={{ fontSize: 13, color: t.textSoft, display: "flex", alignItems: "center", gap: 6 }}>
+                <span className="text-[13px] text-text-soft flex items-center gap-1.5">
                   <Clock size={14} color={t.gold} /> {duration}
                 </span>
               )}
               {price && (
-                <div style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: t.text, display: "block" }}>{price}</span>
-                  {priceNote && <span style={{ fontSize: 11, color: t.gold }}>{priceNote}</span>}
+                <div className="text-right">
+                  <span className="text-lg font-bold text-text block">{price}</span>
+                  {priceNote && <span className="text-[11px] text-gold">{priceNote}</span>}
                 </div>
               )}
             </div>
           )}
 
-          <GoldButton onClick={onBook} style={{
-            width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "14px", fontSize: 15, fontWeight: 700, cursor: "pointer", borderRadius: 8,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          }}>
+          <GoldButton
+            onClick={onBook}
+            className="w-full bg-gold text-theme-black border-none p-3.5 text-[15px] font-bold cursor-pointer rounded-lg flex items-center justify-center gap-2"
+          >
             {ctaLabel} <ArrowRight size={16} />
           </GoldButton>
         </div>

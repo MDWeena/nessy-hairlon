@@ -69,85 +69,73 @@ export function GalleryManager() {
       {error && <ErrorNotice message={error} />}
       {actionError && <ErrorNotice message={actionError} />}
 
-      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
-      <p style={{ fontSize: 14, color: t.textSoft, marginBottom: 24, maxWidth: 480 }}>
+      <p className="text-sm text-text-soft mb-6 max-w-[480px]">
         Update the "Styles of the Week" gallery. Each day features one look — upload a photo and name the style. Images are saved to Cloudinary.
       </p>
 
-      <div style={{ display: "grid", gap: 12 }}>
+      <div className="grid gap-3">
         {entries.map((s) => {
           const hasImage = !!s.imageUrl;
           const isUploading = uploadingDay === s.dayOfWeek;
           return (
-            <div key={s.dayOfWeek} style={{
-              display: "flex", alignItems: "center", gap: 16,
-              background: t.surface, borderRadius: 12, padding: "14px 20px",
-              border: `1px solid ${t.border}`, flexWrap: "wrap", rowGap: 12,
-            }}>
+            <div key={s.dayOfWeek} className="flex items-center gap-4 bg-surface rounded-xl py-3.5 px-5 border border-border flex-wrap gap-y-3">
               {/* Day label */}
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: t.gold, minWidth: 70,
-                padding: "4px 10px", background: t.goldBg, borderRadius: 6, textAlign: "center",
-                border: `1px solid ${t.gold}20`,
-              }}>{s.dayOfWeek.slice(0, 3)}</span>
+              <span
+                className="text-[11px] font-bold text-gold min-w-[70px] py-1 px-2.5 bg-gold-bg rounded-md text-center"
+                style={{ border: `1px solid ${t.gold}20` }}
+              >{s.dayOfWeek.slice(0, 3)}</span>
 
               {/* Image thumbnail placeholder */}
-              <div style={{
-                width: 48, height: 48, borderRadius: 8, flexShrink: 0,
-                background: hasImage ? `linear-gradient(135deg, ${t.gold}30, ${t.gold}15)` : t.bgAlt,
-                backgroundImage: hasImage ? `url(${s.imageUrl})` : undefined,
-                backgroundSize: "cover", backgroundPosition: "center",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: `1px solid ${hasImage ? t.gold + "30" : t.border}`,
-              }}>
+              <div
+                className="w-12 h-12 rounded-lg shrink-0 bg-cover bg-center flex items-center justify-center"
+                style={{
+                  background: hasImage ? `linear-gradient(135deg, ${t.gold}30, ${t.gold}15)` : t.bgAlt,
+                  backgroundImage: hasImage ? `url(${s.imageUrl})` : undefined,
+                  backgroundSize: "cover", backgroundPosition: "center",
+                  border: `1px solid ${hasImage ? t.gold + "30" : t.border}`,
+                }}
+              >
                 {!hasImage && <Upload size={16} color={t.textMuted} />}
               </div>
 
               {/* Style name */}
-              <div style={{ flex: 1, minWidth: 120 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{s.styleName}</div>
-                <div style={{ fontSize: 12, color: hasImage ? t.gold : t.textMuted, display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="flex-1 min-w-[120px]">
+                <div className="text-sm font-semibold">{s.styleName}</div>
+                <div className={`text-xs flex items-center gap-1.5 ${hasImage ? "text-gold" : "text-text-muted"}`}>
                   {isUploading && <GoldSpinner size={11} />}
                   {isUploading ? "Uploading…" : hasImage ? "Image uploaded" : "No image yet"}
                 </div>
               </div>
 
               {/* Actions */}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => triggerUpload(s.dayOfWeek)} disabled={isUploading} style={{
-                  background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
-                  padding: "6px 12px", fontSize: 12, fontWeight: 600,
-                  cursor: isUploading ? "wait" : "pointer", color: t.gold,
-                }}>{hasImage ? "Replace" : "Upload"}</button>
-                <button onClick={() => editName(s.dayOfWeek, s.styleName)} style={{
-                  background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
-                  padding: "6px 12px", fontSize: 12, cursor: "pointer", color: t.textSoft,
-                }}>Edit Name</button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => triggerUpload(s.dayOfWeek)} disabled={isUploading}
+                  className={`bg-gold-bg rounded-md py-1.5 px-3 text-xs font-semibold text-gold ${isUploading ? "cursor-wait" : "cursor-pointer"}`}
+                  style={{ border: `1px solid ${t.gold}30` }}
+                >{hasImage ? "Replace" : "Upload"}</button>
+                <button
+                  onClick={() => editName(s.dayOfWeek, s.styleName)}
+                  className="bg-transparent border border-border rounded-md py-1.5 px-3 text-xs cursor-pointer text-text-soft"
+                >Edit Name</button>
               </div>
 
               {/* Description */}
-              <div style={{ flexBasis: "100%", display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <div className="basis-full flex gap-2 items-start">
                 <textarea
                   value={descDrafts[s.dayOfWeek] ?? s.description ?? ""}
                   onChange={(e) => setDescDrafts({ ...descDrafts, [s.dayOfWeek]: e.target.value })}
                   placeholder="Brief description shown in the style detail popup…"
                   rows={2}
-                  style={{
-                    flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                    background: t.bgAlt, fontSize: 13, color: t.text, outline: "none",
-                    fontFamily: "inherit", resize: "vertical", boxSizing: "border-box",
-                  }}
+                  className="flex-1 py-2 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none [font-family:inherit] resize-y box-border"
                 />
                 <button
                   onClick={() => saveDescription(s.dayOfWeek, s.description)}
                   disabled={savingDescDay === s.dayOfWeek}
-                  style={{
-                    background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 6,
-                    padding: "8px 14px", fontSize: 12, fontWeight: 600, color: t.gold,
-                    cursor: savingDescDay === s.dayOfWeek ? "wait" : "pointer", flexShrink: 0,
-                    display: "flex", alignItems: "center", gap: 6,
-                  }}
+                  className={`bg-gold-bg rounded-md py-2 px-3.5 text-xs font-semibold text-gold shrink-0 flex items-center gap-1.5 ${savingDescDay === s.dayOfWeek ? "cursor-wait" : "cursor-pointer"}`}
+                  style={{ border: `1px solid ${t.gold}30` }}
                 >{savingDescDay === s.dayOfWeek && <GoldSpinner size={12} />} {savingDescDay === s.dayOfWeek ? "Saving…" : "Save"}</button>
               </div>
             </div>
