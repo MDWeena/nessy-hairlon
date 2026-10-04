@@ -43,11 +43,11 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
   };
 
   return (
-    <section style={{ padding: "48px 24px 72px", maxWidth: 900, margin: "0 auto" }}>
+    <section className="pt-12 px-6 pb-[72px] max-w-[900px] mx-auto">
       <FadeIn>
-        <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>GALLERY</p>
-        <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 8 }}>Styles of the week</h2>
-        <p style={{ fontSize: 15, color: t.textSoft, marginBottom: 40, maxWidth: 500, lineHeight: 1.6 }}>
+        <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">GALLERY</p>
+        <h2 className="font-cursive text-5xl font-bold mb-2">Styles of the week</h2>
+        <p className="text-[15px] text-text-soft mb-10 max-w-[500px] leading-[1.6]">
           Seven looks for seven days. Browse the week's featured styles and book the one that speaks to you.
         </p>
       </FadeIn>
@@ -57,48 +57,45 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
 
       {!loading && (
         <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
         {entries.map((entry, i) => (
           <FadeIn key={entry.dayOfWeek} delay={0.06 * (i + 1)}>
-            <div className="hover-lift" onClick={() => setSelectedEntry(entry)} style={{
-              background: t.surface, borderRadius: 16, overflow: "hidden",
-              border: `1px solid ${t.border}`, cursor: "pointer",
-            }}>
+            <div
+              className="hover-lift bg-surface rounded-2xl overflow-hidden border border-border cursor-pointer"
+              onClick={() => setSelectedEntry(entry)}
+            >
               {/* Image area — shows the uploaded style photo, or a placeholder */}
-              <div style={{
-                height: 200,
-                background: entry.imageUrl
-                  ? `url(${entry.imageUrl}) center/cover no-repeat`
-                  : `linear-gradient(135deg, ${t.gold}20, ${t.gold}08)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                position: "relative", overflow: "hidden",
-              }}>
+              <div
+                className="h-[200px] flex items-center justify-center relative overflow-hidden"
+                style={{
+                  background: entry.imageUrl
+                    ? `url(${entry.imageUrl}) center/cover no-repeat`
+                    : `linear-gradient(135deg, ${t.gold}20, ${t.gold}08)`,
+                }}
+              >
                 {!entry.imageUrl && (
-                  <div style={{
-                    width: 80, height: 80, borderRadius: "50%",
-                    background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}15)`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
+                  <div
+                    className="w-20 h-20 rounded-full flex items-center justify-center"
+                    style={{ background: `linear-gradient(135deg, ${t.gold}30, ${t.gold}15)` }}
+                  >
                     <Scissors size={28} color={t.gold} strokeWidth={1} />
                   </div>
                 )}
                 {/* Day badge */}
-                <div style={{
-                  position: "absolute", top: 12, left: 12,
-                  background: isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.85)",
-                  backdropFilter: "blur(8px)", borderRadius: 20,
-                  padding: "4px 14px", fontSize: 11, fontWeight: 600, color: t.gold,
-                  border: `1px solid ${t.gold}30`,
-                }}>{entry.dayOfWeek}</div>
+                <div
+                  className={`absolute top-3 left-3 backdrop-blur rounded-[20px] py-1 px-3.5 text-[11px] font-semibold text-gold ${
+                    isDark ? "bg-[rgba(0,0,0,0.6)]" : "bg-[rgba(255,255,255,0.85)]"
+                  }`}
+                  style={{ border: `1px solid ${t.gold}30` }}
+                >{entry.dayOfWeek}</div>
               </div>
-              <div style={{ padding: "16px 20px" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{entry.styleName}</h3>
-                <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 12 }}>Featured style for {entry.dayOfWeek}</p>
-                <button onClick={(e) => { e.stopPropagation(); setSelectedEntry(entry); }} style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: t.gold, fontSize: 13, fontWeight: 600, padding: 0,
-                  display: "flex", alignItems: "center", gap: 4,
-                }}>
+              <div className="py-4 px-5">
+                <h3 className="text-base font-bold mb-1">{entry.styleName}</h3>
+                <p className="text-[13px] text-text-muted mb-3">Featured style for {entry.dayOfWeek}</p>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSelectedEntry(entry); }}
+                  className="bg-transparent border-none cursor-pointer text-gold text-[13px] font-semibold p-0 flex items-center gap-1"
+                >
                   Book this style <ArrowRight size={14} />
                 </button>
               </div>
@@ -109,14 +106,12 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
 
       {/* CTA */}
       <FadeIn delay={0.5}>
-        <div style={{ textAlign: "center", marginTop: 48 }}>
-          <p style={{ fontSize: 15, color: t.textSoft, marginBottom: 20 }}>Don't see your style? Upload a picture and get a custom quote.</p>
-          <GoldButton onClick={() => navigate("book")} style={{
-            background: t.gold, color: "#0A0A0A", border: "none",
-            padding: "14px 36px", fontSize: 14, fontWeight: 700,
-            cursor: "pointer", borderRadius: 6, display: "inline-flex",
-            alignItems: "center", gap: 8,
-          }}>Book with Custom Style <Upload size={16} /></GoldButton>
+        <div className="text-center mt-12">
+          <p className="text-[15px] text-text-soft mb-5">Don't see your style? Upload a picture and get a custom quote.</p>
+          <GoldButton
+            onClick={() => navigate("book")}
+            className="bg-gold text-theme-black border-none py-3.5 px-9 text-sm font-bold cursor-pointer rounded-md inline-flex items-center gap-2"
+          >Book with Custom Style <Upload size={16} /></GoldButton>
         </div>
       </FadeIn>
         </>

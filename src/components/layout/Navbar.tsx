@@ -23,51 +23,42 @@ export function Navbar({ navigate, page, scrolled, mobileNavOpen, onToggleMobile
   const showLogoText = !scrolled;
 
   return (
-    <nav style={{
-      position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-      background: navTransparent ? "transparent" : t.navBg,
-      backdropFilter: navTransparent ? "none" : "blur(16px)",
-      borderBottom: navTransparent ? "1px solid transparent" : `1px solid ${t.border}`,
-      padding: "0 24px", display: "flex", alignItems: "center",
-      justifyContent: "space-between", height: 64,
-      transition: "background 0.5s ease, border-color 0.5s ease",
-      boxShadow: navTransparent ? "none" : t.shadow,
-    }}>
-      <button onClick={() => navigate("home")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-        <img src={LOGO_ICON} alt="Nessy Hairlon" style={{ width: 36, height: 36, borderRadius: "50%" }} />
-        <span style={{
-          fontFamily: "'Tangerine', cursive", fontSize: 30, fontWeight: 700,
-          color: navTransparent ? "#fff" : t.text, lineHeight: 1,
-          display: "inline-block",
-          transform: showLogoText ? "scale(1)" : "scale(0)",
-          maxWidth: showLogoText ? 250 : 0,
-          opacity: showLogoText ? 1 : 0,
-          overflow: "hidden", whiteSpace: "nowrap",
-          transformOrigin: "left center",
-          transition: "transform 0.8s cubic-bezier(0.25,0.1,0.25,1), max-width 0.8s cubic-bezier(0.25,0.1,0.25,1), opacity 0.6s ease, color 0.5s ease",
-        }}>Nessy <span style={{ color: t.gold }}>Hairlon</span></span>
+    <nav
+      className={`fixed top-0 left-0 right-0 z-[100] px-6 flex items-center justify-between h-16 [transition:background_0.5s_ease,border-color_0.5s_ease] ${
+        navTransparent
+          ? "bg-transparent backdrop-blur-none border-b border-transparent shadow-none"
+          : "bg-nav-bg backdrop-blur-lg border-b border-border shadow-theme"
+      }`}
+    >
+      <button onClick={() => navigate("home")} className="bg-transparent border-none cursor-pointer flex items-center gap-2">
+        <img src={LOGO_ICON} alt="Nessy Hairlon" className="w-9 h-9 rounded-full" />
+        <span
+          className={`font-cursive text-[30px] font-bold leading-none inline-block overflow-hidden whitespace-nowrap origin-left [transition:transform_0.8s_cubic-bezier(0.25,0.1,0.25,1),max-width_0.8s_cubic-bezier(0.25,0.1,0.25,1),opacity_0.6s_ease,color_0.5s_ease] ${
+            navTransparent ? "text-white" : "text-text"
+          } ${showLogoText ? "scale-100 max-w-[250px] opacity-100" : "scale-0 max-w-0 opacity-0"}`}
+        >Nessy <span className="text-gold">Hairlon</span></span>
       </button>
 
-      <div className="desktop-nav" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="desktop-nav flex items-center gap-2">
         {NAV_KEYS.map(key => (
-          <button key={key} onClick={() => navigate(key)} style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: page === key ? t.gold : (navTransparent ? "#ccc" : t.textSoft),
-            fontWeight: page === key ? 700 : 500, fontSize: 13,
-            padding: "8px 12px", letterSpacing: 0.3,
-            borderBottom: page === key ? `2px solid ${t.gold}` : "2px solid transparent",
-            transition: "all 0.3s ease",
-          }}>{NAV_LABELS[key]}</button>
+          <button
+            key={key} onClick={() => navigate(key)}
+            className={`bg-transparent border-none cursor-pointer text-[13px] py-2 px-3 tracking-[0.3px] border-b-2 [transition:all_0.3s_ease] ${
+              page === key
+                ? "text-gold font-bold border-gold"
+                : `font-medium border-transparent ${navTransparent ? "text-[#ccc]" : "text-text-soft"}`
+            }`}
+          >{NAV_LABELS[key]}</button>
         ))}
 
         <ThemeToggle variant="nav" transparent={navTransparent} />
       </div>
 
       {/* Mobile hamburger */}
-      <button className="mobile-menu-btn tap-target-sm" onClick={onToggleMobileNav} style={{
-        background: "none", border: "none", cursor: "pointer", padding: 4,
-        display: "none", alignItems: "center",
-      }}>
+      <button
+        className="mobile-menu-btn tap-target-sm bg-transparent border-none cursor-pointer p-1 hidden items-center"
+        onClick={onToggleMobileNav}
+      >
         <HairMenuIcon open={mobileNavOpen} color={navTransparent ? "#fff" : t.text} />
       </button>
     </nav>

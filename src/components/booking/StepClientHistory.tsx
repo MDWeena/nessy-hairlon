@@ -40,81 +40,71 @@ export function StepClientHistory({ onContinueFresh, onBookAgain }: StepClientHi
 
   return (
     <FadeIn>
-      <div style={{ background: t.surface, borderRadius: 16, padding: 28, border: `1px solid ${t.border}`, marginBottom: 20 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="bg-surface rounded-2xl p-7 border border-border mb-5">
+        <h3 className="text-base font-bold mb-1.5 flex items-center gap-2">
           <History size={18} color={t.gold} strokeWidth={1.5} /> Booked with us before?
         </h3>
-        <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 18 }}>
+        <p className="text-[13px] text-text-muted mb-[18px]">
           Enter your phone number to find your past appointments, or skip and book something new.
         </p>
 
         {!searched ? (
           <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <div className="flex gap-2 mb-3">
               <input
                 value={phone} onChange={(e) => setPhone(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="080..."
-                style={{
-                  flex: 1, padding: "12px 14px", borderRadius: 10, border: `1px solid ${t.border}`,
-                  background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-                }}
+                className="flex-1 py-3 px-3.5 rounded-[10px] border border-border bg-bg-alt text-sm text-text outline-none box-border"
               />
-              <GoldButton onClick={handleSearch} disabled={loading} style={{
-                background: t.gold, color: "#0A0A0A", border: "none",
-                padding: "0 20px", borderRadius: 10, fontSize: 14, fontWeight: 700,
-                cursor: loading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 8,
-              }}>
+              <GoldButton
+                onClick={handleSearch} disabled={loading}
+                className={`bg-gold text-theme-black border-none py-0 px-5 rounded-[10px] text-sm font-bold flex items-center gap-2 ${loading ? "cursor-wait" : "cursor-pointer"}`}
+              >
                 {loading ? <GoldSpinner size={16} color="#0A0A0A" /> : <Search size={16} />} {loading ? "Searching…" : "Find me"}
               </GoldButton>
             </div>
             {error && <ErrorNotice message={error} />}
-            <button onClick={onContinueFresh} style={{
-              background: "none", border: "none", cursor: "pointer", color: t.textMuted,
-              fontSize: 13, padding: 0, display: "flex", alignItems: "center", gap: 4,
-            }}>Skip, book something new <ChevronRight size={14} /></button>
+            <button onClick={onContinueFresh} className="bg-transparent border-none cursor-pointer text-text-muted text-[13px] p-0 flex items-center gap-1">
+              Skip, book something new <ChevronRight size={14} />
+            </button>
           </>
         ) : results.length === 0 ? (
           <>
-            <p style={{ fontSize: 14, color: t.textSoft, marginBottom: 16 }}>
+            <p className="text-sm text-text-soft mb-4">
               No previous bookings found. Let's get you started!
             </p>
-            <GoldButton onClick={onContinueFresh} style={{
-              background: t.gold, color: "#0A0A0A", border: "none",
-              padding: "12px 24px", borderRadius: 6, fontSize: 14, fontWeight: 700, cursor: "pointer",
-            }}>Continue</GoldButton>
+            <GoldButton onClick={onContinueFresh} className="bg-gold text-theme-black border-none py-3 px-6 rounded-md text-sm font-bold cursor-pointer">
+              Continue
+            </GoldButton>
           </>
         ) : (
           <>
-            <div style={{ display: "grid", gap: 10, marginBottom: 16 }}>
+            <div className="grid gap-2.5 mb-4">
               {results.map(b => (
-                <div key={b.reference} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "14px 16px", borderRadius: 10, border: `1px solid ${t.border}`, background: t.bgAlt,
-                }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>
+                <div key={b.reference} className="flex justify-between items-center py-3.5 px-4 rounded-[10px] border border-border bg-bg-alt">
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold">
                       {b.serviceNames.length > 0 ? b.serviceNames.join(", ") : "Custom style"}
                     </div>
-                    <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>{b.date}</div>
+                    <div className="text-xs text-text-muted mt-0.5">{b.date}</div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, marginLeft: 12 }}>
+                  <div className="flex items-center gap-2.5 shrink-0 ml-3">
                     <StatusBadge status={b.status} />
                     {b.status === "completed" && b.serviceNames.length > 0 && (
-                      <button onClick={() => onBookAgain(b.serviceNames)} style={{
-                        background: t.goldBg, border: `1px solid ${t.gold}30`, color: t.gold,
-                        padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
-                        cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-                      }}><RotateCcw size={12} /> Book again</button>
+                      <button
+                        onClick={() => onBookAgain(b.serviceNames)}
+                        className="bg-gold-bg text-gold py-1.5 px-3 rounded-md text-xs font-bold cursor-pointer flex items-center gap-1"
+                        style={{ border: `1px solid ${t.gold}30` }}
+                      ><RotateCcw size={12} /> Book again</button>
                     )}
                   </div>
                 </div>
               ))}
             </div>
-            <button onClick={onContinueFresh} style={{
-              background: "none", border: "none", cursor: "pointer", color: t.textMuted,
-              fontSize: 13, padding: 0, display: "flex", alignItems: "center", gap: 4,
-            }}>Book something new instead <ChevronRight size={14} /></button>
+            <button onClick={onContinueFresh} className="bg-transparent border-none cursor-pointer text-text-muted text-[13px] p-0 flex items-center gap-1">
+              Book something new instead <ChevronRight size={14} />
+            </button>
           </>
         )}
       </div>

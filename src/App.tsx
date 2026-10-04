@@ -26,7 +26,7 @@ function getDeepLinkBookingId(): string | null {
 }
 
 export default function App() {
-  const { t, isDark } = useTheme();
+  const { isDark } = useTheme();
   const scrolled = useScrollPosition();
   const { page, navigate: rawNavigate, pageLoading } = usePageTransition();
   const { signOut } = useAuth();
@@ -67,7 +67,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", color: t.text, background: t.bg, minHeight: "100vh", overflowX: "hidden" }}>
+    <div className="font-sans text-text bg-bg min-h-screen overflow-x-hidden">
       <link href="https://fonts.googleapis.com/css2?family=Tangerine:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
 
       <Navbar
@@ -81,7 +81,7 @@ export default function App() {
       <MobileDrawer navigate={navigate} page={page} open={mobileNavOpen} />
 
       {/* Spacer — only hidden when dark mode hero bleeds behind nav */}
-      {!(isDark && page === "home") && <div style={{ height: 64 }} />}
+      {!(isDark && page === "home") && <div className="h-16" />}
 
       {/* PAGES */}
       {pageLoading ? <ClientLoader /> : (
