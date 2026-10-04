@@ -7,7 +7,7 @@ interface PageTransition {
   pageLoading: boolean;
 }
 
-const KNOWN_PAGES = new Set(["home", "services", "gallery", "book", "track", "review", "reset-password", "admin"]);
+const KNOWN_PAGES = new Set(["home", "services", "about", "gallery", "book", "track", "review", "reset-password", "admin"]);
 
 /** Lets emailed links like "/track" or "/review" land directly on that page, and lets the
  * browser's back/forward buttons map a URL back to a page (see the popstate listener below). */

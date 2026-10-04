@@ -10,6 +10,7 @@ import { Footer } from "./components/layout/Footer";
 import { ClientLoader } from "./components/loaders/ClientLoader";
 import { HomePage } from "./pages/HomePage";
 import { ServicesPage } from "./pages/ServicesPage";
+import { AboutPage } from "./pages/AboutPage";
 import { GalleryPage } from "./pages/GalleryPage";
 import { BookingPage } from "./pages/BookingPage";
 import { TrackBookingPage } from "./pages/TrackBookingPage";
@@ -90,6 +91,7 @@ export default function App() {
         <>
           {page === "home" && <HomePage navigate={navigate} />}
           {page === "services" && <ServicesPage navigate={navigate} onBookService={bookService} />}
+          {page === "about" && <AboutPage navigate={navigate} />}
           {page === "gallery" && <GalleryPage navigate={navigate} onBookService={bookService} />}
           {page === "book" && (
             <BookingPage

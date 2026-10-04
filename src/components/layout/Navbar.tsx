@@ -12,8 +12,8 @@ interface NavbarProps {
   onToggleMobileNav: () => void;
 }
 
-const NAV_KEYS = ["home", "services", "gallery", "book"] as const;
-const NAV_LABELS: Record<string, string> = { home: "Home", services: "Services", gallery: "Gallery", book: "Book Now" };
+const NAV_KEYS = ["home", "services", "about", "gallery", "book"] as const;
+const NAV_LABELS: Record<string, string> = { home: "Home", services: "Services", about: "About", gallery: "Gallery", book: "Book Now" };
 
 export function Navbar({ navigate, page, scrolled, mobileNavOpen, onToggleMobileNav }: NavbarProps) {
   const { t, isDark } = useTheme();
