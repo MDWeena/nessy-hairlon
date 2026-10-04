@@ -3,6 +3,7 @@ import { Search, History, ChevronRight, RotateCcw } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { lookupBookings } from "../../hooks/useBookingLookup";
 import type { TrackedBooking } from "../../hooks/useBookingLookup";
+import type { NavigateFn } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -10,11 +11,12 @@ import { GoldSpinner } from "../ui/GoldSpinner";
 import { StatusBadge } from "../ui/StatusBadge";
 
 interface StepClientHistoryProps {
+  navigate: NavigateFn;
   onContinueFresh: () => void;
   onBookAgain: (serviceNames: string[]) => void;
 }
 
-export function StepClientHistory({ onContinueFresh, onBookAgain }: StepClientHistoryProps) {
+export function StepClientHistory({ navigate, onContinueFresh, onBookAgain }: StepClientHistoryProps) {
   const { t } = useTheme();
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,26 +83,36 @@ export function StepClientHistory({ onContinueFresh, onBookAgain }: StepClientHi
         ) : (
           <>
             <div className="grid gap-2.5 mb-4">
-              {results.map(b => (
-                <div key={b.reference} className="flex justify-between items-center py-3.5 px-4 rounded-[10px] border border-border bg-bg-alt">
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-semibold">
-                      {b.serviceNames.length > 0 ? b.serviceNames.join(", ") : "Custom style"}
+              {results.map(b => {
+                const canRebook = b.status === "completed" && b.serviceNames.length > 0;
+                const cardAction = () => canRebook ? onBookAgain(b.serviceNames) : navigate("track", b.reference);
+                return (
+                  <div
+                    key={b.reference} onClick={cardAction}
+                    role="button" tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") cardAction(); }}
+                    className="hover-lift flex justify-between items-center py-3.5 px-4 rounded-[10px] border border-border bg-bg-alt cursor-pointer"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-semibold">
+                        {b.serviceNames.length > 0 ? b.serviceNames.join(", ") : "Custom style"}
+                      </div>
+                      <div className="text-xs text-text-muted mt-0.5">{b.date}</div>
                     </div>
-                    <div className="text-xs text-text-muted mt-0.5">{b.date}</div>
+                    <div className="flex items-center gap-2.5 shrink-0 ml-3">
+                      <StatusBadge status={b.status} />
+                      {canRebook ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onBookAgain(b.serviceNames); }}
+                          className="bg-gold-bg text-gold py-1.5 px-3 rounded-md text-xs font-bold cursor-pointer flex items-center gap-1 border border-[#C49A6C30]"
+                        ><RotateCcw size={12} /> Book again</button>
+                      ) : (
+                        <ChevronRight size={16} color={t.textMuted} />
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2.5 shrink-0 ml-3">
-                    <StatusBadge status={b.status} />
-                    {b.status === "completed" && b.serviceNames.length > 0 && (
-                      <button
-                        onClick={() => onBookAgain(b.serviceNames)}
-                        className="bg-gold-bg text-gold py-1.5 px-3 rounded-md text-xs font-bold cursor-pointer flex items-center gap-1"
-                        style={{ border: `1px solid ${t.gold}30` }}
-                      ><RotateCcw size={12} /> Book again</button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <button onClick={onContinueFresh} className="bg-transparent border-none cursor-pointer text-text-muted text-[13px] p-0 flex items-center gap-1">
               Book something new instead <ChevronRight size={14} />

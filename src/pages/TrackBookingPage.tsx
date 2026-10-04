@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Package } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { lookupBookings, rescheduleBooking, cancelBooking, markDepositPaid } from "../hooks/useBookingLookup";
@@ -18,6 +18,8 @@ import { StepDateTime } from "../components/booking/StepDateTime";
 
 interface TrackBookingPageProps {
   navigate: NavigateFn;
+  initialReference?: string | null;
+  onConsumeInitialReference?: () => void;
 }
 
 type ActionMode = "reschedule" | "cancel" | "pay";
@@ -47,7 +49,7 @@ function describeStatus(status: OrderStatus, booking: TrackedBooking): { heading
   }
 }
 
-export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
+export function TrackBookingPage({ navigate, initialReference, onConsumeInitialReference }: TrackBookingPageProps) {
   const { t } = useTheme();
   const { settings } = useSettings();
   const [query, setQuery] = useState("");
@@ -75,15 +77,16 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
   const depositAmount = (booking: TrackedBooking): number | null =>
     calculateDepositAmount(booking, settings.deposit_percentage ?? null);
 
-  const handleSearch = async () => {
-    const trimmed = query.trim();
+  const runSearch = async (raw: string) => {
+    const trimmed = raw.trim();
     if (!trimmed) { setError("Enter your booking reference or phone number"); return; }
     setLoading(true);
     setError(null);
     setResults(null);
     closeAction();
     try {
-      const found = await lookupBookings(looksLikeReference ? { reference: trimmed } : { phone: trimmed });
+      const refLike = /[a-z]/i.test(trimmed);
+      const found = await lookupBookings(refLike ? { reference: trimmed } : { phone: trimmed });
       if (found.length === 0) setError("No booking found for that reference or phone number.");
       setResults(found);
     } catch (err) {
@@ -92,6 +95,18 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
       setLoading(false);
     }
   };
+
+  const handleSearch = () => runSearch(query);
+
+  // Arrived here via a "track this booking" link elsewhere on the site (e.g. a previous
+  // booking card) — pre-fill the reference and run the search immediately.
+  useEffect(() => {
+    if (!initialReference) return;
+    setQuery(initialReference);
+    runSearch(initialReference);
+    onConsumeInitialReference?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialReference]);
 
   const openAction = (booking: TrackedBooking, mode: ActionMode) => {
     setActionBooking(booking);

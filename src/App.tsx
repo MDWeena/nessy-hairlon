@@ -33,10 +33,12 @@ export default function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(() => page === "admin");
   const [preselectedService, setPreselectedService] = useState<string | null>(null);
+  const [trackReference, setTrackReference] = useState<string | null>(null);
   const [deepLinkBookingId] = useState<string | null>(() => page === "admin" ? getDeepLinkBookingId() : null);
 
-  const navigate: NavigateFn = (p) => {
+  const navigate: NavigateFn = (p, param) => {
     setMobileNavOpen(false);
+    if (p === "track" && param) setTrackReference(param);
     rawNavigate(p);
   };
 
@@ -96,7 +98,13 @@ export default function App() {
               onConsumePreselectedService={() => setPreselectedService(null)}
             />
           )}
-          {page === "track" && <TrackBookingPage navigate={navigate} />}
+          {page === "track" && (
+            <TrackBookingPage
+              navigate={navigate}
+              initialReference={trackReference}
+              onConsumeInitialReference={() => setTrackReference(null)}
+            />
+          )}
           {page === "review" && <LeaveReviewPage />}
         </>
       )}

@@ -76,6 +76,7 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
         <LoadingNotice label="Loading booking options…" />
       ) : !historyResolved ? (
         <StepClientHistory
+          navigate={navigate}
           onContinueFresh={() => setHistoryResolved(true)}
           onBookAgain={handleBookAgain}
         />

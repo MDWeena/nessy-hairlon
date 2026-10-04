@@ -112,4 +112,4 @@ export interface Story {
   verified: boolean;
 }
 
-export type NavigateFn = (page: string) => void;
+export type NavigateFn = (page: string, param?: string) => void;
