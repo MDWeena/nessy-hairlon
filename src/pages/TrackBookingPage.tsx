@@ -183,32 +183,28 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
   };
 
   return (
-    <section style={{ padding: "48px 24px 72px", maxWidth: 560, margin: "0 auto" }}>
+    <section className="pt-12 px-6 pb-[72px] max-w-[560px] mx-auto">
       <FadeIn>
-        <p style={{ color: t.gold, fontSize: 12, fontWeight: 600, letterSpacing: 3, marginBottom: 12 }}>TRACK BOOKING</p>
-        <h2 style={{ fontFamily: "'Tangerine', cursive", fontSize: 48, fontWeight: 700, marginBottom: 12 }}>
+        <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">TRACK BOOKING</p>
+        <h2 className="font-cursive text-5xl font-bold mb-3">
           Check your status
         </h2>
-        <p style={{ fontSize: 15, color: t.textSoft, marginBottom: 32, lineHeight: 1.6 }}>
+        <p className="text-[15px] text-text-soft mb-8 leading-[1.6]">
           Enter your booking reference or the phone number you booked with.
         </p>
       </FadeIn>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+      <div className="flex gap-2 mb-5">
         <input
           value={query} onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           placeholder="e.g. BK-A3BF7FC4 or 080..."
-          style={{
-            flex: 1, padding: "12px 14px", borderRadius: 10, border: `1px solid ${t.border}`,
-            background: t.bgAlt, fontSize: 14, color: t.text, outline: "none", boxSizing: "border-box",
-          }}
+          className="flex-1 py-3 px-3.5 rounded-[10px] border border-border bg-bg-alt text-sm text-text outline-none box-border"
         />
-        <GoldButton onClick={handleSearch} disabled={loading} style={{
-          background: t.gold, color: "#0A0A0A", border: "none",
-          padding: "0 20px", borderRadius: 10, fontSize: 14, fontWeight: 700,
-          cursor: loading ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 8,
-        }}>
+        <GoldButton
+          onClick={handleSearch} disabled={loading}
+          className={`bg-gold text-theme-black border-none py-0 px-5 rounded-[10px] text-sm font-bold flex items-center gap-2 ${loading ? "cursor-wait" : "cursor-pointer"}`}
+        >
           {loading ? <GoldSpinner size={16} /> : <Search size={16} />} {loading ? "Searching…" : "Search"}
         </GoldButton>
       </div>
@@ -216,7 +212,7 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
       {error && <ErrorNotice message={error} />}
 
       {results && results.length > 0 && (
-        <div style={{ display: "grid", gap: 16 }}>
+        <div className="grid gap-4">
           {results.map(b => {
             const canManage = b.status === "confirmed" || b.status === "quoted";
             const tooSoon = canManage && isPastNoticeWindow(b);
@@ -224,81 +220,76 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
             const statusCopy = describeStatus(b.status, b);
             const deposit = depositAmount(b);
             return (
-              <div key={b.reference} style={{
-                background: t.surface, borderRadius: 16, padding: 24, border: `1px solid ${t.border}`,
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: t.gold }}>{b.reference}</span>
+              <div key={b.reference} className="bg-surface rounded-2xl p-6 border border-border">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[13px] font-bold text-gold">{b.reference}</span>
                   <StatusBadge status={b.status} />
                 </div>
 
-                <div style={{
-                  display: "flex", alignItems: "flex-start", gap: 8, background: t.goldBg,
-                  border: `1px solid ${t.gold}20`, borderRadius: 10, padding: "10px 14px", marginBottom: 16,
-                }}>
-                  <Info size={14} color={t.gold} style={{ marginTop: 2, flexShrink: 0 }} />
+                <div className="flex items-start gap-2 bg-gold-bg border border-[#C49A6C20] rounded-[10px] py-2.5 px-3.5 mb-4">
+                  <Info size={14} color={t.gold} className="mt-0.5 shrink-0" />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{statusCopy.heading}</div>
-                    <div style={{ fontSize: 12, color: t.textSoft, marginTop: 2 }}>{statusCopy.body}</div>
+                    <div className="text-[13px] font-bold text-text">{statusCopy.heading}</div>
+                    <div className="text-xs text-text-soft mt-0.5">{statusCopy.body}</div>
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Calendar size={13} /> Date</span>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{b.date}</span>
+                <div className="grid gap-2.5">
+                  <div className="flex justify-between">
+                    <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Calendar size={13} /> Date</span>
+                    <span className="text-[13px] font-semibold">{b.date}</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Clock size={13} /> Time</span>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{b.time}</span>
+                  <div className="flex justify-between">
+                    <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Clock size={13} /> Time</span>
+                    <span className="text-[13px] font-semibold">{b.time}</span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Scissors size={13} /> Service</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>
+                  <div className="flex justify-between">
+                    <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Scissors size={13} /> Service</span>
+                    <span className="text-[13px] font-semibold text-right">
                       {b.serviceNames.length > 0 ? b.serviceNames.join(", ") : (b.customStyleUrl ? "Custom style" : "—")}
                     </span>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: t.textMuted, fontSize: 13 }}>Price</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: b.quotedPrice != null ? t.text : t.gold }}>
+                  <div className="flex justify-between">
+                    <span className="text-text-muted text-[13px]">Price</span>
+                    <span className={`text-[13px] font-bold ${b.quotedPrice != null ? "text-text" : "text-gold"}`}>
                       {b.quotedPrice != null ? `₦${b.quotedPrice.toLocaleString()}` : "Pending"}
                     </span>
                   </div>
                   {b.attachmentPreference && (
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ color: t.textMuted, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}><Package size={13} /> Attachments</span>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Package size={13} /> Attachments</span>
+                      <span className="text-[13px] font-semibold">
                         {b.attachmentPreference === "client_provides" ? "I bring my own" : "Nessy purchases"}
                       </span>
                     </div>
                   )}
                   {b.customStyleDescription && (
-                    <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 10, marginTop: 2 }}>
-                      <span style={{ color: t.textMuted, fontSize: 12, display: "block", marginBottom: 4 }}>Style notes</span>
-                      <span style={{ fontSize: 13 }}>{b.customStyleDescription}</span>
+                    <div className="border-t border-border pt-2.5 mt-0.5">
+                      <span className="text-text-muted text-xs block mb-1">Style notes</span>
+                      <span className="text-[13px]">{b.customStyleDescription}</span>
                     </div>
                   )}
                 </div>
                 {b.customStyleUrl && (
-                  <a href={b.customStyleUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginTop: 16 }}>
-                    <img src={b.customStyleUrl} alt="Requested style" style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 10, border: `1px solid ${t.border}` }} />
+                  <a href={b.customStyleUrl} target="_blank" rel="noopener noreferrer" className="block mt-4">
+                    <img src={b.customStyleUrl} alt="Requested style" className="w-full max-h-40 object-cover rounded-[10px] border border-border" />
                   </a>
                 )}
 
                 {/* Quoted: deposit + payment details + "I've Paid" */}
                 {b.status === "quoted" && !isActingOnThis && (
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
+                  <div className="mt-4 pt-4 border-t border-border">
                     {(settings.bank_name || settings.account_number) && (
-                      <div style={{ background: t.bgAlt, borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 13, lineHeight: 1.8 }}>
+                      <div className="bg-bg-alt rounded-[10px] p-3.5 mb-3 text-[13px] leading-[1.8]">
                         {b.attachmentPreference === "nessy_buys" && b.hairServiceCost != null && (
                           <>
-                            <div style={{ marginBottom: 4 }}>
-                              <span style={{ color: t.textMuted }}>Hair service:</span> <strong>₦{b.hairServiceCost.toLocaleString()}</strong>
+                            <div className="mb-1">
+                              <span className="text-text-muted">Hair service:</span> <strong>₦{b.hairServiceCost.toLocaleString()}</strong>
                             </div>
                             {b.attachmentItems.length > 0 && (
-                              <div style={{ marginBottom: 4 }}>
-                                <span style={{ color: t.textMuted }}>Attachments:</span> <strong>₦{sumMaterials(b.attachmentItems).toLocaleString()}</strong>
-                                <div style={{ fontSize: 11, color: t.textMuted, paddingLeft: 8, marginTop: 2 }}>
+                              <div className="mb-1">
+                                <span className="text-text-muted">Attachments:</span> <strong>₦{sumMaterials(b.attachmentItems).toLocaleString()}</strong>
+                                <div className="text-[11px] text-text-muted pl-2 mt-0.5">
                                   {b.attachmentItems.map((item, i) => (
                                     <div key={i}>{item.type} × {item.quantity} @ ₦{item.unitCost.toLocaleString()}</div>
                                   ))}
@@ -306,71 +297,70 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                               </div>
                             )}
                             {b.accessoryItems.length > 0 && (
-                              <div style={{ marginBottom: 4 }}>
-                                <span style={{ color: t.textMuted }}>Accessories:</span> <strong>₦{sumMaterials(b.accessoryItems).toLocaleString()}</strong>
-                                <div style={{ fontSize: 11, color: t.textMuted, paddingLeft: 8, marginTop: 2 }}>
+                              <div className="mb-1">
+                                <span className="text-text-muted">Accessories:</span> <strong>₦{sumMaterials(b.accessoryItems).toLocaleString()}</strong>
+                                <div className="text-[11px] text-text-muted pl-2 mt-0.5">
                                   {b.accessoryItems.map((item, i) => (
                                     <div key={i}>{item.type} × {item.quantity} @ ₦{item.unitCost.toLocaleString()}</div>
                                   ))}
                                 </div>
                               </div>
                             )}
-                            <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 6, marginTop: 6, marginBottom: 6 }}>
-                              <span style={{ color: t.textMuted }}>Total:</span> <strong>₦{b.quotedPrice!.toLocaleString()}</strong>
+                            <div className="border-t border-border pt-1.5 mt-1.5 mb-1.5">
+                              <span className="text-text-muted">Total:</span> <strong>₦{b.quotedPrice!.toLocaleString()}</strong>
                             </div>
                             <div>
-                              <span style={{ color: t.textMuted }}>Deposit due:</span> <strong style={{ color: t.gold }}>₦{deposit!.toLocaleString()}</strong>
-                              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>Full materials cost + 50% hair service</div>
+                              <span className="text-text-muted">Deposit due:</span> <strong className="text-gold">₦{deposit!.toLocaleString()}</strong>
+                              <div className="text-[11px] text-text-muted mt-0.5">Full materials cost + 50% hair service</div>
                             </div>
                           </>
                         )}
                         {(b.attachmentPreference !== "nessy_buys" || b.hairServiceCost == null) && deposit != null && (
-                          <div style={{ marginBottom: 6 }}>
-                            <span style={{ color: t.textMuted }}>Deposit ({settings.deposit_percentage}%):</span> <strong style={{ color: t.gold }}>₦{deposit.toLocaleString()}</strong>
+                          <div className="mb-1.5">
+                            <span className="text-text-muted">Deposit ({settings.deposit_percentage}%):</span> <strong className="text-gold">₦{deposit.toLocaleString()}</strong>
                           </div>
                         )}
-                        <div><span style={{ color: t.textMuted }}>Bank:</span> <strong>{settings.bank_name}</strong></div>
-                        <div><span style={{ color: t.textMuted }}>Account:</span> <strong>{settings.account_number}</strong></div>
-                        <div><span style={{ color: t.textMuted }}>Name:</span> <strong>{settings.account_name}</strong></div>
+                        <div><span className="text-text-muted">Bank:</span> <strong>{settings.bank_name}</strong></div>
+                        <div><span className="text-text-muted">Account:</span> <strong>{settings.account_number}</strong></div>
+                        <div><span className="text-text-muted">Name:</span> <strong>{settings.account_name}</strong></div>
                       </div>
                     )}
-                    <button onClick={() => openAction(b, "pay")} style={{
-                      width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-                      padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                    }}>I've Paid My Deposit</button>
+                    <button
+                      onClick={() => openAction(b, "pay")}
+                      className="w-full bg-gold text-theme-black border-none py-2.5 rounded-lg text-[13px] font-bold cursor-pointer"
+                    >I've Paid My Deposit</button>
                   </div>
                 )}
 
                 {canManage && !isActingOnThis && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 16, paddingTop: b.status === "quoted" ? 0 : 16, borderTop: b.status === "quoted" ? "none" : `1px solid ${t.border}` }}>
-                    <button onClick={() => openAction(b, "reschedule")} style={{
-                      flex: 1, background: t.goldBg, border: `1px solid ${t.gold}30`, color: t.gold,
-                      padding: "8px 0", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                    }}>Reschedule</button>
-                    <button onClick={() => openAction(b, "cancel")} style={{
-                      flex: 1, background: "none", border: "1px solid #EF444440", color: "#EF4444",
-                      padding: "8px 0", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                    }}>Cancel</button>
+                  <div className={`flex gap-2 mt-4 ${b.status === "quoted" ? "pt-0 border-t-0" : "pt-4 border-t border-border"}`}>
+                    <button
+                      onClick={() => openAction(b, "reschedule")}
+                      className="flex-1 bg-gold-bg border border-[#C49A6C30] text-gold py-2 rounded-lg text-xs font-bold cursor-pointer"
+                    >Reschedule</button>
+                    <button
+                      onClick={() => openAction(b, "cancel")}
+                      className="flex-1 bg-transparent border border-[#EF444440] text-[#EF4444] py-2 rounded-lg text-xs font-bold cursor-pointer"
+                    >Cancel</button>
                   </div>
                 )}
 
                 {b.status === "completed" && (
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
-                    <button onClick={() => navigate("review")} style={{
-                      width: "100%", background: t.goldBg, border: `1px solid ${t.gold}30`, color: t.gold,
-                      padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    }}><Star size={13} /> Leave a review</button>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <button
+                      onClick={() => navigate("review")}
+                      className="w-full bg-gold-bg border border-[#C49A6C30] text-gold py-2.5 rounded-lg text-[13px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                    ><Star size={13} /> Leave a review</button>
                   </div>
                 )}
 
                 {isActingOnThis && (
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                      <h4 style={{ fontSize: 14, fontWeight: 700 }}>
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <div className="flex justify-between items-center mb-3.5">
+                      <h4 className="text-sm font-bold">
                         {actionMode === "reschedule" ? "Reschedule appointment" : actionMode === "cancel" ? "Cancel appointment" : "Confirm your deposit"}
                       </h4>
-                      <button className="tap-target-sm" onClick={closeAction} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
+                      <button className="tap-target-sm bg-transparent border-none cursor-pointer p-1 flex" onClick={closeAction}>
                         <X size={16} color={t.textMuted} />
                       </button>
                     </div>
@@ -378,21 +368,19 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
                     {actionError && <ErrorNotice message={actionError} />}
 
                     {actionMode === "reschedule" && tooSoon ? (
-                      <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6 }}>
+                      <p className="text-[13px] text-text-soft leading-[1.6]">
                         This appointment is too soon to reschedule online. Please call or WhatsApp Nessy directly.
                       </p>
                     ) : (
                       <>
-                        <div style={{ marginBottom: 16 }}>
-                          <label style={{ display: "block", fontSize: 12, color: t.textMuted, marginBottom: 6, fontWeight: 500 }}>
+                        <div className="mb-4">
+                          <label className="block text-xs text-text-muted mb-1.5 font-medium">
                             Confirm the phone number you booked with
                           </label>
                           <input
                             value={verifyPhone} onChange={(e) => setVerifyPhone(e.target.value)}
-                            placeholder="080..." style={{
-                              width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${t.border}`,
-                              background: t.bgAlt, fontSize: 13, color: t.text, outline: "none", boxSizing: "border-box",
-                            }}
+                            placeholder="080..."
+                            className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border"
                           />
                         </div>
 
@@ -413,54 +401,49 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
 
                         {actionMode === "cancel" && (
                           <>
-                            <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6, marginBottom: 16 }}>
+                            <p className="text-[13px] text-text-soft leading-[1.6] mb-4">
                               Are you sure? If you paid a deposit, it may not be refundable.
                             </p>
-                            <div style={{ display: "flex", gap: 10 }}>
-                              <button onClick={closeAction} style={{
-                                flex: 1, background: t.surface, color: t.text, border: `1px solid ${t.border}`,
-                                padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                              }}>Never mind</button>
-                              <button onClick={confirmCancel} disabled={actionBusy} style={{
-                                flex: 1, background: "#EF4444", color: "#fff", border: "none",
-                                padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
-                                cursor: actionBusy ? "wait" : "pointer",
-                                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                              }}>{actionBusy && <GoldSpinner size={14} />} {actionBusy ? "Cancelling…" : "Yes, cancel"}</button>
+                            <div className="flex gap-2.5">
+                              <button
+                                onClick={closeAction}
+                                className="flex-1 bg-surface text-text border border-border py-2.5 rounded-lg text-[13px] font-semibold cursor-pointer"
+                              >Never mind</button>
+                              <button
+                                onClick={confirmCancel} disabled={actionBusy}
+                                className={`flex-1 bg-[#EF4444] text-white border-none py-2.5 rounded-lg text-[13px] font-bold flex items-center justify-center gap-1.5 ${actionBusy ? "cursor-wait" : "cursor-pointer"}`}
+                              >{actionBusy && <GoldSpinner size={14} />} {actionBusy ? "Cancelling…" : "Yes, cancel"}</button>
                             </div>
                           </>
                         )}
 
                         {actionMode === "pay" && (
                           <>
-                            <p style={{ fontSize: 13, color: t.textSoft, lineHeight: 1.6, marginBottom: 12 }}>
+                            <p className="text-[13px] text-text-soft leading-[1.6] mb-3">
                               Optionally attach a screenshot of your transfer, then confirm below.
                             </p>
-                            <input ref={proofInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleProofChange} />
+                            <input ref={proofInputRef} type="file" accept="image/*" className="hidden" onChange={handleProofChange} />
                             {proofUrl ? (
-                              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                                <img src={proofUrl} alt="Payment proof" style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: `1px solid ${t.border}` }} />
-                                <button onClick={() => setProofUrl(null)} style={{
-                                  background: "none", border: `1px solid #EF444440`, borderRadius: 6,
-                                  padding: "5px 12px", fontSize: 12, color: "#EF4444", cursor: "pointer",
-                                }}>Remove</button>
+                              <div className="flex items-center gap-3 mb-4">
+                                <img src={proofUrl} alt="Payment proof" className="w-12 h-12 rounded-lg object-cover border border-border" />
+                                <button
+                                  onClick={() => setProofUrl(null)}
+                                  className="bg-transparent border border-[#EF444440] rounded-md py-[5px] px-3 text-xs text-[#EF4444] cursor-pointer"
+                                >Remove</button>
                               </div>
                             ) : (
-                              <button onClick={() => proofInputRef.current?.click()} disabled={proofUploading} style={{
-                                background: t.bgAlt, border: `1px dashed ${t.border}`, borderRadius: 8,
-                                padding: "10px 14px", fontSize: 12, color: t.textSoft, cursor: proofUploading ? "wait" : "pointer",
-                                display: "flex", alignItems: "center", gap: 8, marginBottom: 16, width: "100%", justifyContent: "center",
-                              }}>
+                              <button
+                                onClick={() => proofInputRef.current?.click()} disabled={proofUploading}
+                                className={`bg-bg-alt border border-dashed border-border rounded-lg py-2.5 px-3.5 text-xs text-text-soft flex items-center gap-2 mb-4 w-full justify-center ${proofUploading ? "cursor-wait" : "cursor-pointer"}`}
+                              >
                                 {proofUploading ? <GoldSpinner size={14} /> : <Upload size={14} />}
                                 {proofUploading ? "Uploading…" : "Attach payment screenshot (optional)"}
                               </button>
                             )}
-                            <GoldButton onClick={confirmPaid} disabled={actionBusy} style={{
-                              width: "100%", background: t.gold, color: "#0A0A0A", border: "none",
-                              padding: "12px 0", borderRadius: 8, fontSize: 13, fontWeight: 700,
-                              cursor: actionBusy ? "wait" : "pointer",
-                              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                            }}>{actionBusy && <GoldSpinner size={14} color="#0A0A0A" />} {actionBusy ? "Submitting…" : "Confirm I've Paid"}</GoldButton>
+                            <GoldButton
+                              onClick={confirmPaid} disabled={actionBusy}
+                              className={`w-full bg-gold text-theme-black border-none py-3 rounded-lg text-[13px] font-bold flex items-center justify-center gap-1.5 ${actionBusy ? "cursor-wait" : "cursor-pointer"}`}
+                            >{actionBusy && <GoldSpinner size={14} color="#0A0A0A" />} {actionBusy ? "Submitting…" : "Confirm I've Paid"}</GoldButton>
                           </>
                         )}
                       </>
@@ -474,10 +457,9 @@ export function TrackBookingPage({ navigate }: TrackBookingPageProps) {
       )}
 
       {actionSuccess && (
-        <div style={{
-          marginTop: 20, background: t.goldBg, border: `1px solid ${t.gold}30`, borderRadius: 10,
-          padding: "12px 16px", fontSize: 13, color: t.text,
-        }}>{actionSuccess}</div>
+        <div className="mt-5 bg-gold-bg border border-[#C49A6C30] rounded-[10px] py-3 px-4 text-[13px] text-text">
+          {actionSuccess}
+        </div>
       )}
     </section>
   );

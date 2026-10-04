@@ -13,12 +13,9 @@ export function TrustBar() {
   const { t } = useTheme();
   return (
     <FadeIn>
-      <div className="trust-bar" style={{
-        display: "flex", justifyContent: "center", gap: 48, padding: "36px 24px",
-        borderBottom: `1px solid ${t.border}`, flexWrap: "wrap",
-      }}>
+      <div className="trust-bar flex justify-center gap-12 py-9 px-6 border-b border-border flex-wrap">
         {ITEMS.map(({ icon: Icon, label }) => (
-          <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, color: t.textSoft, fontSize: 13 }}>
+          <div key={label} className="flex items-center gap-2 text-text-soft text-[13px]">
             <Icon size={16} color={t.gold} strokeWidth={1.5} /> {label}
           </div>
         ))}
