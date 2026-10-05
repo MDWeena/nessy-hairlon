@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Clock, Image } from "lucide-react";
 import { useServices } from "../hooks/useServices";
 import { useTheme } from "../context/ThemeContext";
+import { optimizedCloudinaryUrl } from "../lib/cloudinary";
 import type { NavigateFn, ServiceItem } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
@@ -43,7 +44,13 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
       {error && <ErrorNotice message={error} />}
       {loading && <LoadingNotice label="Loading services…" />}
 
-      {!loading && (
+      {!loading && services.length === 0 && (
+        <p className="text-sm text-text-muted text-center py-10">
+          No services available right now — please check back soon.
+        </p>
+      )}
+
+      {!loading && services.length > 0 && (
         <>
       {/* Tabs */}
       <div className="flex gap-1 mb-8 bg-bg-alt rounded-lg p-1 w-fit">
@@ -67,7 +74,7 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
             >
               <div className="flex items-start gap-4 min-w-0">
                 {s.imageUrl ? (
-                  <img src={s.imageUrl} alt="" className="w-12 h-12 rounded-[10px] object-cover shrink-0 border border-border" />
+                  <img src={optimizedCloudinaryUrl(s.imageUrl)} alt="" className="w-12 h-12 rounded-[10px] object-cover shrink-0 border border-border" />
                 ) : (
                   <div className="w-10 h-10 rounded-[10px] bg-gold-bg shrink-0 flex items-center justify-center">
                     <s.icon size={18} color={t.gold} strokeWidth={1.5} />

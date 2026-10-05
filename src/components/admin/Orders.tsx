@@ -16,7 +16,10 @@ import { MoneyInput } from "../ui/MoneyInput";
 const FILTERS: Exclude<OrderFilter, "this_week_confirmed">[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
 
 const ITEM_INPUT = "py-1.5 px-2 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
-const STEPPER_BTN = "w-6 h-6 shrink-0 rounded-md border border-border bg-bg-alt text-text-soft flex items-center justify-center cursor-pointer";
+// UX FIX (pre-launch audit): was w-6 h-6 (24x24px) — well under the ~44px touch-target
+// guideline. Bumped to 36x36; not pushed all the way to 44px to stay within the row's
+// tight mobile width budget alongside the type input, money field, and remove button.
+const STEPPER_BTN = "w-9 h-9 shrink-0 rounded-md border border-border bg-bg-alt text-text-soft flex items-center justify-center cursor-pointer";
 
 function buildBalanceWhatsAppMessage(
   o: Order,
@@ -245,6 +248,9 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
       </div>
 
       <div className="bg-surface rounded-xl border border-border overflow-hidden">
+        {filtered.length === 0 && (
+          <p className="text-sm text-text-muted text-center py-10">No bookings match this filter.</p>
+        )}
         {filtered.map((o, i) => {
           const isHighlighted = o.id === highlightBookingId;
           const showBalanceSection = o.status === "confirmed" || o.status === "completed";

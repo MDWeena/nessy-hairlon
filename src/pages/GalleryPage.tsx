@@ -3,6 +3,7 @@ import { Scissors, ArrowRight, Upload } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { useGallery } from "../hooks/useGallery";
 import type { GalleryEntry } from "../hooks/useGallery";
+import { optimizedCloudinaryUrl } from "../lib/cloudinary";
 import { useServices } from "../hooks/useServices";
 import type { ServiceItem } from "../types";
 import type { NavigateFn } from "../types";
@@ -55,7 +56,13 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
       {error && <ErrorNotice message={error} />}
       {loading && <LoadingNotice label="Loading gallery…" />}
 
-      {!loading && (
+      {!loading && entries.length === 0 && (
+        <p className="text-sm text-text-muted text-center py-10">
+          No styles posted yet — check back soon.
+        </p>
+      )}
+
+      {!loading && entries.length > 0 && (
         <>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
         {entries.map((entry, i) => (
@@ -69,7 +76,7 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
                 className="h-[200px] flex items-center justify-center relative overflow-hidden"
                 style={{
                   background: entry.imageUrl
-                    ? `url(${entry.imageUrl}) center/cover no-repeat`
+                    ? `url(${optimizedCloudinaryUrl(entry.imageUrl)}) center/cover no-repeat`
                     : `linear-gradient(135deg, ${t.gold}20, ${t.gold}08)`,
                 }}
               >

@@ -16,6 +16,7 @@ import { GalleryPage } from "./pages/GalleryPage";
 import { BookingPage } from "./pages/BookingPage";
 import { TrackBookingPage } from "./pages/TrackBookingPage";
 import { LeaveReviewPage } from "./pages/LeaveReviewPage";
+import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminPanel } from "./pages/AdminPanel";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { WhatsAppButton } from "./components/ui/WhatsAppButton";
@@ -121,6 +122,7 @@ export default function App() {
             />
           )}
           {page === "review" && <LeaveReviewPage />}
+          {page === "not-found" && <NotFoundPage navigate={navigate} />}
         </>
       )}
 

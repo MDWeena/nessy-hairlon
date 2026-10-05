@@ -75,11 +75,17 @@ export function StepServices({
         </div>
 
         {!uploadMode ? (
+          allServices.length === 0 ? (
+            <p className="text-sm text-text-muted text-center py-8 mb-8">
+              No services available right now — try uploading a style photo instead.
+            </p>
+          ) : (
           <div className="grid gap-2 mb-8">
             {allServices.map(s => (
               <ServiceCard key={s.name} service={s} selected={selectedServices.includes(s.name)} onToggle={() => onToggleService(s.name)} />
             ))}
           </div>
+          )
         ) : (
           <div className="mb-8">
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
