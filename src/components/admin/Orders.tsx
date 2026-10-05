@@ -9,7 +9,7 @@ import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -31,6 +31,7 @@ interface StoredOrdersFilters {
   search: string;
   from: string | null;
   to: string | null;
+  filtersOpen: boolean;
 }
 
 const QUICK_SELECTS: { label: string; range: () => DateRange }[] = [
@@ -54,6 +55,20 @@ function loadStoredFilters(): StoredOrdersFilters | null {
   } catch {
     return null;
   }
+}
+
+function formatShortDate(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** Summary shown next to the collapsed Filters toggle, e.g. "Oct 1 – Dec 31 · 'Sarah'". */
+function buildFilterSummary(fromDate: string | null, toDate: string | null, search: string): string | null {
+  const parts: string[] = [];
+  if (fromDate && toDate) parts.push(`${formatShortDate(fromDate)} – ${formatShortDate(toDate)}`);
+  else if (fromDate) parts.push(`From ${formatShortDate(fromDate)}`);
+  else if (toDate) parts.push(`Until ${formatShortDate(toDate)}`);
+  if (search.trim()) parts.push(`'${search.trim()}'`);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 const ITEM_INPUT = "py-1.5 px-2 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
@@ -130,6 +145,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // No date filter active by default — shows all-time, not scoped to the current month.
   const [fromDate, setFromDate] = useState<string | null>(storedFilters?.from ?? null);
   const [toDate, setToDate] = useState<string | null>(storedFilters?.to ?? null);
+  // Hidden by default; remembered across navigating away and back within the same session
+  // (sessionStorage, same mechanism as the filter values below) — not required to survive an
+  // actual page refresh, but doing so anyway via the same key is harmless.
+  const [filtersOpen, setFiltersOpen] = useState(storedFilters?.filtersOpen ?? false);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState(0);
   const [hairCostValue, setHairCostValue] = useState(0);
@@ -151,9 +170,9 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // Persist filters across a page refresh (sessionStorage — this view isn't part of the
   // pathname-based page router, so there's no URL to put them in).
   useEffect(() => {
-    const payload: StoredOrdersFilters = { filter, search: searchInput, from: fromDate, to: toDate };
+    const payload: StoredOrdersFilters = { filter, search: searchInput, from: fromDate, to: toDate, filtersOpen };
     try { sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(payload)); } catch { /* ignore */ }
-  }, [filter, searchInput, fromDate, toDate]);
+  }, [filter, searchInput, fromDate, toDate, filtersOpen]);
 
   const clearFilters = () => {
     setFilter("all");
@@ -167,6 +186,9 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setFromDate(range.from);
     setToDate(range.to);
   };
+
+  const isFilterActive = fromDate != null || toDate != null || searchInput.trim() !== "";
+  const filterSummary = buildFilterSummary(fromDate, toDate, searchInput);
 
   // "this_week_confirmed" is a Dashboard-only drill-down (never a visible tab here, see
   // OrderFilter's own comment) — it's a small, bounded, two-status query unrelated to the
@@ -379,46 +401,68 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
         ))}
       </div>
 
-      {/* Filter bar — date range + search, AND-combined with the status tab above */}
-      <div className="flex flex-col sm:flex-row gap-2 mb-3">
-        <div className="flex gap-2 items-center flex-wrap">
-          <input
-            type="date" value={fromDate ?? ""} onChange={(e) => setFromDate(e.target.value || null)}
-            aria-label="From date" className={SELECT_CLASS}
-          />
-          <span className="text-text-muted text-xs">to</span>
-          <input
-            type="date" value={toDate ?? ""} onChange={(e) => setToDate(e.target.value || null)}
-            aria-label="To date" className={SELECT_CLASS}
-          />
-        </div>
-        <div className="relative flex-1 min-w-0">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-          <input
-            value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search name, phone, email, or reference…"
-            className="w-full py-1.5 pl-8 pr-8 rounded-md border border-border bg-bg-alt text-xs text-text outline-none box-border"
-          />
-          {searchInput && (
-            <button
-              onClick={() => setSearchInput("")} aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-text-muted flex items-center"
-            ><X size={14} /></button>
-          )}
-        </div>
+      {/* Filter toggle — date range, search, quick-selects, and Clear filters all live inside
+          the collapsible section below; hidden by default so the tabs + list are immediately
+          visible, especially on mobile where the filter bar used to push the list offscreen. */}
+      <div className="flex items-center gap-2.5 mb-3 flex-wrap">
         <button
-          onClick={clearFilters}
-          className="shrink-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer whitespace-nowrap"
-        >Clear filters</button>
+          onClick={() => setFiltersOpen(v => !v)}
+          className={`flex items-center gap-1.5 rounded-md py-1.5 px-3 text-xs font-semibold cursor-pointer border [transition:all_0.2s] ${
+            isFilterActive ? "border-gold bg-gold-bg text-gold" : "border-border bg-transparent text-text-soft"
+          }`}
+        >
+          <Filter size={13} /> Filters{isFilterActive ? " (active)" : ""}
+        </button>
+        {isFilterActive && filterSummary && (
+          <span className="text-xs text-text-muted">{filterSummary}</span>
+        )}
       </div>
 
-      <div className="flex gap-1.5 mb-6 flex-wrap">
-        {QUICK_SELECTS.map(qs => (
-          <button
-            key={qs.label} onClick={() => applyQuickSelect(qs.range())}
-            className="bg-transparent border border-border rounded-md py-1 px-2.5 text-[11px] text-text-soft cursor-pointer whitespace-nowrap hover:border-gold hover:text-gold"
-          >{qs.label}</button>
-        ))}
+      <div
+        className={`grid [transition:grid-template-rows_0.3s_ease] ${filtersOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+      >
+        <div className="overflow-hidden min-h-0">
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="date" value={fromDate ?? ""} onChange={(e) => setFromDate(e.target.value || null)}
+                aria-label="From date" className={SELECT_CLASS}
+              />
+              <span className="text-text-muted text-xs">to</span>
+              <input
+                type="date" value={toDate ?? ""} onChange={(e) => setToDate(e.target.value || null)}
+                aria-label="To date" className={SELECT_CLASS}
+              />
+            </div>
+            <div className="relative flex-1 min-w-0">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+              <input
+                value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search name, phone, email, or reference…"
+                className="w-full py-1.5 pl-8 pr-8 rounded-md border border-border bg-bg-alt text-xs text-text outline-none box-border"
+              />
+              {searchInput && (
+                <button
+                  onClick={() => setSearchInput("")} aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-text-muted flex items-center"
+                ><X size={14} /></button>
+              )}
+            </div>
+            <button
+              onClick={clearFilters}
+              className="shrink-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer whitespace-nowrap"
+            >Clear filters</button>
+          </div>
+
+          <div className="flex gap-1.5 mb-6 flex-wrap">
+            {QUICK_SELECTS.map(qs => (
+              <button
+                key={qs.label} onClick={() => applyQuickSelect(qs.range())}
+                className="bg-transparent border border-border rounded-md py-1 px-2.5 text-[11px] text-text-soft cursor-pointer whitespace-nowrap hover:border-gold hover:text-gold"
+              >{qs.label}</button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="bg-surface rounded-xl border border-border overflow-hidden">
