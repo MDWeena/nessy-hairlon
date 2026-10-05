@@ -5,9 +5,10 @@ import { useSettings } from "../../hooks/useSettings";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { shortBookingReference } from "../../lib/bookingReference";
-import { toISODateString, getWeekRange } from "../../lib/date";
+import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
+import { hourFromLabel } from "../../hooks/useAvailability";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -18,25 +19,33 @@ const FILTERS: Exclude<OrderFilter, "this_week_confirmed">[] = ["all", "pending_
 
 const FILTERS_STORAGE_KEY = "nessy_admin_orders_filters";
 const SELECT_CLASS = "py-1.5 px-2.5 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => i + 1);
-const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2];
+const PAGE_SIZE = 20;
+
+interface DateRange {
+  from: string | null;
+  to: string | null;
+}
 
 interface StoredOrdersFilters {
   filter: OrderFilter;
   search: string;
-  year: number | null;
-  month: number | null;
-  day: number | null;
+  from: string | null;
+  to: string | null;
 }
 
-/** Current-month default on first visit this session; a prior session's filters (including an
- * explicit "cleared" all-time state) win on refresh — see the sessionStorage read below. */
-function defaultDateFilter(): { year: number; month: number } {
-  const now = new Date();
-  return { year: now.getFullYear(), month: now.getMonth() + 1 };
-}
+const QUICK_SELECTS: { label: string; range: () => DateRange }[] = [
+  { label: "This Month", range: () => { const r = getMonthRange(new Date()); return { from: r.start, to: r.end }; } },
+  { label: "Last Month", range: () => {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+    const r = getMonthRange(d); return { from: r.start, to: r.end };
+  } },
+  { label: "This Year", range: () => {
+    const y = new Date().getFullYear();
+    return { from: `${y}-01-01`, to: `${y}-12-31` };
+  } },
+  { label: "Last 7 Days", range: () => ({ from: toISODateString(addDays(new Date(), -6)), to: toISODateString(new Date()) }) },
+  { label: "All Time", range: () => ({ from: null, to: null }) },
+];
 
 function loadStoredFilters(): StoredOrdersFilters | null {
   try {
@@ -120,13 +129,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [filter, setFilter] = useState<OrderFilter>(storedFilters?.filter ?? initialFilter);
   const [searchInput, setSearchInput] = useState(storedFilters?.search ?? "");
   const [debouncedSearch, setDebouncedSearch] = useState(storedFilters?.search ?? "");
-  const [yearFilter, setYearFilter] = useState<number | null>(
-    storedFilters ? storedFilters.year : defaultDateFilter().year,
-  );
-  const [monthFilter, setMonthFilter] = useState<number | null>(
-    storedFilters ? storedFilters.month : defaultDateFilter().month,
-  );
-  const [dayFilter, setDayFilter] = useState<number | null>(storedFilters?.day ?? null);
+  // No date filter active by default — shows all-time, not scoped to the current month.
+  const [fromDate, setFromDate] = useState<string | null>(storedFilters?.from ?? null);
+  const [toDate, setToDate] = useState<string | null>(storedFilters?.to ?? null);
+  const [page, setPage] = useState(1);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState(0);
   const [hairCostValue, setHairCostValue] = useState(0);
@@ -148,44 +154,57 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // Persist filters across a page refresh (sessionStorage — this view isn't part of the
   // pathname-based page router, so there's no URL to put them in).
   useEffect(() => {
-    const payload: StoredOrdersFilters = { filter, search: searchInput, year: yearFilter, month: monthFilter, day: dayFilter };
+    const payload: StoredOrdersFilters = { filter, search: searchInput, from: fromDate, to: toDate };
     try { sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(payload)); } catch { /* ignore */ }
-  }, [filter, searchInput, yearFilter, monthFilter, dayFilter]);
+  }, [filter, searchInput, fromDate, toDate]);
+
+  // Whenever the filtered set could change shape, go back to page 1 — otherwise a narrower
+  // result could leave the view stranded on a now out-of-range page.
+  useEffect(() => {
+    setPage(1);
+  }, [filter, debouncedSearch, fromDate, toDate]);
 
   const clearFilters = () => {
     setFilter("all");
     setSearchInput("");
     setDebouncedSearch("");
-    setYearFilter(null);
-    setMonthFilter(null);
-    setDayFilter(null);
+    setFromDate(null);
+    setToDate(null);
+  };
+
+  const applyQuickSelect = (range: DateRange) => {
+    setFromDate(range.from);
+    setToDate(range.to);
   };
 
   // Date + search apply across every tab (AND conditions); the status tab itself is applied
   // last, separately, so every tab's count can be computed from the same date+search-filtered
-  // set regardless of which tab is currently active.
+  // set regardless of which tab is currently active. Sorted newest-appointment-first — by date,
+  // then by time of day within the same date (hourFromLabel parses "9:00 AM"-style labels, since
+  // a plain string sort would order "10:00 AM" before "9:00 AM").
   const searchDigits = onlyDigits(debouncedSearch);
-  const dateAndSearchFiltered = bookings.filter(o => {
-    if (yearFilter != null || monthFilter != null || dayFilter != null) {
-      const d = new Date(`${o.date}T00:00:00`);
-      if (yearFilter != null && d.getFullYear() !== yearFilter) return false;
-      if (monthFilter != null && d.getMonth() + 1 !== monthFilter) return false;
-      if (dayFilter != null && d.getDate() !== dayFilter) return false;
-    }
-    const q = debouncedSearch.trim().toLowerCase();
-    if (q) {
-      const reference = shortBookingReference(o.id).toLowerCase();
-      const phoneMatches = searchDigits.length > 0 && onlyDigits(o.clientPhone).includes(searchDigits);
-      const matches =
-        o.client.toLowerCase().includes(q) ||
-        phoneMatches ||
-        (o.clientEmail?.toLowerCase().includes(q) ?? false) ||
-        reference.includes(q) ||
-        o.id.toLowerCase().includes(q);
-      if (!matches) return false;
-    }
-    return true;
-  });
+  const dateAndSearchFiltered = bookings
+    .filter(o => {
+      if (fromDate != null && o.date < fromDate) return false;
+      if (toDate != null && o.date > toDate) return false;
+      const q = debouncedSearch.trim().toLowerCase();
+      if (q) {
+        const reference = shortBookingReference(o.id).toLowerCase();
+        const phoneMatches = searchDigits.length > 0 && onlyDigits(o.clientPhone).includes(searchDigits);
+        const matches =
+          o.client.toLowerCase().includes(q) ||
+          phoneMatches ||
+          (o.clientEmail?.toLowerCase().includes(q) ?? false) ||
+          reference.includes(q) ||
+          o.id.toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      return (hourFromLabel(b.time) ?? 0) - (hourFromLabel(a.time) ?? 0);
+    });
 
   const tabCounts: Partial<Record<OrderFilter, number>> = { all: dateAndSearchFiltered.length };
   for (const f of FILTERS) {
@@ -202,6 +221,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           );
         })()
       : dateAndSearchFiltered.filter(o => o.status === filter);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // Scroll to and briefly highlight a deep-linked booking
   useEffect(() => {
@@ -353,30 +376,18 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
         ))}
       </div>
 
-      {/* Filter bar — date (year/month/day) + search, AND-combined with the status tab above */}
-      <div className="flex flex-col sm:flex-row gap-2 mb-6">
-        <div className="flex gap-2 flex-wrap">
-          <select
-            value={yearFilter ?? ""} onChange={(e) => setYearFilter(e.target.value ? Number(e.target.value) : null)}
-            className={SELECT_CLASS}
-          >
-            <option value="">Any Year</option>
-            {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <select
-            value={monthFilter ?? ""} onChange={(e) => setMonthFilter(e.target.value ? Number(e.target.value) : null)}
-            className={SELECT_CLASS}
-          >
-            <option value="">Any Month</option>
-            {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
-          </select>
-          <select
-            value={dayFilter ?? ""} onChange={(e) => setDayFilter(e.target.value ? Number(e.target.value) : null)}
-            className={SELECT_CLASS}
-          >
-            <option value="">Any Day</option>
-            {DAY_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+      {/* Filter bar — date range + search, AND-combined with the status tab above */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
+        <div className="flex gap-2 items-center flex-wrap">
+          <input
+            type="date" value={fromDate ?? ""} onChange={(e) => setFromDate(e.target.value || null)}
+            aria-label="From date" className={SELECT_CLASS}
+          />
+          <span className="text-text-muted text-xs">to</span>
+          <input
+            type="date" value={toDate ?? ""} onChange={(e) => setToDate(e.target.value || null)}
+            aria-label="To date" className={SELECT_CLASS}
+          />
         </div>
         <div className="relative flex-1 min-w-0">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
@@ -398,11 +409,20 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
         >Clear filters</button>
       </div>
 
+      <div className="flex gap-1.5 mb-6 flex-wrap">
+        {QUICK_SELECTS.map(qs => (
+          <button
+            key={qs.label} onClick={() => applyQuickSelect(qs.range())}
+            className="bg-transparent border border-border rounded-md py-1 px-2.5 text-[11px] text-text-soft cursor-pointer whitespace-nowrap hover:border-gold hover:text-gold"
+          >{qs.label}</button>
+        ))}
+      </div>
+
       <div className="bg-surface rounded-xl border border-border overflow-hidden">
         {filtered.length === 0 && (
           <p className="text-sm text-text-muted text-center py-10">No bookings match this filter.</p>
         )}
-        {filtered.map((o, i) => {
+        {paginated.map((o, i) => {
           const isHighlighted = o.id === highlightBookingId;
           const showBalanceSection = o.status === "confirmed" || o.status === "completed";
           const balanceDue = showBalanceSection
@@ -419,7 +439,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           return (
           <div
             key={o.id} ref={isHighlighted ? highlightRef : undefined}
-            className={`py-4 px-5 [transition:background_0.8s] ${i < filtered.length - 1 ? "border-b border-border" : "border-b-0"} ${
+            className={`py-4 px-5 [transition:background_0.8s] ${i < paginated.length - 1 ? "border-b border-border" : "border-b-0"} ${
               isHighlighted && !highlightFading ? "bg-[#C49A6C18]" : "bg-transparent"
             }`}
           >
@@ -645,6 +665,19 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           </div>
           );
         })}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center py-3.5 px-5 border-t border-border">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+              className={`bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft flex items-center gap-1 ${currentPage === 1 ? "opacity-40 cursor-default" : "cursor-pointer"}`}
+            ><ChevronLeft size={14} /> Previous</button>
+            <span className="text-xs text-text-muted">Page {currentPage} of {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+              className={`bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft flex items-center gap-1 ${currentPage === totalPages ? "opacity-40 cursor-default" : "cursor-pointer"}`}
+            >Next <ChevronRight size={14} /></button>
+          </div>
+        )}
       </div>
     </>
   );
