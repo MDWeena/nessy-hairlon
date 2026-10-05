@@ -47,6 +47,16 @@ function formatPrice(price: number): string {
   return `₦${price.toLocaleString()}`;
 }
 
+/** Defense-in-depth: client_name is free-text entered by the client at booking time. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function renderBalanceReminderEmail(booking: BookingRow, balanceDue: number, settings: PaymentSettings | null, siteUrl: string): string {
   const paymentBlock = settings
     ? `
@@ -58,7 +68,7 @@ function renderBalanceReminderEmail(booking: BookingRow, balanceDue: number, set
     : "";
   return `
     <h2>Outstanding Balance — Nessy Hairlon</h2>
-    <p>Hi ${booking.client_name}, thanks again for visiting! Your appointment on <strong>${booking.booking_date}</strong> is complete, but we haven't yet received the remaining balance.</p>
+    <p>Hi ${escapeHtml(booking.client_name)}, thanks again for visiting! Your appointment on <strong>${booking.booking_date}</strong> is complete, but we haven't yet received the remaining balance.</p>
     <p>Balance due: <strong style="color:#C49A6C">${formatPrice(balanceDue)}</strong></p>
     ${paymentBlock}
     <p style="margin-top:16px;font-size:13px;color:#666;">
@@ -161,17 +171,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Cron requests are same-origin and unauthenticated by default; if a
-  // CRON_SECRET is configured, require it so this endpoint can't be triggered
-  // (and made to spam clients) by an outsider who guesses the URL.
-  if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+  // SECURITY FIX (pre-launch audit): see api/process-reminders.ts for the same
+  // fix — this used to only enforce CRON_SECRET when one happened to be set,
+  // leaving the cron-sweep path open to anyone if it wasn't configured.
+  // CRON_SECRET MUST be set in the Vercel project's environment variables.
+  if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const cutoff = new Date();
-  cutoff.setUTCDate(cutoff.getUTCDate() - 1);
-  const cutoffDate = cutoff.toISOString().slice(0, 10);
+  // BUG FIX (pre-launch audit): this computed "yesterday" using the UTC
+  // calendar day on Vercel (server runs in UTC) and compared it against
+  // booking_date, which is a Lagos/WAT (UTC+1) calendar date — during the
+  // 23:00-24:00 UTC window (00:00-01:00 WAT, the first hour of each new WAT
+  // day), the old `cutoffDate` was a day off from "yesterday in WAT",
+  // shifting which bookings qualify by a day depending on exactly when the
+  // cron fires. Computing cutoff from a WAT "now" (UTC+1) fixes this.
+  const nowWat = new Date(Date.now() + 60 * 60 * 1000);
+  nowWat.setUTCDate(nowWat.getUTCDate() - 1);
+  const cutoffDate = nowWat.toISOString().slice(0, 10);
 
   const { data: dueBookings, error } = await adminClient
     .from("bookings")
@@ -183,7 +201,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .lte("booking_date", cutoffDate);
 
   if (error) {
-    res.status(500).json({ error: error.message });
+    // SECURITY FIX (pre-launch audit): was leaking raw Postgres/PostgREST error text
+    // to the HTTP caller. Logged server-side instead; caller gets a generic message.
+    console.error("process-balance-reminders: failed to fetch due bookings", error);
+    res.status(500).json({ error: "Failed to process balance reminders" });
     return;
   }
   if (!dueBookings || dueBookings.length === 0) {

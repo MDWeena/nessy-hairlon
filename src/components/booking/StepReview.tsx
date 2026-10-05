@@ -4,6 +4,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { createBooking } from "../../hooks/useBookings";
 import { useSettings } from "../../hooks/useSettings";
 import { shortBookingReference } from "../../lib/bookingReference";
+import { isValidEmail, isValidNigerianPhone } from "../../lib/validation";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import type { AttachmentPreference, BookingDay, NavigateFn, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
@@ -50,6 +51,16 @@ export function StepReview({
     setSubmitError(null);
     if (!clientName.trim() || !clientPhone.trim()) {
       setSubmitError("Please enter your name and phone number");
+      return;
+    }
+    // VALIDATION FIX (pre-launch audit): phone/email were accepted as unvalidated free
+    // text — Nessy needs a working number to reach clients about their booking.
+    if (!isValidNigerianPhone(clientPhone.trim())) {
+      setSubmitError("Please enter a valid Nigerian phone number (e.g. 0816 127 1343)");
+      return;
+    }
+    if (clientEmail.trim() && !isValidEmail(clientEmail.trim())) {
+      setSubmitError("Please enter a valid email address, or leave it blank");
       return;
     }
     setSubmitting(true);

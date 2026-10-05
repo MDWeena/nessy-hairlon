@@ -43,10 +43,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // Vercel Cron requests are same-origin and unauthenticated by default; if a
-  // CRON_SECRET is configured, require it so this endpoint can't be triggered
-  // (and made to spam clients) by an outsider who guesses the URL.
-  if (process.env.CRON_SECRET && req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+  // SECURITY FIX (pre-launch audit): this used to only check CRON_SECRET when
+  // one happened to be set (`if (process.env.CRON_SECRET && ...)`), so an
+  // unset CRON_SECRET left the endpoint fully open to any anonymous caller,
+  // who could trigger real reminder emails to real clients at will. Vercel
+  // sets this header automatically on its own Cron invocations whenever
+  // CRON_SECRET is configured as a project env var — this now fails closed:
+  // CRON_SECRET MUST be set in the Vercel project's environment variables for
+  // this endpoint (including the real cron schedule) to work at all.
+  if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
@@ -65,7 +70,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .is("sent_at", null);
 
   if (error) {
-    res.status(500).json({ error: error.message });
+    // SECURITY FIX (pre-launch audit): was res.status(500).json({ error: error.message })
+    // — leaked raw Postgres/PostgREST error text to the HTTP caller. Logged server-side
+    // instead; caller gets a generic message.
+    console.error("process-reminders: failed to fetch due reminders", error);
+    res.status(500).json({ error: "Failed to process reminders" });
     return;
   }
   if (!dueReminders || dueReminders.length === 0) {

@@ -2,14 +2,14 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import { statusColors } from "../src/constants/statusColors.js";
-import type { BookingStatus } from "../src/types/database.js";
+import type { BookingStatus, Database } from "../src/types/database.js";
 import { calculateDepositAmount, sumMaterials as sumMaterialsShared } from "../src/lib/payments.js";
 
 function getAdminClient() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) return null;
-  return createClient(supabaseUrl, serviceRoleKey);
+  return createClient<Database>(supabaseUrl, serviceRoleKey);
 }
 
 /**
@@ -26,13 +26,38 @@ async function getAuthenticatedUserId(authHeader: string | undefined): Promise<s
   return data.user.id;
 }
 
-/** "new_booking" notifications come from anon clients (no session) — instead, confirm the referenced booking is real. */
-async function bookingExists(bookingId: string): Promise<boolean> {
+/**
+ * SECURITY FIX (pre-launch audit): notification types triggered by anon clients
+ * (new_booking, client_reschedule, client_cancellation, deposit_claimed) used to
+ * trust `payload.booking` wholesale — since the request body is entirely
+ * attacker-controlled, anyone who knew (or created, trivially, since booking is
+ * public) a real booking id could send a request with a fabricated client_name,
+ * phone, dates, status, or price, which went straight into an HTML email to the
+ * admin unescaped. This re-fetches the booking by id from the database instead,
+ * so only the id from the request is ever trusted — every other field used to
+ * render the email comes from our own data, not the request body.
+ */
+async function fetchBookingById(bookingId: string): Promise<BookingNotificationData | null> {
   const adminClient = getAdminClient();
-  if (!adminClient) return false;
+  if (!adminClient) return null;
 
-  const { data } = await adminClient.from("bookings").select("id").eq("id", bookingId).maybeSingle();
-  return !!data;
+  const { data } = await adminClient.from("bookings").select("*").eq("id", bookingId).maybeSingle();
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    client_name: data.client_name,
+    client_email: data.client_email,
+    client_phone: data.client_phone,
+    booking_date: data.booking_date,
+    booking_time: data.booking_time,
+    status: data.status,
+    quoted_price: data.quoted_price,
+    attachment_preference: data.attachment_preference,
+    attachment_items: (data.attachment_items ?? []) as unknown as MaterialItemData[],
+    accessory_items: (data.accessory_items ?? []) as unknown as MaterialItemData[],
+    hair_service_cost: data.hair_service_cost,
+  };
 }
 
 interface PaymentSettings {
@@ -83,6 +108,12 @@ interface BookingNotificationData {
 type NotificationPayload =
   | { type: "new_booking"; booking: BookingNotificationData }
   | { type: "status_change"; booking: BookingNotificationData; previousStatus: BookingStatus }
+  // previousDate/previousTime are necessarily client-reported: by the time this notification
+  // fires, the reschedule RPC has already overwritten the booking's date/time in the database,
+  // so there is no server-side record of what it was before to re-fetch. Low-severity residual
+  // trust (see fetchBookingById above) — a spoofed value here can only misrepresent what the
+  // admin's notification email *says* happened, not the booking row itself (name/phone/current
+  // date/time/status/price in this email are all re-fetched, not client-supplied).
   | { type: "client_reschedule"; booking: BookingNotificationData; previousDate: string; previousTime: string }
   | { type: "client_cancellation"; booking: BookingNotificationData }
   | { type: "deposit_claimed"; booking: BookingNotificationData }
@@ -90,6 +121,18 @@ type NotificationPayload =
 
 function sumMaterials(items: MaterialItemData[]): number {
   return sumMaterialsShared(items.map(i => ({ quantity: i.quantity, unitCost: i.unit_cost })));
+}
+
+/** Defense-in-depth: escapes free-text fields (client names, item descriptions) before they're
+ * interpolated into HTML emails — these are still arbitrary user-entered text even though the
+ * booking row itself is now trusted/re-fetched rather than taken from the request body. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatPrice(price: number | null): string {
@@ -115,8 +158,8 @@ function renderAdminCta(siteUrl: string, bookingId: string, label: string = "Rev
 function renderNewBookingEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
     <h2>New booking request</h2>
-    <p><strong>${booking.client_name}</strong> requested an appointment on <strong>${booking.booking_date}</strong> at <strong>${booking.booking_time}</strong>.</p>
-    <p>Phone: ${booking.client_phone}</p>
+    <p><strong>${escapeHtml(booking.client_name)}</strong> requested an appointment on <strong>${booking.booking_date}</strong> at <strong>${booking.booking_time}</strong>.</p>
+    <p>Phone: ${escapeHtml(booking.client_phone)}</p>
     ${booking.client_email ? `<p>Email: ${booking.client_email}</p>` : ""}
     <p>Status: ${statusColors[booking.status].label}</p>
     ${renderAdminCta(siteUrl, booking.id, "Review & Set Price")}
@@ -137,7 +180,7 @@ function renderQuoteReadyEmail(booking: BookingNotificationData, settings: Payme
   if (isNessyBuys) {
     const itemRows = (items: MaterialItemData[], label: string) => items.length > 0
       ? `<p>${label}: <strong>${formatPrice(sumMaterials(items))}</strong><br/>
-         <span style="font-size:12px;color:#888">${items.map(i => `${i.type} × ${i.quantity} @ ₦${i.unit_cost.toLocaleString()}`).join(", ")}</span></p>`
+         <span style="font-size:12px;color:#888">${items.map(i => `${escapeHtml(i.type)} × ${i.quantity} @ ₦${i.unit_cost.toLocaleString()}`).join(", ")}</span></p>`
       : "";
 
     breakdownHtml = `
@@ -194,7 +237,7 @@ function renderCompletedEmail(booking: BookingNotificationData, siteUrl: string)
 function renderClientRescheduleEmail(booking: BookingNotificationData, previousDate: string, previousTime: string, siteUrl: string): string {
   return `
     <h2>A client rescheduled their appointment</h2>
-    <p><strong>${booking.client_name}</strong> (${booking.client_phone}) moved their appointment from
+    <p><strong>${escapeHtml(booking.client_name)}</strong> (${escapeHtml(booking.client_phone)}) moved their appointment from
       <strong>${previousDate} at ${previousTime}</strong> to <strong>${booking.booking_date} at ${booking.booking_time}</strong>.</p>
     ${renderAdminCta(siteUrl, booking.id, "View Booking")}
   `;
@@ -203,7 +246,7 @@ function renderClientRescheduleEmail(booking: BookingNotificationData, previousD
 function renderClientCancellationEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
     <h2>A client cancelled their appointment</h2>
-    <p><strong>${booking.client_name}</strong> (${booking.client_phone}) cancelled their appointment on
+    <p><strong>${escapeHtml(booking.client_name)}</strong> (${escapeHtml(booking.client_phone)}) cancelled their appointment on
       <strong>${booking.booking_date} at ${booking.booking_time}</strong>.</p>
     ${renderAdminCta(siteUrl, booking.id, "View Booking")}
   `;
@@ -212,7 +255,7 @@ function renderClientCancellationEmail(booking: BookingNotificationData, siteUrl
 function renderDepositClaimedEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
     <h2>Client says they've paid their deposit</h2>
-    <p><strong>${booking.client_name}</strong> (${booking.client_phone}) says they've paid the deposit for their
+    <p><strong>${escapeHtml(booking.client_name)}</strong> (${escapeHtml(booking.client_phone)}) says they've paid the deposit for their
       appointment on <strong>${booking.booking_date} at ${booking.booking_time}</strong>. Please verify and confirm.</p>
     ${renderAdminCta(siteUrl, booking.id, "Verify Payment")}
   `;
@@ -271,11 +314,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     payload.type === "new_booking" || payload.type === "client_reschedule" ||
     payload.type === "client_cancellation" || payload.type === "deposit_claimed"
   ) {
-    const exists = await bookingExists(payload.booking.id);
-    if (!exists) {
+    const trusted = await fetchBookingById(payload.booking.id);
+    if (!trusted) {
       res.status(404).json({ error: "Booking not found" });
       return;
     }
+    // Every field except the id (already verified against the database above)
+    // now comes from our own data, not the request body — see fetchBookingById.
+    payload.booking = trusted;
   } else {
     res.status(400).json({ error: "Unknown notification type" });
     return;
