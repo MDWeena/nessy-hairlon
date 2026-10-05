@@ -4,9 +4,10 @@ import { useBookings } from "../../hooks/useBookings";
 import { useSettings } from "../../hooks/useSettings";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
+import { shortBookingReference } from "../../lib/bookingReference";
 import { toISODateString, getWeekRange } from "../../lib/date";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -14,6 +15,41 @@ import { GoldSpinner } from "../ui/GoldSpinner";
 import { MoneyInput } from "../ui/MoneyInput";
 
 const FILTERS: Exclude<OrderFilter, "this_week_confirmed">[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
+
+const FILTERS_STORAGE_KEY = "nessy_admin_orders_filters";
+const SELECT_CLASS = "py-1.5 px-2.5 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => i + 1);
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2];
+
+interface StoredOrdersFilters {
+  filter: OrderFilter;
+  search: string;
+  year: number | null;
+  month: number | null;
+  day: number | null;
+}
+
+/** Current-month default on first visit this session; a prior session's filters (including an
+ * explicit "cleared" all-time state) win on refresh — see the sessionStorage read below. */
+function defaultDateFilter(): { year: number; month: number } {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+function loadStoredFilters(): StoredOrdersFilters | null {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as StoredOrdersFilters) : null;
+  } catch {
+    return null;
+  }
+}
+
+function onlyDigits(s: string): string {
+  return s.replace(/\D/g, "");
+}
 
 const ITEM_INPUT = "py-1.5 px-2 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
 // UX FIX (pre-launch audit): was w-6 h-6 (24x24px) — well under the ~44px touch-target
@@ -77,7 +113,20 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     bookings, loading, error, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
     markBalancePaid, sendBalanceReminder,
   } = useBookings();
-  const [filter, setFilter] = useState<OrderFilter>(initialFilter);
+  // A deep-link from Dashboard (e.g. the "Pending review" stat card) always wins over
+  // whatever filter a prior session left in sessionStorage — restoring stale filters should
+  // never fight an explicit navigation intent.
+  const storedFilters = initialFilter === "all" ? loadStoredFilters() : null;
+  const [filter, setFilter] = useState<OrderFilter>(storedFilters?.filter ?? initialFilter);
+  const [searchInput, setSearchInput] = useState(storedFilters?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(storedFilters?.search ?? "");
+  const [yearFilter, setYearFilter] = useState<number | null>(
+    storedFilters ? storedFilters.year : defaultDateFilter().year,
+  );
+  const [monthFilter, setMonthFilter] = useState<number | null>(
+    storedFilters ? storedFilters.month : defaultDateFilter().month,
+  );
+  const [dayFilter, setDayFilter] = useState<number | null>(storedFilters?.day ?? null);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState(0);
   const [hairCostValue, setHairCostValue] = useState(0);
@@ -89,8 +138,62 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [actionError, setActionError] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [highlightFading, setHighlightFading] = useState(false);
+
+  // Debounce the search box so filtering doesn't re-run on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Persist filters across a page refresh (sessionStorage — this view isn't part of the
+  // pathname-based page router, so there's no URL to put them in).
+  useEffect(() => {
+    const payload: StoredOrdersFilters = { filter, search: searchInput, year: yearFilter, month: monthFilter, day: dayFilter };
+    try { sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(payload)); } catch { /* ignore */ }
+  }, [filter, searchInput, yearFilter, monthFilter, dayFilter]);
+
+  const clearFilters = () => {
+    setFilter("all");
+    setSearchInput("");
+    setDebouncedSearch("");
+    setYearFilter(null);
+    setMonthFilter(null);
+    setDayFilter(null);
+  };
+
+  // Date + search apply across every tab (AND conditions); the status tab itself is applied
+  // last, separately, so every tab's count can be computed from the same date+search-filtered
+  // set regardless of which tab is currently active.
+  const searchDigits = onlyDigits(debouncedSearch);
+  const dateAndSearchFiltered = bookings.filter(o => {
+    if (yearFilter != null || monthFilter != null || dayFilter != null) {
+      const d = new Date(`${o.date}T00:00:00`);
+      if (yearFilter != null && d.getFullYear() !== yearFilter) return false;
+      if (monthFilter != null && d.getMonth() + 1 !== monthFilter) return false;
+      if (dayFilter != null && d.getDate() !== dayFilter) return false;
+    }
+    const q = debouncedSearch.trim().toLowerCase();
+    if (q) {
+      const reference = shortBookingReference(o.id).toLowerCase();
+      const phoneMatches = searchDigits.length > 0 && onlyDigits(o.clientPhone).includes(searchDigits);
+      const matches =
+        o.client.toLowerCase().includes(q) ||
+        phoneMatches ||
+        (o.clientEmail?.toLowerCase().includes(q) ?? false) ||
+        reference.includes(q) ||
+        o.id.toLowerCase().includes(q);
+      if (!matches) return false;
+    }
+    return true;
+  });
+
+  const tabCounts: Partial<Record<OrderFilter, number>> = { all: dateAndSearchFiltered.length };
+  for (const f of FILTERS) {
+    if (f !== "all") tabCounts[f] = dateAndSearchFiltered.filter(o => o.status === f).length;
+  }
+
   const filtered = filter === "all"
-    ? bookings
+    ? dateAndSearchFiltered
     : filter === "this_week_confirmed"
       ? (() => {
           const { start, end } = getWeekRange(new Date());
@@ -98,7 +201,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
             (o.status === "confirmed" || o.status === "completed") && o.date >= start && o.date <= end,
           );
         })()
-      : bookings.filter(o => o.status === filter);
+      : dateAndSearchFiltered.filter(o => o.status === filter);
 
   // Scroll to and briefly highlight a deep-linked booking
   useEffect(() => {
@@ -236,15 +339,63 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     <>
       {error && <ErrorNotice message={error} />}
       {actionError && <ErrorNotice message={actionError} />}
-      <div className="flex gap-1.5 mb-6 flex-wrap">
+      <div className="flex gap-1.5 mb-4 flex-wrap">
         {FILTERS.map(f => (
           <button
             key={f} onClick={() => setFilter(f)}
             className={`py-[7px] px-4 rounded-full text-xs cursor-pointer border [transition:all_0.2s] ${
               filter === f ? "border-gold bg-gold-bg text-gold font-bold" : "border-border bg-transparent text-text-soft font-medium"
             }`}
-          >{f === "all" ? "All" : statusColors[f]?.label}</button>
+          >
+            {f === "all" ? "All" : statusColors[f]?.label}
+            <span className="text-text-muted opacity-70 ml-1">({tabCounts[f] ?? 0})</span>
+          </button>
         ))}
+      </div>
+
+      {/* Filter bar — date (year/month/day) + search, AND-combined with the status tab above */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-6">
+        <div className="flex gap-2 flex-wrap">
+          <select
+            value={yearFilter ?? ""} onChange={(e) => setYearFilter(e.target.value ? Number(e.target.value) : null)}
+            className={SELECT_CLASS}
+          >
+            <option value="">Any Year</option>
+            {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <select
+            value={monthFilter ?? ""} onChange={(e) => setMonthFilter(e.target.value ? Number(e.target.value) : null)}
+            className={SELECT_CLASS}
+          >
+            <option value="">Any Month</option>
+            {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
+          </select>
+          <select
+            value={dayFilter ?? ""} onChange={(e) => setDayFilter(e.target.value ? Number(e.target.value) : null)}
+            className={SELECT_CLASS}
+          >
+            <option value="">Any Day</option>
+            {DAY_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div className="relative flex-1 min-w-0">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          <input
+            value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search name, phone, email, or reference…"
+            className="w-full py-1.5 pl-8 pr-8 rounded-md border border-border bg-bg-alt text-xs text-text outline-none box-border"
+          />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput("")} aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-text-muted flex items-center"
+            ><X size={14} /></button>
+          )}
+        </div>
+        <button
+          onClick={clearFilters}
+          className="shrink-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer whitespace-nowrap"
+        >Clear filters</button>
       </div>
 
       <div className="bg-surface rounded-xl border border-border overflow-hidden">
