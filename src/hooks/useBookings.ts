@@ -9,7 +9,7 @@ import { useSettings } from "./useSettings";
 import type { Database } from "../types/database";
 import type { AttachmentPreference, MaterialItem, Order, OrderStatus } from "../types";
 
-type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
+export type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
 
 export interface BookingStats {
   thisWeekCount: number;
@@ -144,7 +144,9 @@ function describeBookingService(row: BookingRow, nameById: Map<string, string>):
   return names.length ? names.join(", ") : "—";
 }
 
-function rowToOrder(row: BookingRow, nameById: Map<string, string>): Order {
+/** Exported for usePaginatedOrders.ts, which fetches bookings directly (server-side filtered/
+ * paginated) rather than through this hook's full-table fetch, but needs the same row shape. */
+export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Order {
   return {
     id: row.id,
     client: row.client_name,

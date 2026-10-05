@@ -1,25 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { statusColors } from "../../constants/statusColors";
-import { useBookings } from "../../hooks/useBookings";
+import { useBookings, rowToOrder } from "../../hooks/useBookings";
+import { usePaginatedOrders } from "../../hooks/usePaginatedOrders";
+import type { OrdersStatusFilter, VisibleTab } from "../../hooks/usePaginatedOrders";
 import { useSettings } from "../../hooks/useSettings";
+import { supabase } from "../../lib/supabase";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
-import { shortBookingReference } from "../../lib/bookingReference";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
-import { hourFromLabel } from "../../hooks/useAvailability";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 import { MoneyInput } from "../ui/MoneyInput";
 
-const FILTERS: Exclude<OrderFilter, "this_week_confirmed">[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
+const FILTERS: ("all" | VisibleTab)[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
 
 const FILTERS_STORAGE_KEY = "nessy_admin_orders_filters";
 const SELECT_CLASS = "py-1.5 px-2.5 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
-const PAGE_SIZE = 20;
 
 interface DateRange {
   from: string | null;
@@ -54,10 +54,6 @@ function loadStoredFilters(): StoredOrdersFilters | null {
   } catch {
     return null;
   }
-}
-
-function onlyDigits(s: string): string {
-  return s.replace(/\D/g, "");
 }
 
 const ITEM_INPUT = "py-1.5 px-2 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
@@ -118,8 +114,10 @@ interface OrdersProps {
 
 export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProps) {
   const { settings } = useSettings();
+  // bookings: only used below for submitQuote's by-id lookup of attachmentPreference — the
+  // list itself is now fetched separately (server-side, paginated) via usePaginatedOrders.
   const {
-    bookings, loading, error, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
+    bookings, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
     markBalancePaid, sendBalanceReminder,
   } = useBookings();
   // A deep-link from Dashboard (e.g. the "Pending review" stat card) always wins over
@@ -132,7 +130,6 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // No date filter active by default — shows all-time, not scoped to the current month.
   const [fromDate, setFromDate] = useState<string | null>(storedFilters?.from ?? null);
   const [toDate, setToDate] = useState<string | null>(storedFilters?.to ?? null);
-  const [page, setPage] = useState(1);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState(0);
   const [hairCostValue, setHairCostValue] = useState(0);
@@ -158,12 +155,6 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     try { sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(payload)); } catch { /* ignore */ }
   }, [filter, searchInput, fromDate, toDate]);
 
-  // Whenever the filtered set could change shape, go back to page 1 — otherwise a narrower
-  // result could leave the view stranded on a now out-of-range page.
-  useEffect(() => {
-    setPage(1);
-  }, [filter, debouncedSearch, fromDate, toDate]);
-
   const clearFilters = () => {
     setFilter("all");
     setSearchInput("");
@@ -177,54 +168,59 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setToDate(range.to);
   };
 
-  // Date + search apply across every tab (AND conditions); the status tab itself is applied
-  // last, separately, so every tab's count can be computed from the same date+search-filtered
-  // set regardless of which tab is currently active. Sorted newest-appointment-first — by date,
-  // then by time of day within the same date (hourFromLabel parses "9:00 AM"-style labels, since
-  // a plain string sort would order "10:00 AM" before "9:00 AM").
-  const searchDigits = onlyDigits(debouncedSearch);
-  const dateAndSearchFiltered = bookings
-    .filter(o => {
-      if (fromDate != null && o.date < fromDate) return false;
-      if (toDate != null && o.date > toDate) return false;
-      const q = debouncedSearch.trim().toLowerCase();
-      if (q) {
-        const reference = shortBookingReference(o.id).toLowerCase();
-        const phoneMatches = searchDigits.length > 0 && onlyDigits(o.clientPhone).includes(searchDigits);
-        const matches =
-          o.client.toLowerCase().includes(q) ||
-          phoneMatches ||
-          (o.clientEmail?.toLowerCase().includes(q) ?? false) ||
-          reference.includes(q) ||
-          o.id.toLowerCase().includes(q);
-        if (!matches) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      if (a.date !== b.date) return b.date.localeCompare(a.date);
-      return (hourFromLabel(b.time) ?? 0) - (hourFromLabel(a.time) ?? 0);
-    });
+  // "this_week_confirmed" is a Dashboard-only drill-down (never a visible tab here, see
+  // OrderFilter's own comment) — it's a small, bounded, two-status query unrelated to the
+  // tab/date/search filter bar below, so it's fetched separately rather than folded into
+  // usePaginatedOrders, which is built around a single active status + the visible filters.
+  const [weekConfirmedItems, setWeekConfirmedItems] = useState<Order[] | null>(null);
+  const fetchWeekConfirmed = useCallback(async () => {
+    const { start, end } = getWeekRange(new Date());
+    const [bookingsRes, servicesRes] = await Promise.all([
+      supabase.from("bookings").select("*")
+        .in("status", ["confirmed", "completed"])
+        .gte("booking_date", start).lte("booking_date", end)
+        .order("booking_date", { ascending: false }),
+      supabase.from("services").select("id, name"),
+    ]);
+    const nameById = new Map((servicesRes.data ?? []).map(s => [s.id, s.name]));
+    setWeekConfirmedItems((bookingsRes.data ?? []).map(r => rowToOrder(r, nameById)));
+  }, []);
+  useEffect(() => {
+    if (filter !== "this_week_confirmed") { setWeekConfirmedItems(null); return; }
+    fetchWeekConfirmed();
+  }, [filter, fetchWeekConfirmed]);
 
-  const tabCounts: Partial<Record<OrderFilter, number>> = { all: dateAndSearchFiltered.length };
-  for (const f of FILTERS) {
-    if (f !== "all") tabCounts[f] = dateAndSearchFiltered.filter(o => o.status === f).length;
-  }
+  const isWeekConfirmedMode = filter === "this_week_confirmed";
+  const {
+    items: paginatedItems, tabCounts, hasMore, loadingInitial, loadingMore, error: ordersError, loadMore, refetchLoaded,
+  } = usePaginatedOrders({
+    filter: isWeekConfirmedMode ? "all" : (filter as OrdersStatusFilter),
+    fromDate, toDate, search: debouncedSearch,
+  });
 
-  const filtered = filter === "all"
-    ? dateAndSearchFiltered
-    : filter === "this_week_confirmed"
-      ? (() => {
-          const { start, end } = getWeekRange(new Date());
-          return bookings.filter(o =>
-            (o.status === "confirmed" || o.status === "completed") && o.date >= start && o.date <= end,
-          );
-        })()
-      : dateAndSearchFiltered.filter(o => o.status === filter);
+  const items = isWeekConfirmedMode ? (weekConfirmedItems ?? []) : paginatedItems;
+  const listLoading = isWeekConfirmedMode ? weekConfirmedItems === null : loadingInitial;
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // After any action that changes a booking's status/price/payment state, refresh whichever
+  // list is currently showing — useBookings()'s own refetch (triggered by each action below)
+  // only updates its own internal full-table state, not this page's separately server-fetched
+  // list, so without this the visible row would show stale data until the next filter change.
+  const refreshList = () => { if (isWeekConfirmedMode) fetchWeekConfirmed(); else refetchLoaded(); };
+
+  // Infinite scroll — observes a sentinel after the list and loads the next batch once it's
+  // within 200px of coming into view. Not armed in week-confirmed mode (small, unpaginated).
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (isWeekConfirmedMode) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) loadMore(); },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isWeekConfirmedMode, loadMore]);
 
   // Scroll to and briefly highlight a deep-linked booking
   useEffect(() => {
@@ -232,7 +228,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     const timer = setTimeout(() => setHighlightFading(true), 2500);
     return () => clearTimeout(timer);
-  }, [highlightBookingId, loading]);
+  }, [highlightBookingId, listLoading]);
 
   const startQuote = (id: string) => {
     setActionError(null);
@@ -281,6 +277,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           accessoryItems: accessItems,
         });
         setQuotingId(null);
+        refreshList();
       } catch (err) {
         setActionError(err instanceof Error ? err.message : "Failed to set price");
       }
@@ -290,6 +287,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
       try {
         await setQuotedPrice(id, price);
         setQuotingId(null);
+        refreshList();
       } catch (err) {
         setActionError(err instanceof Error ? err.message : "Failed to set price");
       }
@@ -301,6 +299,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setBusyId(id);
     try {
       await updateBookingStatus(id, "confirmed");
+      refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to confirm booking");
     } finally {
@@ -313,6 +312,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setBusyId(id);
     try {
       await confirmDepositPayment(id);
+      refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to confirm payment");
     } finally {
@@ -325,6 +325,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setBusyId(id);
     try {
       await rejectDepositPayment(id);
+      refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to update booking");
     } finally {
@@ -337,6 +338,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setBalanceActionId(id);
     try {
       await markBalancePaid(id);
+      refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to mark balance as paid");
     } finally {
@@ -349,6 +351,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setReminderActionId(id);
     try {
       await sendBalanceReminder(id);
+      refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to send reminder");
     } finally {
@@ -356,11 +359,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     }
   };
 
-  if (loading) return <LoadingNotice label="Loading bookings…" />;
+  if (listLoading) return <LoadingNotice label="Loading bookings…" />;
 
   return (
     <>
-      {error && <ErrorNotice message={error} />}
+      {!isWeekConfirmedMode && ordersError && <ErrorNotice message={ordersError} />}
       {actionError && <ErrorNotice message={actionError} />}
       <div className="flex gap-1.5 mb-4 flex-wrap">
         {FILTERS.map(f => (
@@ -419,10 +422,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
       </div>
 
       <div className="bg-surface rounded-xl border border-border overflow-hidden">
-        {filtered.length === 0 && (
+        {!listLoading && items.length === 0 && (
           <p className="text-sm text-text-muted text-center py-10">No bookings match this filter.</p>
         )}
-        {paginated.map((o, i) => {
+        {items.map((o, i) => {
           const isHighlighted = o.id === highlightBookingId;
           const showBalanceSection = o.status === "confirmed" || o.status === "completed";
           const balanceDue = showBalanceSection
@@ -439,7 +442,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           return (
           <div
             key={o.id} ref={isHighlighted ? highlightRef : undefined}
-            className={`py-4 px-5 [transition:background_0.8s] ${i < paginated.length - 1 ? "border-b border-border" : "border-b-0"} ${
+            className={`py-4 px-5 [transition:background_0.8s] ${i < items.length - 1 ? "border-b border-border" : "border-b-0"} ${
               isHighlighted && !highlightFading ? "bg-[#C49A6C18]" : "bg-transparent"
             }`}
           >
@@ -665,17 +668,17 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           </div>
           );
         })}
-        {totalPages > 1 && (
-          <div className="flex justify-between items-center py-3.5 px-5 border-t border-border">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-              className={`bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft flex items-center gap-1 ${currentPage === 1 ? "opacity-40 cursor-default" : "cursor-pointer"}`}
-            ><ChevronLeft size={14} /> Previous</button>
-            <span className="text-xs text-text-muted">Page {currentPage} of {totalPages}</span>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-              className={`bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft flex items-center gap-1 ${currentPage === totalPages ? "opacity-40 cursor-default" : "cursor-pointer"}`}
-            >Next <ChevronRight size={14} /></button>
+        {/* Infinite scroll sentinel — loadMore() fires via IntersectionObserver when this
+            scrolls near into view. Not shown in week-confirmed mode (small, unpaginated). */}
+        {!isWeekConfirmedMode && items.length > 0 && (
+          <div ref={sentinelRef} className="flex justify-center items-center py-4 border-t border-border">
+            {loadingMore ? (
+              <div className="flex items-center gap-2 text-xs text-text-muted">
+                <GoldSpinner size={14} /> Loading more…
+              </div>
+            ) : !hasMore ? (
+              <span className="text-xs text-text-muted opacity-60">All bookings loaded</span>
+            ) : null}
           </div>
         )}
       </div>
