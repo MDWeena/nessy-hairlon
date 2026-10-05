@@ -89,7 +89,13 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
     if (blockedRes.error) { setError(blockedRes.error.message); setLoading(false); return; }
     if (bookingsRes.error) { setError(bookingsRes.error.message); setLoading(false); return; }
 
-    const noticeHours = Number(settingsRes.data?.value ?? 0) || 0;
+    // BUG FIX (pre-launch audit): settingsRes.error was never checked, so a failed fetch of
+    // this one setting silently fell back to `?? 0`, disabling the minimum-notice requirement
+    // entirely with no indication anything went wrong. Logged, and defaults to the original
+    // seed value (24h, see supabase/migrations/001_initial_schema.sql) instead of 0 — erring
+    // toward requiring more notice rather than none if this fetch fails.
+    if (settingsRes.error) console.error("useAvailability: failed to load min_booking_notice_hours", settingsRes.error);
+    const noticeHours = settingsRes.error ? 24 : (Number(settingsRes.data?.value ?? 0) || 0);
     const noticeMs = noticeHours * 60 * 60 * 1000;
 
     const scheduleMap = new Map(scheduleRes.data.map(row => [row.day_key, row]));

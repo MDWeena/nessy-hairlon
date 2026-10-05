@@ -42,5 +42,10 @@ export function calculateBalanceAmount(
   if (booking.depositConfirmedAt == null) return booking.quotedPrice;
   const deposit = calculateDepositAmount(booking, depositPercentage);
   if (deposit == null) return null;
-  return booking.quotedPrice - deposit;
+  // BUG FIX (pre-launch audit): quotedPrice and the material/hair-service costs that
+  // feed the deposit calc are entered independently by the admin with no cross-check
+  // that quotedPrice actually covers them. If it doesn't (e.g. a typo'd low quote), the
+  // deposit can exceed the quote, and without this floor, the balance shown to both the
+  // client and the admin would go negative — implying the salon owes the client money.
+  return Math.max(0, booking.quotedPrice - deposit);
 }

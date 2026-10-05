@@ -391,7 +391,15 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
     attachment_preference: input.attachmentPreference ?? null,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // 23505 = unique_violation, from the bookings_date_time_unique index (see
+    // supabase/migrations/015_prevent_double_booking.sql) — someone else booked this
+    // exact slot in the time between this client loading the calendar and submitting.
+    if (error.code === "23505") {
+      throw new Error("That time slot was just booked by someone else. Please pick another.");
+    }
+    throw new Error(error.message);
+  }
 
   await notify({
     type: "new_booking",
