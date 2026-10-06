@@ -529,6 +529,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     ))}
                   </div>
                 )}
+                {o.clientNotes && (
+                  <div className="text-[11px] text-text-soft mt-1.5 italic max-w-[320px] bg-bg-alt border border-border rounded-md py-1.5 px-2">
+                    "{o.clientNotes}"
+                  </div>
+                )}
                 {!o.clientEmail && (
                   <div className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-[#F59E0B] bg-[#F59E0B15] py-0.5 px-[7px] rounded-[10px]">
                     <MailWarning size={10} /> No email

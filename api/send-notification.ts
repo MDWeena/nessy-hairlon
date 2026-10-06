@@ -57,6 +57,7 @@ async function fetchBookingById(bookingId: string): Promise<BookingNotificationD
     attachment_items: (data.attachment_items ?? []) as unknown as MaterialItemData[],
     accessory_items: (data.accessory_items ?? []) as unknown as MaterialItemData[],
     hair_service_cost: data.hair_service_cost,
+    client_notes: data.client_notes,
   };
 }
 
@@ -103,6 +104,7 @@ interface BookingNotificationData {
   attachment_items?: MaterialItemData[];
   accessory_items?: MaterialItemData[];
   hair_service_cost?: number | null;
+  client_notes?: string | null;
 }
 
 type NotificationPayload =
@@ -162,6 +164,7 @@ function renderNewBookingEmail(booking: BookingNotificationData, siteUrl: string
     <p>Phone: ${escapeHtml(booking.client_phone)}</p>
     ${booking.client_email ? `<p>Email: ${booking.client_email}</p>` : ""}
     <p>Status: ${statusColors[booking.status].label}</p>
+    ${booking.client_notes ? `<p>Note from client: <em>${escapeHtml(booking.client_notes)}</em></p>` : ""}
     ${renderAdminCta(siteUrl, booking.id, "Review & Set Price")}
   `;
 }

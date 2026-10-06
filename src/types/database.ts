@@ -110,6 +110,7 @@ export interface Database {
           balance_paid_at: string | null;
           balance_reminder_sent_at: string | null;
           style_reference_urls: string[];
+          client_notes: string | null;
         };
         Insert: {
           id?: string;
@@ -135,6 +136,7 @@ export interface Database {
           balance_paid_at?: string | null;
           balance_reminder_sent_at?: string | null;
           style_reference_urls?: string[];
+          client_notes?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];

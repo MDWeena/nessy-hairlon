@@ -78,6 +78,7 @@ export interface Order {
   customStyleUrl: string | null;
   customStyleDescription: string | null;
   styleReferenceUrls: string[];
+  clientNotes: string | null;
   paymentProofUrl: string | null;
   attachmentPreference: AttachmentPreference | null;
   attachmentItems: MaterialItem[];

@@ -162,6 +162,7 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     customStyleUrl: row.custom_style_url,
     customStyleDescription: row.custom_style_description,
     styleReferenceUrls: row.style_reference_urls,
+    clientNotes: row.client_notes,
     paymentProofUrl: row.payment_proof_url,
     attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
     attachmentItems: toMaterialItems(row.attachment_items),
@@ -369,6 +370,7 @@ export interface CreateBookingInput {
   customStyleUrl?: string | null;
   customStyleDescription?: string | null;
   styleReferenceUrls?: string[];
+  clientNotes?: string | null;
   attachmentPreference?: AttachmentPreference | null;
 }
 
@@ -394,6 +396,7 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
     custom_style_url: input.customStyleUrl ?? null,
     custom_style_description: input.customStyleDescription ?? null,
     style_reference_urls: input.styleReferenceUrls ?? [],
+    client_notes: input.clientNotes ?? null,
     attachment_preference: input.attachmentPreference ?? null,
   });
 

@@ -13,6 +13,8 @@ import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 
+const MAX_NOTES_LENGTH = 500;
+
 interface StepReviewProps {
   allServices: ServiceItem[];
   selectedDay: BookingDay | null;
@@ -36,6 +38,7 @@ export function StepReview({
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [clientNotes, setClientNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
@@ -80,6 +83,7 @@ export function StepReview({
         customStyleUrl,
         customStyleDescription: customStyleDescription.trim() || (isCustom ? "Custom style photo uploaded" : null),
         styleReferenceUrls,
+        clientNotes: clientNotes.trim() || null,
         attachmentPreference,
       });
       setReference(shortBookingReference(id));
@@ -124,16 +128,24 @@ export function StepReview({
                 {isCustom ? "Custom style (quote pending)" : selectedServices.join(", ") || "—"}
               </span>
             </div>
+            {clientNotes.trim() && (
+              <div className="pt-1">
+                <span className="text-text-muted text-[13px] block mb-1">Your note to Nessy</span>
+                <p className="text-[13px] text-text-soft italic">"{clientNotes.trim()}"</p>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-2.5 text-[13px] text-text-soft mb-6">
             {clientEmail.trim() && (
-              <div className="flex items-center gap-2">
-                <Mail size={14} color={t.gold} /> You'll receive an email at <strong className="text-text">{clientEmail.trim()}</strong> when your quote is ready.
+              <div className="flex items-start gap-2">
+                <Mail size={14} color={t.gold} className="shrink-0 mt-0.5" />
+                <span>You'll receive an email at <strong className="text-text">{clientEmail.trim()}</strong> when your quote is ready.</span>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <MessageCircle size={14} color={t.gold} /> Questions? <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="text-gold font-semibold">WhatsApp Nessy directly</a>
+            <div className="flex items-start gap-2">
+              <MessageCircle size={14} color={t.gold} className="shrink-0 mt-0.5" />
+              <span>Questions? <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="text-gold font-semibold">WhatsApp Nessy directly</a></span>
             </div>
           </div>
 
@@ -245,6 +257,19 @@ export function StepReview({
               <input
                 type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="you@example.com"
                 className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-sm text-text outline-none box-border"
+              />
+            </div>
+            <div>
+              <div className="flex justify-between items-baseline mb-1.5">
+                <label className="text-xs text-text-muted font-medium">Additional notes for Nessy (optional)</label>
+                <span className="text-[11px] text-text-muted">{clientNotes.length}/{MAX_NOTES_LENGTH}</span>
+              </div>
+              <textarea
+                value={clientNotes}
+                onChange={(e) => setClientNotes(e.target.value.slice(0, MAX_NOTES_LENGTH))}
+                placeholder="E.g., I'd also like a style done after my treatment, any preferences, allergies, etc."
+                rows={3}
+                className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-sm text-text outline-none box-border [font-family:inherit] resize-y"
               />
             </div>
           </div>
