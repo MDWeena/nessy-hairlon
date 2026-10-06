@@ -1,8 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Upload, X } from "lucide-react";
+import type { ReactNode } from "react";
+import { Sparkles, Upload, X, GripVertical } from "lucide-react";
+import {
+  DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import type { DraggableAttributes } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+import { CSS } from "@dnd-kit/utilities";
 import { useServices } from "../../hooks/useServices";
 import type { ServiceInput } from "../../hooks/useServices";
 import { useTheme } from "../../context/ThemeContext";
+import type { ServiceItem } from "../../types";
 import { GoldButton } from "../ui/GoldButton";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -60,8 +72,29 @@ function ServiceImageField({ imageUrl, uploading, onChoose, onRemove }: ServiceI
   );
 }
 
+interface SortableServiceRowProps {
+  id: string;
+  children: (dragHandle: { attributes: DraggableAttributes; listeners: SyntheticListenerMap | undefined }) => ReactNode;
+}
+
+/** Wraps one row in dnd-kit's sortable machinery — the actual drag handle (a small grip icon,
+ * not the whole row) is rendered by the caller via the render-prop, so dragging only starts
+ * from that handle and the rest of the row (Edit button, etc.) stays normally clickable. */
+function SortableServiceRow({ id, children }: SortableServiceRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? "relative z-10 opacity-60" : undefined}
+    >
+      {children({ attributes, listeners })}
+    </div>
+  );
+}
+
 export function ServicesManager() {
-  const { services, loading, error, addService, updateService, deleteService, uploadServiceImage } = useServices();
+  const { services, loading, error, addService, updateService, deleteService, uploadServiceImage, reorderServices } = useServices();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addingCategory, setAddingCategory] = useState<string | null>(null);
   const [draft, setDraft] = useState<ServiceDraft>(EMPTY_DRAFT);
@@ -70,6 +103,25 @@ export function ServicesManager() {
   const [actionError, setActionError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const addFormRef = useRef<HTMLDivElement | null>(null);
+
+  // PointerSensor covers mouse/pen and most modern mobile browsers (Pointer Events), with
+  // TouchSensor as a fallback for broader touch support; a short activation distance/delay on
+  // each keeps an ordinary tap (e.g. the Edit button) from being swallowed as a drag.
+  const dragSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (category: string, items: ServiceItem[], event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex(i => i.id === active.id);
+    const newIndex = items.findIndex(i => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    reorderServices(category, reordered.map(i => i.id));
+  };
 
   // Only one category's "add" form can be open at a time, so one ref is enough — scroll it
   // into view once the DOM has actually updated (rAF, after the state change commits/paints)
@@ -196,18 +248,30 @@ export function ServicesManager() {
               ><Sparkles size={12} /> Add Service</button>
             </div>
             <div className="bg-surface rounded-xl border border-border overflow-hidden">
+              <DndContext
+                sensors={dragSensors} collisionDetection={closestCenter}
+                onDragEnd={(event) => handleDragEnd(cat.cat, cat.items, event)}
+              >
+                <SortableContext items={cat.items.map(s => s.id)} strategy={verticalListSortingStrategy}>
               {cat.items.map((s, i) => {
                 const isEditing = editingId === s.id;
                 const hasFixedPrice = !!s.price;
                 return (
+                  <SortableServiceRow key={s.id} id={s.id}>
+                    {({ attributes, listeners }) => (
                   <div
-                    key={s.id}
-                    className={`py-4 px-5 ${(i < cat.items.length - 1 || isAddingHere) ? "border-b border-border" : "border-b-0"}`}
+                    className={`py-4 px-5 bg-surface ${(i < cat.items.length - 1 || isAddingHere) ? "border-b border-border" : "border-b-0"}`}
                   >
                     <div className="flex justify-between items-center flex-wrap gap-y-2.5">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{s.name}</div>
-                        <div className="text-xs text-text-muted">{s.desc}</div>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          {...attributes} {...listeners} type="button" aria-label="Drag to reorder"
+                          className="shrink-0 touch-none cursor-grab active:cursor-grabbing text-text-muted p-1 -ml-1"
+                        ><GripVertical size={16} /></button>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{s.name}</div>
+                          <div className="text-xs text-text-muted">{s.desc}</div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <div className="text-right">
@@ -286,8 +350,12 @@ export function ServicesManager() {
                       </div>
                     )}
                   </div>
+                    )}
+                  </SortableServiceRow>
                 );
               })}
+                </SortableContext>
+              </DndContext>
 
               {isAddingHere && (
                 <div ref={addFormRef} className="py-4 px-5">

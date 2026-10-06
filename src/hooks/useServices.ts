@@ -60,6 +60,12 @@ interface UseServicesResult {
   updateService: (id: string, input: Partial<ServiceInput>) => Promise<void>;
   deleteService: (id: string) => Promise<void>;
   uploadServiceImage: (file: File) => Promise<string>;
+  /** Persists a new within-category order (drag-and-drop) — orderedIds is every service id in
+   * `category`, in its new display order. Other categories' services/order are untouched;
+   * their relative position in the underlying fetch is preserved exactly (see the rows.map
+   * below) so reordering one category's items can never reshuffle which category section
+   * appears first/second/etc. on the page. */
+  reorderServices: (category: string, orderedIds: string[]) => Promise<void>;
 }
 
 export function useServices(): UseServicesResult {
@@ -89,6 +95,9 @@ export function useServices(): UseServicesResult {
 
   const addService = useCallback(async (input: ServiceInput) => {
     await assertAuthenticated();
+    // New services land at the end of their category by default, rather than the column's
+    // sort_order default of 0 (which would otherwise put every newly-added service first).
+    const nextSortOrder = rows.filter(r => r.category === input.category).length;
     const { error: insertError } = await supabase.from("services").insert({
       category: input.category,
       name: input.name,
@@ -99,10 +108,11 @@ export function useServices(): UseServicesResult {
       price_range_max: input.priceRangeMax,
       icon_name: input.iconName,
       image_url: input.imageUrl ?? null,
+      sort_order: nextSortOrder,
     });
     if (insertError) await handleWriteError(insertError);
     await fetchServices();
-  }, [fetchServices]);
+  }, [rows, fetchServices]);
 
   const updateService = useCallback(async (id: string, input: Partial<ServiceInput>) => {
     await assertAuthenticated();
@@ -135,6 +145,38 @@ export function useServices(): UseServicesResult {
     return uploadImage(file, sessionData.session?.access_token);
   }, []);
 
+  const reorderServices = useCallback(async (category: string, orderedIds: string[]) => {
+    await assertAuthenticated();
+
+    // Optimistic local reorder — instant visual feedback instead of a flicker-back-then-
+    // settle wait on the round trip. Walks the existing rows in their original positions and,
+    // for each slot that belongs to `category`, substitutes the next item from the new order;
+    // every other category's rows (and the array positions they occupy) are left exactly as
+    // they were.
+    setRows(prev => {
+      const categoryRows = prev.filter(r => r.category === category);
+      const byId = new Map(categoryRows.map(r => [r.id, r]));
+      const reordered = orderedIds.map(id => byId.get(id)).filter((r): r is ServiceRow => !!r);
+      let i = 0;
+      return prev.map(r => {
+        if (r.category !== category) return r;
+        const next = reordered[i];
+        i += 1;
+        return next ? { ...next, sort_order: i - 1 } : r;
+      });
+    });
+
+    try {
+      await Promise.all(orderedIds.map((id, index) =>
+        supabase.from("services").update({ sort_order: index }).eq("id", id)
+      ));
+    } finally {
+      // Reconcile with the server regardless of partial failure, so the UI never drifts from
+      // the true persisted order.
+      await fetchServices();
+    }
+  }, [fetchServices]);
+
   return {
     services: groupByCategory(rows),
     loading,
@@ -144,5 +186,6 @@ export function useServices(): UseServicesResult {
     updateService,
     deleteService,
     uploadServiceImage,
+    reorderServices,
   };
 }
