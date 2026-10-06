@@ -18,3 +18,15 @@ export function isValidNigerianPhone(raw: string): boolean {
 export function isValidEmail(raw: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.trim());
 }
+
+/** Style-reference links (Pinterest/Instagram/TikTok/etc. pastes) only need to be a
+ * well-formed http(s) URL — not a specific domain allowlist, since clients may paste
+ * from platforms we haven't anticipated. */
+export function isValidHttpUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}

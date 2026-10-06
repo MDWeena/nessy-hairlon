@@ -28,6 +28,7 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
   const [uploadMode, setUploadMode] = useState(false);
   const [customStyleUrl, setCustomStyleUrl] = useState<string | null>(null);
   const [customStyleDescription, setCustomStyleDescription] = useState("");
+  const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
   const [attachmentPreference, setAttachmentPreference] = useState<AttachmentPreference | null>(null);
 
   const handleBookAgain = (serviceNames: string[]) => {
@@ -116,6 +117,9 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
               onPhotoRemoved={() => setCustomStyleUrl(null)}
               customStyleDescription={customStyleDescription}
               onDescriptionChange={setCustomStyleDescription}
+              styleReferenceUrls={styleReferenceUrls}
+              onAddStyleReferenceUrl={(url) => setStyleReferenceUrls(p => [...p, url])}
+              onRemoveStyleReferenceUrl={(url) => setStyleReferenceUrls(p => p.filter(u => u !== url))}
               attachmentPreference={attachmentPreference}
               onAttachmentPreferenceChange={setAttachmentPreference}
               onBack={() => setStep(0)}
@@ -132,6 +136,7 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
               uploadMode={uploadMode}
               customStyleUrl={customStyleUrl}
               customStyleDescription={customStyleDescription}
+              styleReferenceUrls={styleReferenceUrls}
               attachmentPreference={attachmentPreference}
               onBack={() => setStep(1)}
               navigate={navigate}

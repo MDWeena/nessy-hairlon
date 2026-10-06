@@ -109,6 +109,7 @@ export interface Database {
           hair_service_cost: number | null;
           balance_paid_at: string | null;
           balance_reminder_sent_at: string | null;
+          style_reference_urls: string[];
         };
         Insert: {
           id?: string;
@@ -133,6 +134,7 @@ export interface Database {
           hair_service_cost?: number | null;
           balance_paid_at?: string | null;
           balance_reminder_sent_at?: string | null;
+          style_reference_urls?: string[];
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];

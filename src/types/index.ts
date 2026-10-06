@@ -77,6 +77,7 @@ export interface Order {
   quotedPrice: number | null;
   customStyleUrl: string | null;
   customStyleDescription: string | null;
+  styleReferenceUrls: string[];
   paymentProofUrl: string | null;
   attachmentPreference: AttachmentPreference | null;
   attachmentItems: MaterialItem[];

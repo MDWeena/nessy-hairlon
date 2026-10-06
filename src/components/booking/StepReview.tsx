@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Eye, Calendar, Clock, Scissors, Image, ChevronLeft, ChevronRight, Check, Mail, MessageCircle, Package } from "lucide-react";
+import { Eye, Calendar, Clock, Scissors, Image, ChevronLeft, ChevronRight, Check, Mail, MessageCircle, Package, ExternalLink } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { createBooking } from "../../hooks/useBookings";
 import { useSettings } from "../../hooks/useSettings";
 import { shortBookingReference } from "../../lib/bookingReference";
 import { isValidEmail, isValidNigerianPhone } from "../../lib/validation";
+import { labelForUrl } from "../../lib/urlLabel";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import type { AttachmentPreference, BookingDay, NavigateFn, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
@@ -20,6 +21,7 @@ interface StepReviewProps {
   uploadMode: boolean;
   customStyleUrl: string | null;
   customStyleDescription: string;
+  styleReferenceUrls: string[];
   attachmentPreference: AttachmentPreference | null;
   onBack: () => void;
   navigate: NavigateFn;
@@ -27,7 +29,7 @@ interface StepReviewProps {
 
 export function StepReview({
   allServices, selectedDay, selectedTime, selectedServices, uploadMode,
-  customStyleUrl, customStyleDescription, attachmentPreference, onBack, navigate,
+  customStyleUrl, customStyleDescription, styleReferenceUrls, attachmentPreference, onBack, navigate,
 }: StepReviewProps) {
   const { t } = useTheme();
   const { settings } = useSettings();
@@ -44,7 +46,7 @@ export function StepReview({
     if (reference) window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
   }, [reference]);
 
-  const isCustom = !!customStyleUrl;
+  const isCustom = !!customStyleUrl || styleReferenceUrls.length > 0;
 
   const handleConfirm = async () => {
     if (!selectedDay || !selectedTime) return;
@@ -77,6 +79,7 @@ export function StepReview({
         serviceIds,
         customStyleUrl,
         customStyleDescription: customStyleDescription.trim() || (isCustom ? "Custom style photo uploaded" : null),
+        styleReferenceUrls,
         attachmentPreference,
       });
       setReference(shortBookingReference(id));
@@ -163,11 +166,13 @@ export function StepReview({
               <span className="text-text-muted text-sm flex items-center gap-1.5 mb-3"><Scissors size={14} /> Services</span>
               {isCustom ? (
                 <div>
-                  <div className={`flex gap-3 items-start ${customStyleDescription ? "mb-2.5" : "mb-0"}`}>
-                    <img
-                      src={customStyleUrl ?? undefined} alt="Requested style"
-                      className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
-                    />
+                  <div className={`flex gap-3 items-start ${(customStyleDescription || styleReferenceUrls.length > 0) ? "mb-2.5" : "mb-0"}`}>
+                    {customStyleUrl && (
+                      <img
+                        src={customStyleUrl} alt="Requested style"
+                        className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
+                      />
+                    )}
                     <div className="flex-1">
                       <span className="text-[11px] text-gold bg-gold-bg py-[3px] px-2.5 rounded-xl font-semibold border border-[#C49A6C30] inline-flex items-center gap-1">
                         <Image size={11} /> Custom Style (quote pending)
@@ -175,8 +180,18 @@ export function StepReview({
                       <p className="text-xs text-text-muted mt-1.5">Nessy will review and send you a price within 24 hours</p>
                     </div>
                   </div>
+                  {styleReferenceUrls.length > 0 && (
+                    <div className={`flex flex-wrap gap-1.5 ${customStyleUrl ? "pl-[68px]" : ""} ${customStyleDescription ? "mb-2.5" : "mb-0"}`}>
+                      {styleReferenceUrls.map(url => (
+                        <a
+                          key={url} href={url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-gold bg-gold-bg py-1 px-2 rounded-lg border border-[#C49A6C30]"
+                        >{labelForUrl(url)} <ExternalLink size={10} /></a>
+                      ))}
+                    </div>
+                  )}
                   {customStyleDescription && (
-                    <p className="text-[13px] text-text-soft italic pl-[68px]">"{customStyleDescription}"</p>
+                    <p className={`text-[13px] text-text-soft italic ${customStyleUrl ? "pl-[68px]" : ""}`}>"{customStyleDescription}"</p>
                   )}
                 </div>
               ) : uploadMode && selectedServices.length === 0 ? (

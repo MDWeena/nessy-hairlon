@@ -138,8 +138,9 @@ async function scheduleReminders(booking: { id: string; booking_date: string; bo
 
 function describeBookingService(row: BookingRow, nameById: Map<string, string>): string {
   const names = row.service_ids.map(id => nameById.get(id)).filter((n): n is string => Boolean(n));
-  if (row.custom_style_url) {
-    return names.length ? `${names.join(", ")} (custom)` : "Custom style (photo uploaded)";
+  const hasCustomReference = !!row.custom_style_url || row.style_reference_urls.length > 0;
+  if (hasCustomReference) {
+    return names.length ? `${names.join(", ")} (custom)` : "Custom style (reference provided)";
   }
   return names.length ? names.join(", ") : "—";
 }
@@ -160,6 +161,7 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     quotedPrice: row.quoted_price,
     customStyleUrl: row.custom_style_url,
     customStyleDescription: row.custom_style_description,
+    styleReferenceUrls: row.style_reference_urls,
     paymentProofUrl: row.payment_proof_url,
     attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
     attachmentItems: toMaterialItems(row.attachment_items),
@@ -366,6 +368,7 @@ export interface CreateBookingInput {
   serviceIds: string[];
   customStyleUrl?: string | null;
   customStyleDescription?: string | null;
+  styleReferenceUrls?: string[];
   attachmentPreference?: AttachmentPreference | null;
 }
 
@@ -390,6 +393,7 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
     service_ids: input.serviceIds,
     custom_style_url: input.customStyleUrl ?? null,
     custom_style_description: input.customStyleDescription ?? null,
+    style_reference_urls: input.styleReferenceUrls ?? [],
     attachment_preference: input.attachmentPreference ?? null,
   });
 

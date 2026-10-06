@@ -1,12 +1,15 @@
 import { useRef, useState } from "react";
-import { Scissors, Upload, ChevronLeft, X, Package } from "lucide-react";
+import { Scissors, Upload, ChevronLeft, X, Package, Link2 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { uploadToCloudinary } from "../../lib/cloudinary";
+import { isValidHttpUrl } from "../../lib/validation";
 import type { AttachmentPreference, ServiceItem } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 import { ServiceCard } from "./ServiceCard";
+
+const MAX_STYLE_REFERENCE_URLS = 5;
 
 interface StepServicesProps {
   allServices: ServiceItem[];
@@ -19,6 +22,9 @@ interface StepServicesProps {
   onPhotoRemoved: () => void;
   customStyleDescription: string;
   onDescriptionChange: (text: string) => void;
+  styleReferenceUrls: string[];
+  onAddStyleReferenceUrl: (url: string) => void;
+  onRemoveStyleReferenceUrl: (url: string) => void;
   attachmentPreference: AttachmentPreference | null;
   onAttachmentPreferenceChange: (pref: AttachmentPreference | null) => void;
   onBack: () => void;
@@ -28,12 +34,15 @@ interface StepServicesProps {
 export function StepServices({
   allServices, selectedServices, onToggleService, uploadMode, setUploadMode,
   customStyleUrl, onPhotoUploaded, onPhotoRemoved, customStyleDescription, onDescriptionChange,
+  styleReferenceUrls, onAddStyleReferenceUrl, onRemoveStyleReferenceUrl,
   attachmentPreference, onAttachmentPreferenceChange, onBack, onContinue,
 }: StepServicesProps) {
   const { t } = useTheme();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [linkInput, setLinkInput] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const triggerFilePicker = () => fileInputRef.current?.click();
 
@@ -53,7 +62,27 @@ export function StepServices({
     }
   };
 
-  const canContinue = selectedServices.length > 0 || !!customStyleUrl;
+  const handleAddLink = () => {
+    const url = linkInput.trim();
+    if (!url) return;
+    if (styleReferenceUrls.length >= MAX_STYLE_REFERENCE_URLS) {
+      setLinkError(`You can add up to ${MAX_STYLE_REFERENCE_URLS} links`);
+      return;
+    }
+    if (!isValidHttpUrl(url)) {
+      setLinkError("Please enter a valid link starting with http:// or https://");
+      return;
+    }
+    if (styleReferenceUrls.includes(url)) {
+      setLinkError("That link has already been added");
+      return;
+    }
+    setLinkError(null);
+    onAddStyleReferenceUrl(url);
+    setLinkInput("");
+  };
+
+  const canContinue = selectedServices.length > 0 || !!customStyleUrl || styleReferenceUrls.length > 0;
 
   return (
     <FadeIn>
@@ -88,6 +117,9 @@ export function StepServices({
           )
         ) : (
           <div className="mb-8">
+            <p className="font-bold text-sm mb-1">Share your style inspiration</p>
+            <p className="text-xs text-text-muted mb-4">Upload photos or paste links from Pinterest, Instagram, TikTok, etc.</p>
+
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
             {uploadError && <ErrorNotice message={uploadError} />}
@@ -133,11 +165,50 @@ export function StepServices({
                 className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border [font-family:inherit] resize-y"
               />
             </div>
+
+            <div className="mt-5">
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">
+                Add a link (optional) — {styleReferenceUrls.length}/{MAX_STYLE_REFERENCE_URLS}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  value={linkInput}
+                  onChange={(e) => { setLinkInput(e.target.value); setLinkError(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddLink(); } }}
+                  placeholder="https://pinterest.com/pin/…"
+                  disabled={styleReferenceUrls.length >= MAX_STYLE_REFERENCE_URLS}
+                  className="flex-1 py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border disabled:opacity-60"
+                />
+                <button
+                  type="button" onClick={handleAddLink}
+                  disabled={!linkInput.trim() || styleReferenceUrls.length >= MAX_STYLE_REFERENCE_URLS}
+                  className="shrink-0 bg-surface border border-gold text-text py-2.5 px-4 rounded-lg text-sm font-semibold cursor-pointer disabled:cursor-default disabled:opacity-50 flex items-center gap-1.5"
+                ><Link2 size={14} /> Add Link</button>
+              </div>
+              {linkError && <p className="text-xs text-[#EF4444] mt-1.5">{linkError}</p>}
+
+              {styleReferenceUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {styleReferenceUrls.map(url => (
+                    <span
+                      key={url}
+                      className="inline-flex items-center gap-1.5 bg-gold-bg border border-[#C49A6C30] rounded-xl py-1 px-2.5 text-xs text-text-soft max-w-full"
+                    >
+                      <span className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[200px]">{url}</span>
+                      <button
+                        type="button" onClick={() => onRemoveStyleReferenceUrl(url)} aria-label="Remove link"
+                        className="shrink-0 text-text-muted cursor-pointer bg-transparent border-none p-0 flex items-center"
+                      ><X size={12} /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* Hair Attachments & Accessories */}
-        {(selectedServices.length > 0 || !!customStyleUrl) && (
+        {(selectedServices.length > 0 || !!customStyleUrl || styleReferenceUrls.length > 0) && (
           <div className="bg-surface rounded-xl p-5 border border-border mb-5">
             <div className="flex items-center gap-2 mb-3">
               <Package size={16} color={t.gold} />

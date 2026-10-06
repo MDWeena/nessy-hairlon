@@ -8,8 +8,9 @@ import { supabase } from "../../lib/supabase";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
+import { labelForUrl } from "../../lib/urlLabel";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -516,6 +517,16 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 {o.customStyleDescription && (
                   <div className="text-[11px] text-text-soft mt-1 italic max-w-[320px] overflow-hidden text-ellipsis whitespace-nowrap">
                     "{o.customStyleDescription}"
+                  </div>
+                )}
+                {o.styleReferenceUrls.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {o.styleReferenceUrls.map(url => (
+                      <a
+                        key={url} href={url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-[3px] px-2 rounded-lg border border-[#C49A6C30] whitespace-nowrap"
+                      >{labelForUrl(url)} <ExternalLink size={9} /></a>
+                    ))}
                   </div>
                 )}
                 {!o.clientEmail && (
