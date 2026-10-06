@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { uploadImage } from "../lib/cloudinary";
@@ -72,13 +72,17 @@ export function useServices(): UseServicesResult {
   const [rows, setRows] = useState<ServiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const initialLoadDone = useRef(false);
 
   const fetchServices = useCallback(async () => {
-    setLoading(true);
+    // Only show the full-page spinner on the very first load — subsequent refetches
+    // (e.g. after drag-and-drop reorder) update rows silently so the UI doesn't flash.
+    if (!initialLoadDone.current) setLoading(true);
     setError(null);
     const { data, error: fetchError } = await supabase
       .from("services")
       .select("*")
+      .order("category", { ascending: true })
       .order("sort_order", { ascending: true });
 
     if (fetchError) {
@@ -87,6 +91,7 @@ export function useServices(): UseServicesResult {
       setRows(data ?? []);
     }
     setLoading(false);
+    initialLoadDone.current = true;
   }, []);
 
   useEffect(() => {
