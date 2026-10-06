@@ -25,7 +25,6 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [uploadMode, setUploadMode] = useState(false);
   const [customStyleUrl, setCustomStyleUrl] = useState<string | null>(null);
   const [customStyleDescription, setCustomStyleDescription] = useState("");
   const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
@@ -107,11 +106,9 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
 
           {step === 1 && (
             <StepServices
-              allServices={allServices}
+              serviceCategories={services}
               selectedServices={selectedServices}
               onToggleService={toggleService}
-              uploadMode={uploadMode}
-              setUploadMode={setUploadMode}
               customStyleUrl={customStyleUrl}
               onPhotoUploaded={setCustomStyleUrl}
               onPhotoRemoved={() => setCustomStyleUrl(null)}
@@ -133,7 +130,6 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
               selectedDay={selectedDay}
               selectedTime={selectedTime}
               selectedServices={selectedServices}
-              uploadMode={uploadMode}
               customStyleUrl={customStyleUrl}
               customStyleDescription={customStyleDescription}
               styleReferenceUrls={styleReferenceUrls}

@@ -27,7 +27,7 @@ export function ServiceCard({ service, selected, onToggle }: ServiceCardProps) {
       <div className="flex items-center justify-between w-full sm:w-auto sm:justify-end gap-2.5 sm:ml-3 shrink-0">
         <span className={`text-[13px] font-bold ${service.price ? "text-text" : "text-gold"}`}>{service.price || service.priceRange || "Quote"}</span>
         <div
-          className={`w-[22px] h-[22px] rounded-full flex items-center justify-center [transition:all_0.2s] ${
+          className={`w-[22px] h-[22px] rounded-md flex items-center justify-center [transition:all_0.2s] ${
             selected ? "border-none bg-gold" : "border-2 border-border bg-transparent"
           }`}
         >{selected && <Check size={14} color="#fff" strokeWidth={3} />}</div>

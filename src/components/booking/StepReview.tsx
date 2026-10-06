@@ -20,7 +20,6 @@ interface StepReviewProps {
   selectedDay: BookingDay | null;
   selectedTime: string | null;
   selectedServices: string[];
-  uploadMode: boolean;
   customStyleUrl: string | null;
   customStyleDescription: string;
   styleReferenceUrls: string[];
@@ -30,7 +29,7 @@ interface StepReviewProps {
 }
 
 export function StepReview({
-  allServices, selectedDay, selectedTime, selectedServices, uploadMode,
+  allServices, selectedDay, selectedTime, selectedServices,
   customStyleUrl, customStyleDescription, styleReferenceUrls, attachmentPreference, onBack, navigate,
 }: StepReviewProps) {
   const { t } = useTheme();
@@ -125,7 +124,10 @@ export function StepReview({
             <div className="flex justify-between">
               <span className="text-text-muted text-[13px] flex items-center gap-1.5"><Scissors size={13} /> Service</span>
               <span className="text-[13px] font-semibold text-right">
-                {isCustom ? "Custom style (quote pending)" : selectedServices.join(", ") || "—"}
+                {[
+                  selectedServices.length > 0 ? selectedServices.join(", ") : null,
+                  isCustom ? "Custom style (quote pending)" : null,
+                ].filter(Boolean).join(" + ") || "—"}
               </span>
             </div>
             {clientNotes.trim() && (
@@ -176,49 +178,52 @@ export function StepReview({
             </div>
             <div className="border-t border-border pt-3.5">
               <span className="text-text-muted text-sm flex items-center gap-1.5 mb-3"><Scissors size={14} /> Services</span>
-              {isCustom ? (
-                <div>
-                  <div className={`flex gap-3 items-start ${(customStyleDescription || styleReferenceUrls.length > 0) ? "mb-2.5" : "mb-0"}`}>
-                    {customStyleUrl && (
-                      <img
-                        src={customStyleUrl} alt="Requested style"
-                        className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
-                      />
-                    )}
-                    <div className="flex-1">
-                      <span className="text-[11px] text-gold bg-gold-bg py-[3px] px-2.5 rounded-xl font-semibold border border-[#C49A6C30] inline-flex items-center gap-1">
-                        <Image size={11} /> Custom Style (quote pending)
-                      </span>
-                      <p className="text-xs text-text-muted mt-1.5">Nessy will review and send you a price within 24 hours</p>
-                    </div>
-                  </div>
-                  {styleReferenceUrls.length > 0 && (
-                    <div className={`flex flex-wrap gap-1.5 ${customStyleUrl ? "pl-[68px]" : ""} ${customStyleDescription ? "mb-2.5" : "mb-0"}`}>
-                      {styleReferenceUrls.map(url => (
-                        <a
-                          key={url} href={url} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] text-gold bg-gold-bg py-1 px-2 rounded-lg border border-[#C49A6C30]"
-                        >{labelForUrl(url)} <ExternalLink size={10} /></a>
-                      ))}
+              {selectedServices.length === 0 && !isCustom ? (
+                <p className="text-sm text-text-muted">—</p>
+              ) : (
+                <>
+                  {selectedServices.map(name => {
+                    const s = allServices.find(x => x.name === name);
+                    return (
+                      <div key={name} className="flex justify-between mb-2">
+                        <span className="text-sm">{name}</span>
+                        <span className={`text-sm font-semibold ${s?.price ? "text-text" : "text-gold"}`}>{s?.price || "Pending"}</span>
+                      </div>
+                    );
+                  })}
+                  {isCustom && (
+                    <div className={selectedServices.length > 0 ? "mt-3 pt-3 border-t border-border" : ""}>
+                      <div className={`flex gap-3 items-start ${(customStyleDescription || styleReferenceUrls.length > 0) ? "mb-2.5" : "mb-0"}`}>
+                        {customStyleUrl && (
+                          <img
+                            src={customStyleUrl} alt="Requested style"
+                            className="w-14 h-14 rounded-lg object-cover border border-border shrink-0"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <span className="text-[11px] text-gold bg-gold-bg py-[3px] px-2.5 rounded-xl font-semibold border border-[#C49A6C30] inline-flex items-center gap-1">
+                            <Image size={11} /> Custom Style (quote pending)
+                          </span>
+                          <p className="text-xs text-text-muted mt-1.5">Nessy will review and send you a price within 24 hours</p>
+                        </div>
+                      </div>
+                      {styleReferenceUrls.length > 0 && (
+                        <div className={`flex flex-wrap gap-1.5 ${customStyleUrl ? "pl-[68px]" : ""} ${customStyleDescription ? "mb-2.5" : "mb-0"}`}>
+                          {styleReferenceUrls.map(url => (
+                            <a
+                              key={url} href={url} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-gold bg-gold-bg py-1 px-2 rounded-lg border border-[#C49A6C30]"
+                            >{labelForUrl(url)} <ExternalLink size={10} /></a>
+                          ))}
+                        </div>
+                      )}
+                      {customStyleDescription && (
+                        <p className={`text-[13px] text-text-soft italic ${customStyleUrl ? "pl-[68px]" : ""}`}>"{customStyleDescription}"</p>
+                      )}
                     </div>
                   )}
-                  {customStyleDescription && (
-                    <p className={`text-[13px] text-text-soft italic ${customStyleUrl ? "pl-[68px]" : ""}`}>"{customStyleDescription}"</p>
-                  )}
-                </div>
-              ) : uploadMode && selectedServices.length === 0 ? (
-                <div className="bg-gold-bg p-3 rounded-lg text-[13px] text-gold flex items-center gap-2">
-                  <Image size={16} /> Custom style photo uploaded — quote pending
-                </div>
-              ) : selectedServices.map(name => {
-                const s = allServices.find(x => x.name === name);
-                return (
-                  <div key={name} className="flex justify-between mb-2">
-                    <span className="text-sm">{name}</span>
-                    <span className={`text-sm font-semibold ${s?.price ? "text-text" : "text-gold"}`}>{s?.price || "Pending"}</span>
-                  </div>
-                );
-              })}
+                </>
+              )}
             </div>
 
             {attachmentPreference && (
