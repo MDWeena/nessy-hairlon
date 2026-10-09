@@ -20,6 +20,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { AdminPanel } from "./pages/AdminPanel";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { WhatsAppButton } from "./components/ui/WhatsAppButton";
+import { InstallPrompt } from "./components/InstallPrompt";
 
 /** Read ?booking=<id> from the current URL (for admin deep links). */
 function getDeepLinkBookingId(): string | null {
@@ -128,6 +129,7 @@ export default function App() {
 
       <Footer navigate={navigate} onManageClick={() => setIsAdmin(true)} />
       <WhatsAppButton />
+      <InstallPrompt />
 
       {showInactivityToast && <SessionToast message="You've been signed out due to inactivity" />}
     </div>
