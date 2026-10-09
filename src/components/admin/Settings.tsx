@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Settings as SettingsIcon, DollarSign, Clock, Info, CalendarRange, UserRound, Upload } from "lucide-react";
+import { Settings as SettingsIcon, DollarSign, Clock, Info, CalendarRange, UserRound, Upload, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { useSettings } from "../../hooks/useSettings";
@@ -184,6 +184,7 @@ function AboutPageSection() {
   const { settings, updateSetting, uploadAboutPhoto } = useSettings();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [draftText1, setDraftText1] = useState<string | null>(null);
   const [draftText2, setDraftText2] = useState<string | null>(null);
@@ -208,6 +209,19 @@ function AboutPageSection() {
       setActionError(err instanceof Error ? err.message : "Failed to upload photo");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setRemovingPhoto(true);
+    setActionError(null);
+    try {
+      await updateSetting("about_photo_url", "");
+      setPhotoFailed(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to remove photo");
+    } finally {
+      setRemovingPhoto(false);
     }
   };
 
@@ -249,10 +263,18 @@ function AboutPageSection() {
         )}
         <div>
           <p className="text-xs text-text-muted mb-2">Shown on the public "Meet Nessy" page.</p>
-          <button
-            onClick={() => fileInputRef.current?.click()} disabled={uploading}
-            className={`bg-gold-bg border border-[#C49A6C30] rounded-md py-1.5 px-3.5 text-xs font-semibold text-gold flex items-center gap-1.5 ${uploading ? "cursor-wait" : "cursor-pointer"}`}
-          >{uploading ? <GoldSpinner size={12} /> : <Upload size={12} />} {uploading ? "Uploading…" : photoUrl ? "Replace Photo" : "Upload Photo"}</button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()} disabled={uploading}
+              className={`bg-gold-bg border border-[#C49A6C30] rounded-md py-1.5 px-3.5 text-xs font-semibold text-gold flex items-center gap-1.5 ${uploading ? "cursor-wait" : "cursor-pointer"}`}
+            >{uploading ? <GoldSpinner size={12} /> : <Upload size={12} />} {uploading ? "Uploading…" : photoUrl ? "Replace Photo" : "Upload Photo"}</button>
+            {photoUrl && (
+              <button
+                onClick={handleRemovePhoto} disabled={removingPhoto}
+                className={`bg-transparent border border-[#EF444440] rounded-md py-1.5 px-2.5 text-xs text-[#EF4444] flex items-center gap-1 ${removingPhoto ? "cursor-wait" : "cursor-pointer"}`}
+              >{removingPhoto ? <GoldSpinner size={12} /> : <X size={12} />} Remove</button>
+            )}
+          </div>
         </div>
       </div>
 

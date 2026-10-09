@@ -53,7 +53,6 @@ export function AboutPage({ navigate }: AboutPageProps) {
               className="w-[200px] h-[200px] sm:w-[220px] sm:h-[220px] rounded-full shrink-0 object-cover border border-[#C49A6C40] mx-auto"
             />
           ) : (
-            // TODO: Replace with Nessy's photo
             <div className="w-[200px] h-[200px] sm:w-[220px] sm:h-[220px] rounded-full shrink-0 bg-[linear-gradient(135deg,#C49A6C30,#C49A6C10)] border border-[#C49A6C40] flex items-center justify-center mx-auto">
               <span className="font-cursive text-[96px] font-bold text-gold">N</span>
             </div>
