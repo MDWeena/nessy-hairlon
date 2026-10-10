@@ -1,46 +1,47 @@
-// One-off script: generates the PWA manifest icons (gold "N" on a dark circle, matching the
-// in-app placeholder used on the About page / admin Settings) as PNGs in public/icons/.
-// Run with: node scripts/generate-icons.js
-import { createCanvas, registerFont } from "canvas";
-import { mkdirSync, writeFileSync } from "node:fs";
+// One-off script: generates the PWA/home-screen icons from the site's actual logo (the same
+// image Navbar renders as LOGO_ICON, see src/assets/logos.ts — extracted to public/logo.png),
+// centered on the dark brand background. Run with: node scripts/generate-icons.js
+import { createCanvas, loadImage } from "canvas";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(__dirname, "..");
 
-registerFont(join(__dirname, "fonts", "Tangerine-Bold.ttf"), { family: "Tangerine", weight: "bold" });
-
-const GOLD = "#C49A6C";
 const DARK_BG = "#0A0A0A";
+const PADDING_FRACTION = 0.2; // ~20% padding on each side
 
-function drawIcon(size) {
+async function drawIcon(logo, size) {
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = DARK_BG;
   ctx.fillRect(0, 0, size, size);
 
-  const radius = size / 2;
-  ctx.beginPath();
-  ctx.arc(radius, radius, radius * 0.88, 0, Math.PI * 2);
-  ctx.strokeStyle = GOLD;
-  ctx.lineWidth = size * 0.02;
-  ctx.stroke();
-
-  ctx.fillStyle = GOLD;
-  ctx.font = `bold ${size * 0.62}px Tangerine`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("N", radius, radius + size * 0.05);
+  const inner = size * (1 - PADDING_FRACTION * 2);
+  const offset = (size - inner) / 2;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(logo, offset, offset, inner, inner);
 
   return canvas;
 }
 
-const outDir = join(__dirname, "..", "public", "icons");
-mkdirSync(outDir, { recursive: true });
+async function main() {
+  const logo = await loadImage(join(repoRoot, "public", "logo.png"));
 
-for (const size of [192, 512]) {
-  const canvas = drawIcon(size);
-  writeFileSync(join(outDir, `icon-${size}x${size}.png`), canvas.toBuffer("image/png"));
-  console.log(`Wrote public/icons/icon-${size}x${size}.png`);
+  const targets = [
+    { path: join(repoRoot, "public", "icons", "icon-192x192.png"), size: 192 },
+    { path: join(repoRoot, "public", "icons", "icon-512x512.png"), size: 512 },
+    { path: join(repoRoot, "public", "apple-touch-icon.png"), size: 180 },
+  ];
+
+  for (const { path, size } of targets) {
+    const canvas = await drawIcon(logo, size);
+    writeFileSync(path, canvas.toBuffer("image/png"));
+    console.log(`Wrote ${path.replace(repoRoot + "/", "")}`);
+  }
 }
+
+main();
