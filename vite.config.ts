@@ -11,7 +11,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'offline.html'],
       manifest: {
         name: 'Nessy Hairlon',
-        short_name: 'Nessy',
+        short_name: 'Nessy Hairlon',
         description: 'Book your hair styling appointment with Nessy Hairlon',
         theme_color: '#1E1914',
         background_color: '#0A0A0A',
