@@ -24,7 +24,7 @@ export function Navbar({ navigate, page, scrolled, mobileNavOpen, onToggleMobile
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-[100] px-6 flex items-center justify-between h-16 [transition:background_0.5s_ease,border-color_0.5s_ease] ${
+      className={`fixed top-0 left-0 right-0 z-[100] px-6 flex items-center justify-between h-[var(--nav-h)] [transition:background_0.5s_ease,border-color_0.5s_ease] ${
         navTransparent
           ? "bg-transparent backdrop-blur-none border-b border-transparent shadow-none"
           : "bg-nav-bg backdrop-blur-lg border-b border-border shadow-theme"

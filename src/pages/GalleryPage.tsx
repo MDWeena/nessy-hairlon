@@ -11,6 +11,7 @@ import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { LoadingNotice } from "../components/ui/LoadingNotice";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
+import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { StyleDetailModal } from "../components/ui/StyleDetailModal";
 
 interface GalleryPageProps {
@@ -30,7 +31,7 @@ function findMatchingService(styleName: string, allServices: ServiceItem[]): Ser
 
 export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
   const { t, isDark } = useTheme();
-  const { entries, loading, error } = useGallery();
+  const { entries, loading, error, refetch } = useGallery();
   const { services } = useServices();
   const [selectedEntry, setSelectedEntry] = useState<GalleryEntry | null>(null);
 
@@ -44,6 +45,8 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
   };
 
   return (
+    <>
+    <PullToRefresh onRefresh={refetch}>
     <section className="pt-12 px-6 pb-[72px] max-w-[900px] mx-auto">
       <FadeIn>
         <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">GALLERY</p>
@@ -123,6 +126,8 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
       </FadeIn>
         </>
       )}
+    </section>
+    </PullToRefresh>
 
       <StyleDetailModal
         open={!!selectedEntry}
@@ -136,6 +141,6 @@ export function GalleryPage({ navigate, onBookService }: GalleryPageProps) {
         ctaLabel="Book This Style"
         onBook={handleBook}
       />
-    </section>
+    </>
   );
 }

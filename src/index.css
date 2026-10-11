@@ -24,12 +24,28 @@
   --shadow: 0 1px 3px rgba(26,18,7,0.06);
   --hero-overlay: linear-gradient(135deg, rgba(10,10,10,0.82) 0%, rgba(42,26,14,0.7) 100%);
   --card-shadow: 0 3px 12px rgba(26,18,7,0.12), 0 1px 3px rgba(26,18,7,0.08);
+  /* Fixed navbar's total height, including the iOS notch/dynamic-island safe area when
+     installed as a standalone PWA (env() resolves to 0 everywhere else, so this is a no-op
+     in a regular browser tab) — referenced by Navbar, its scroll spacer, and MobileDrawer so
+     they can never drift out of sync with each other. */
+  --nav-h: calc(4rem + env(safe-area-inset-top, 0px));
 }
 
 body {
   margin: 0;
   padding: 0;
   font-family: 'DM Sans', system-ui, sans-serif;
+  /* Native-app feel: the page itself never rubber-bands/bounces past its own edges — the one
+     exception (pull-to-refresh on Home/Services/Gallery/Track Booking) is implemented in JS,
+     not via the browser's native overscroll, so it isn't affected by this. */
+  overscroll-behavior: none;
+}
+
+/* Removes the 300ms tap delay and the default blue/grey tap-highlight flash on every
+   interactive element, so taps feel immediate — standard PWA/native-feel baseline. */
+a, button, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {

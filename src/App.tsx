@@ -99,11 +99,11 @@ export default function App() {
       <MobileDrawer navigate={navigate} page={page} open={mobileNavOpen} />
 
       {/* Spacer — only hidden when dark mode hero bleeds behind nav */}
-      {!(isDark && page === "home") && <div className="h-16" />}
+      {!(isDark && page === "home") && <div className="h-[var(--nav-h)]" />}
 
       {/* PAGES */}
       {pageLoading ? <ClientLoader /> : (
-        <>
+        <div key={page} className="[animation:pageEnter_0.22s_ease-out]">
           {page === "home" && <HomePage navigate={navigate} />}
           {page === "services" && <ServicesPage navigate={navigate} onBookService={bookService} />}
           {page === "about" && <AboutPage navigate={navigate} />}
@@ -124,7 +124,7 @@ export default function App() {
           )}
           {page === "review" && <LeaveReviewPage />}
           {page === "not-found" && <NotFoundPage navigate={navigate} />}
-        </>
+        </div>
       )}
 
       <Footer navigate={navigate} onManageClick={() => setIsAdmin(true)} />

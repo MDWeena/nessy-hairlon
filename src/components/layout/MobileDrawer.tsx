@@ -15,7 +15,7 @@ export function MobileDrawer({ navigate, page, open }: MobileDrawerProps) {
   if (!open) return null;
 
   return (
-    <div className="mobile-drawer fixed top-16 inset-x-0 bottom-0 z-[99] bg-bg p-6 [animation:slideUp_0.3s_ease_forwards]">
+    <div className="mobile-drawer fixed top-[var(--nav-h)] inset-x-0 bottom-0 z-[99] bg-bg p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] [animation:slideUp_0.3s_ease_forwards]">
       {NAV_KEYS.map(key => (
         <button
           key={key} onClick={() => navigate(key)}

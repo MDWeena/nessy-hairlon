@@ -14,6 +14,7 @@ import { ErrorNotice } from "../components/ui/ErrorNotice";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { LoadingNotice } from "../components/ui/LoadingNotice";
 import { GoldSpinner } from "../components/ui/GoldSpinner";
+import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { StepDateTime } from "../components/booking/StepDateTime";
 
 interface TrackBookingPageProps {
@@ -198,6 +199,7 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
   };
 
   return (
+    <PullToRefresh onRefresh={() => (results ? runSearch(query) : undefined)}>
     <section className="pt-12 px-6 pb-[72px] max-w-[560px] mx-auto">
       <FadeIn>
         <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">TRACK BOOKING</p>
@@ -477,5 +479,6 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
         </div>
       )}
     </section>
+    </PullToRefresh>
   );
 }

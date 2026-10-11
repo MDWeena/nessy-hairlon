@@ -8,6 +8,7 @@ import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { LoadingNotice } from "../components/ui/LoadingNotice";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
+import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { StyleDetailModal } from "../components/ui/StyleDetailModal";
 
 interface ServicesPageProps {
@@ -17,7 +18,7 @@ interface ServicesPageProps {
 
 export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
   const { t, isDark } = useTheme();
-  const { services, loading, error } = useServices();
+  const { services, loading, error, refetch } = useServices();
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
 
@@ -32,6 +33,8 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
   };
 
   return (
+    <>
+    <PullToRefresh onRefresh={refetch}>
     <section className="pt-12 px-6 pb-[72px] max-w-[800px] mx-auto">
       <FadeIn>
         <p className="text-gold text-xs font-semibold tracking-[3px] mb-3">OUR SERVICES</p>
@@ -124,6 +127,8 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
       </FadeIn>
         </>
       )}
+    </section>
+    </PullToRefresh>
 
       <StyleDetailModal
         open={!!selectedService}
@@ -137,6 +142,6 @@ export function ServicesPage({ navigate, onBookService }: ServicesPageProps) {
         ctaLabel="Book This Service"
         onBook={handleBook}
       />
-    </section>
+    </>
   );
 }

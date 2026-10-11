@@ -13,10 +13,27 @@
 .hover-lift:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(196,154,108,0.15); }
 .cta-gold { transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; }
 .cta-gold:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(196,154,108,0.35); background: #D4AA7C !important; }
-.cta-gold:active { transform: translateY(0); }
+.cta-gold:active { transform: scale(0.97); }
 .cta-outline { transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
 .cta-outline:hover { border-color: #C49A6C !important; color: #C49A6C !important; transform: translateY(-2px); }
-.cta-outline:active { transform: translateY(0); }
+.cta-outline:active { transform: scale(0.97); }
+
+/* Native-feel press feedback — nearly every tappable element in this app is a real <button>,
+   so one broad rule covers both standalone buttons and button-based cards (e.g. ServiceCard)
+   without touching each component. Lower specificity than .cta-gold/.cta-outline above, so it
+   never fights their own (slightly different) active states. */
+button:not(:disabled) { transition: transform 0.15s ease; }
+button:not(:disabled):active, [role="button"]:active { transform: scale(0.97); }
+
+/* Expanding-circle ripple from the tap point — see GoldButton.tsx, which creates and
+   positions the actual <span> this animates. */
+@keyframes rippleExpand { from { transform: scale(0); opacity: 0.55; } to { transform: scale(1); opacity: 0; } }
+
+/* Page-switch entrance — see App.tsx, which remounts the active page in a div keyed by
+   `page` so this replays on every navigation. Kept short (see usePageTransition's own
+   600ms branded loader, which already plays beforehand) so it reads as a quick settle,
+   not a slow wipe. */
+@keyframes pageEnter { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
 
 @keyframes pulse { 0%,100% { transform: translate(-50%,-50%) scale(1); opacity:0.5; } 50% { transform: translate(-50%,-50%) scale(1.06); opacity:1; } }
 
