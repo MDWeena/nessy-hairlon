@@ -19,6 +19,8 @@ function rowToServiceItem(row: ServiceRow): ServiceItem {
     name: row.name,
     price: row.price,
     priceRange: formatPriceRange(row.price_range_min, row.price_range_max),
+    priceRangeMin: row.price_range_min,
+    priceRangeMax: row.price_range_max,
     desc: row.description,
     duration: row.duration,
     icon: resolveIcon(row.icon_name),

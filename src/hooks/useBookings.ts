@@ -163,6 +163,7 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     customStyleDescription: row.custom_style_description,
     styleReferenceUrls: row.style_reference_urls,
     clientNotes: row.client_notes,
+    customStyleCategory: row.custom_style_category,
     paymentProofUrl: row.payment_proof_url,
     attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
     attachmentItems: toMaterialItems(row.attachment_items),
@@ -172,6 +173,26 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     balancePaidAt: row.balance_paid_at,
     balanceReminderSentAt: row.balance_reminder_sent_at,
   };
+}
+
+/** Pulled out of setQuotedPrice so the shape of the DB update — in particular, that a given
+ * custom-style category actually ends up in the payload — is directly unit-testable without
+ * touching Supabase. */
+export function buildQuotedPriceUpdate(
+  price: number,
+  materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
+  customStyleCategory?: string,
+): Database["public"]["Tables"]["bookings"]["Update"] {
+  const updates: Database["public"]["Tables"]["bookings"]["Update"] = { quoted_price: price, status: "quoted", updated_at: new Date().toISOString() };
+  if (materials) {
+    updates.hair_service_cost = materials.hairServiceCost;
+    updates.attachment_items = materials.attachmentItems.map(i => ({ type: i.type, quantity: i.quantity, unit_cost: i.unitCost }));
+    updates.accessory_items = materials.accessoryItems.map(i => ({ type: i.type, quantity: i.quantity, unit_cost: i.unitCost }));
+  }
+  if (customStyleCategory) {
+    updates.custom_style_category = customStyleCategory;
+  }
+  return updates;
 }
 
 interface UseBookingsResult {
@@ -186,6 +207,7 @@ interface UseBookingsResult {
     id: string,
     price: number,
     materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
+    customStyleCategory?: string,
   ) => Promise<void>;
   confirmDepositPayment: (id: string) => Promise<void>;
   rejectDepositPayment: (id: string) => Promise<void>;
@@ -250,15 +272,11 @@ export function useBookings(): UseBookingsResult {
     id: string,
     price: number,
     materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
+    customStyleCategory?: string,
   ) => {
     await assertAuthenticated();
     const existing = rows.find(r => r.id === id);
-    const updates: Database["public"]["Tables"]["bookings"]["Update"] = { quoted_price: price, status: "quoted", updated_at: new Date().toISOString() };
-    if (materials) {
-      updates.hair_service_cost = materials.hairServiceCost;
-      updates.attachment_items = materials.attachmentItems.map(i => ({ type: i.type, quantity: i.quantity, unit_cost: i.unitCost }));
-      updates.accessory_items = materials.accessoryItems.map(i => ({ type: i.type, quantity: i.quantity, unit_cost: i.unitCost }));
-    }
+    const updates = buildQuotedPriceUpdate(price, materials, customStyleCategory);
     const { error: updateError } = await supabase.from("bookings")
       .update(updates).eq("id", id);
     if (updateError) await handleWriteError(updateError);

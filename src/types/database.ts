@@ -111,6 +111,7 @@ export interface Database {
           balance_reminder_sent_at: string | null;
           style_reference_urls: string[];
           client_notes: string | null;
+          custom_style_category: string | null;
         };
         Insert: {
           id?: string;
@@ -137,6 +138,7 @@ export interface Database {
           balance_reminder_sent_at?: string | null;
           style_reference_urls?: string[];
           client_notes?: string | null;
+          custom_style_category?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];

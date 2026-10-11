@@ -3,9 +3,11 @@ import { statusColors } from "../../constants/statusColors";
 import { useBookings, rowToOrder } from "../../hooks/useBookings";
 import { usePaginatedOrders } from "../../hooks/usePaginatedOrders";
 import type { OrdersStatusFilter, VisibleTab } from "../../hooks/usePaginatedOrders";
+import { useServices } from "../../hooks/useServices";
 import { useSettings } from "../../hooks/useSettings";
 import { supabase } from "../../lib/supabase";
 import { calculateBalanceAmount } from "../../lib/payments";
+import { minPriceForCategory, validateCustomStyleQuote } from "../../lib/servicePricing";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
 import { labelForUrl } from "../../lib/urlLabel";
@@ -18,6 +20,13 @@ import { GoldSpinner } from "../ui/GoldSpinner";
 import { MoneyInput } from "../ui/MoneyInput";
 
 const FILTERS: ("all" | VisibleTab)[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
+
+/** A custom style (photo upload or style-reference links) rather than — or alongside — a
+ * standard menu selection. Quoting one requires classifying it under a category first (see
+ * the "Select Category" dropdown in the quoting UI below). */
+function isCustomStyleOrder(o: Order): boolean {
+  return !!o.customStyleUrl || o.styleReferenceUrls.length > 0;
+}
 
 const FILTERS_STORAGE_KEY = "nessy_admin_orders_filters";
 const SELECT_CLASS = "py-1.5 px-2.5 rounded-md border border-border bg-bg-alt text-xs text-text outline-none";
@@ -136,6 +145,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     bookings, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
     markBalancePaid, sendBalanceReminder,
   } = useBookings();
+  // Used to classify custom-style (photo/link) bookings under a category when quoting, and to
+  // floor that quote at the cheapest published service in the chosen category.
+  const { services: serviceCategories } = useServices();
+  const categoryMinPrices = new Map(serviceCategories.map(c => [c.cat, minPriceForCategory(c.items)]));
   // A deep-link from Dashboard (e.g. the "Pending review" stat card) always wins over
   // whatever filter a prior session left in sessionStorage — restoring stale filters should
   // never fight an explicit navigation intent.
@@ -152,6 +165,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [filtersOpen, setFiltersOpen] = useState(storedFilters?.filtersOpen ?? false);
   const [quotingId, setQuotingId] = useState<string | null>(null);
   const [quoteValue, setQuoteValue] = useState(0);
+  const [quoteCategory, setQuoteCategory] = useState<string | null>(null);
   const [hairCostValue, setHairCostValue] = useState(0);
   const [attachItems, setAttachItems] = useState<MaterialItem[]>([]);
   const [accessItems, setAccessItems] = useState<MaterialItem[]>([]);
@@ -257,6 +271,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setActionError(null);
     setQuotingId(id);
     setQuoteValue(0);
+    setQuoteCategory(null);
     setHairCostValue(0);
     setAttachItems([]);
     setAccessItems([]);
@@ -306,9 +321,17 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
       }
     } else {
       const price = quoteValue;
-      if (!price || price <= 0) { setActionError("Enter a valid price"); return; }
+      const isCustomStyle = !!order && isCustomStyleOrder(order);
+      if (isCustomStyle) {
+        const minimumPrice = quoteCategory ? (categoryMinPrices.get(quoteCategory) ?? null) : null;
+        const validationError = validateCustomStyleQuote({ category: quoteCategory, price, minimumPrice });
+        if (validationError) { setActionError(validationError); return; }
+      } else if (!price || price <= 0) {
+        setActionError("Enter a valid price");
+        return;
+      }
       try {
-        await setQuotedPrice(id, price);
+        await setQuotedPrice(id, price, undefined, isCustomStyle ? (quoteCategory ?? undefined) : undefined);
         setQuotingId(null);
         refreshList();
       } catch (err) {
@@ -543,7 +566,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
             </div>
             <div className="flex items-center gap-3 shrink-0">
               {quotingId === o.id ? (
-                o.attachmentPreference ? (
+                o.attachmentPreference || isCustomStyleOrder(o) ? (
                   <div className="text-xs text-text-soft">Quoting below…</div>
                 ) : (
                 <>
@@ -564,7 +587,12 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 )
               ) : (
                 <>
-                  <span className="text-sm font-bold">{o.price || "—"}</span>
+                  <div className="text-right">
+                    <span className="text-sm font-bold block">{o.price || "—"}</span>
+                    {o.customStyleCategory && (
+                      <span className="text-[10px] text-text-muted">{o.customStyleCategory}</span>
+                    )}
+                  </div>
                   <StatusBadge status={o.status} />
                   <a
                     href={buildWhatsAppUrl(o.clientPhone, buildClientChatMessage(o))}
@@ -725,6 +753,56 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               </div>
             </div>
           )}
+
+          {quotingId === o.id && !o.attachmentPreference && isCustomStyleOrder(o) && (() => {
+            const minimumPrice = quoteCategory ? (categoryMinPrices.get(quoteCategory) ?? null) : null;
+            const invalidReason = validateCustomStyleQuote({ category: quoteCategory, price: quoteValue, minimumPrice });
+            return (
+              <div className="mt-3 pt-3 border-t border-border">
+                <div className="grid gap-3">
+                  <div>
+                    <label className="text-[11px] text-text-muted font-semibold mb-1 block">Select Category</label>
+                    <select
+                      value={quoteCategory ?? ""} onChange={(e) => setQuoteCategory(e.target.value || null)}
+                      className={`${SELECT_CLASS} w-full`}
+                    >
+                      <option value="">Choose a category…</option>
+                      {serviceCategories.map(c => (
+                        <option key={c.cat} value={c.cat}>{c.cat}</option>
+                      ))}
+                    </select>
+                    {quoteCategory && minimumPrice != null && (
+                      <p className="text-[11px] text-text-muted mt-1">
+                        Minimum for {quoteCategory}: ₦{minimumPrice.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-text-muted font-semibold mb-1 block">Price</label>
+                    <MoneyInput
+                      value={quoteValue} onChange={setQuoteValue}
+                      placeholder="amount"
+                      style={{ width: "100%", fontSize: 13 }}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setQuotingId(null)}
+                      className="bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer"
+                    >Cancel</button>
+                    <button
+                      onClick={() => submitQuote(o.id)} disabled={!!invalidReason}
+                      className={`border-none py-1.5 px-3.5 rounded-md text-xs font-bold ${
+                        invalidReason ? "bg-border text-text-muted cursor-default" : "bg-gold text-theme-black cursor-pointer"
+                      }`}
+                    >Save</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           </div>
           );
         })}

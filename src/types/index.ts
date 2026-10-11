@@ -29,6 +29,8 @@ export interface ServiceItem {
   name: string;
   price: string | null;
   priceRange?: string;
+  priceRangeMin: number | null;
+  priceRangeMax: number | null;
   desc: string;
   duration: string;
   icon: LucideIcon;
@@ -79,6 +81,7 @@ export interface Order {
   customStyleDescription: string | null;
   styleReferenceUrls: string[];
   clientNotes: string | null;
+  customStyleCategory: string | null;
   paymentProofUrl: string | null;
   attachmentPreference: AttachmentPreference | null;
   attachmentItems: MaterialItem[];
