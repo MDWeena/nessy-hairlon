@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
-import { Upload, ChevronLeft, ChevronDown, X, Package, Link2 } from "lucide-react";
+import { Upload, ChevronLeft, ChevronDown, X, Package, Link2, CheckCircle2 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { uploadToCloudinary } from "../../lib/cloudinary";
-import { isValidHttpUrl } from "../../lib/validation";
+import { isTrustedStyleReferenceUrl } from "../../lib/validation";
+import { UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE } from "../../constants/trustedDomains";
 import type { AttachmentPreference, ServiceCategory } from "../../types";
 import { FadeIn } from "../ui/FadeIn";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -69,8 +70,8 @@ export function StepServices({
       setLinkError(`You can add up to ${MAX_STYLE_REFERENCE_URLS} links`);
       return;
     }
-    if (!isValidHttpUrl(url)) {
-      setLinkError("Please enter a valid link starting with http:// or https://");
+    if (!isTrustedStyleReferenceUrl(url)) {
+      setLinkError(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
       return;
     }
     if (styleReferenceUrls.includes(url)) {
@@ -83,6 +84,8 @@ export function StepServices({
   };
 
   const canContinue = selectedServices.length > 0 || !!customStyleUrl || styleReferenceUrls.length > 0;
+  const trimmedLinkInput = linkInput.trim();
+  const isLinkInputValid = trimmedLinkInput !== "" && isTrustedStyleReferenceUrl(trimmedLinkInput);
 
   return (
     <FadeIn>
@@ -178,14 +181,21 @@ export function StepServices({
                     Add a link (optional) — {styleReferenceUrls.length}/{MAX_STYLE_REFERENCE_URLS}
                   </label>
                   <div className="flex gap-2">
-                    <input
-                      value={linkInput}
-                      onChange={(e) => { setLinkInput(e.target.value); setLinkError(null); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddLink(); } }}
-                      placeholder="https://pinterest.com/pin/…"
-                      disabled={styleReferenceUrls.length >= MAX_STYLE_REFERENCE_URLS}
-                      className="flex-1 py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border disabled:opacity-60"
-                    />
+                    <div className="relative flex-1">
+                      <input
+                        value={linkInput}
+                        onChange={(e) => { setLinkInput(e.target.value); setLinkError(null); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddLink(); } }}
+                        placeholder="https://pinterest.com/pin/…"
+                        disabled={styleReferenceUrls.length >= MAX_STYLE_REFERENCE_URLS}
+                        className={`w-full py-2.5 pl-3 rounded-lg border bg-bg-alt text-[13px] text-text outline-none box-border disabled:opacity-60 ${
+                          isLinkInputValid ? "border-[#22C55E] pr-9" : "border-border pr-3"
+                        }`}
+                      />
+                      {isLinkInputValid && (
+                        <CheckCircle2 size={16} color="#22C55E" className="absolute right-2.5 top-1/2 -translate-y-1/2" />
+                      )}
+                    </div>
                     <button
                       type="button" onClick={handleAddLink}
                       disabled={!linkInput.trim() || styleReferenceUrls.length >= MAX_STYLE_REFERENCE_URLS}

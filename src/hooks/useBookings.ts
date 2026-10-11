@@ -4,6 +4,8 @@ import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { getMonthRange, getWeekRange } from "../lib/date";
 import { notify } from "../lib/notify";
 import { calculateDepositAmount, calculateBalanceAmount, sumMaterials } from "../lib/payments";
+import { isTrustedStyleReferenceUrl } from "../lib/validation";
+import { UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE } from "../constants/trustedDomains";
 import { hourFromLabel } from "./useAvailability";
 import { useSettings } from "./useSettings";
 import type { Database } from "../types/database";
@@ -402,6 +404,15 @@ export interface CreateBookingInput {
  * check even though the insert itself succeeded.
  */
 export async function createBooking(input: CreateBookingInput): Promise<string> {
+  // SECURITY FIX: style reference links used to be accepted as any well-formed URL — a client
+  // could submit an arbitrary link an admin would then open while reviewing the booking. Also
+  // enforced at the database level (supabase/migrations/021_trusted_style_reference_domains.sql)
+  // since this check alone can be bypassed by calling the Supabase REST API directly.
+  const urls = input.styleReferenceUrls ?? [];
+  if (urls.some(url => !isTrustedStyleReferenceUrl(url))) {
+    throw new Error(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
+  }
+
   const id = crypto.randomUUID();
   const { error } = await supabase.from("bookings").insert({
     id,
@@ -424,6 +435,12 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
     // exact slot in the time between this client loading the calendar and submitting.
     if (error.code === "23505") {
       throw new Error("That time slot was just booked by someone else. Please pick another.");
+    }
+    // 23514 = check_violation — the style_reference_urls_trusted_domains constraint. The
+    // client-side check above should always catch this first; this only fires if that check
+    // and the DB's copy of the whitelist have drifted out of sync.
+    if (error.code === "23514") {
+      throw new Error(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
     }
     throw new Error(error.message);
   }

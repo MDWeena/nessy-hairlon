@@ -8,11 +8,12 @@ import { useSettings } from "../../hooks/useSettings";
 import { supabase } from "../../lib/supabase";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { minPriceForCategory, validateCustomStyleQuote } from "../../lib/servicePricing";
+import { styleReferenceLinkTrust } from "../../lib/validation";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
 import { labelForUrl } from "../../lib/urlLabel";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink, ShieldCheck, AlertTriangle } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -169,6 +170,10 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [hairCostValue, setHairCostValue] = useState(0);
   const [attachItems, setAttachItems] = useState<MaterialItem[]>([]);
   const [accessItems, setAccessItems] = useState<MaterialItem[]>([]);
+  // Style reference links from before the trusted-domain whitelist existed are shown with a
+  // warning instead of a direct link — this tracks which ones the admin has chosen to open
+  // anyway, so the extra click only has to happen once per link per page load.
+  const [revealedUnsafeUrls, setRevealedUnsafeUrls] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [balanceActionId, setBalanceActionId] = useState<string | null>(null);
   const [reminderActionId, setReminderActionId] = useState<string | null>(null);
@@ -544,12 +549,32 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 )}
                 {o.styleReferenceUrls.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {o.styleReferenceUrls.map(url => (
-                      <a
-                        key={url} href={url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-[3px] px-2 rounded-lg border border-[#C49A6C30] whitespace-nowrap"
-                      >{labelForUrl(url)} <ExternalLink size={9} /></a>
-                    ))}
+                    {o.styleReferenceUrls.map(url => {
+                      const trust = styleReferenceLinkTrust(url, revealedUnsafeUrls);
+                      if (trust === "trusted") {
+                        return (
+                          <a
+                            key={url} href={url} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-[3px] px-2 rounded-lg border border-[#C49A6C30] whitespace-nowrap"
+                          ><ShieldCheck size={10} color="#22C55E" /> {labelForUrl(url)} <ExternalLink size={9} /></a>
+                        );
+                      }
+                      if (trust === "unverified-revealed") {
+                        return (
+                          <a
+                            key={url} href={url} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#F59E0B] bg-[#F59E0B15] py-[3px] px-2 rounded-lg border border-[#F59E0B40] whitespace-nowrap"
+                          ><AlertTriangle size={10} /> Open anyway <ExternalLink size={9} /></a>
+                        );
+                      }
+                      return (
+                        <button
+                          key={url} type="button"
+                          onClick={() => setRevealedUnsafeUrls(prev => new Set(prev).add(url))}
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#F59E0B] bg-[#F59E0B15] py-[3px] px-2 rounded-lg border border-[#F59E0B40] whitespace-nowrap cursor-pointer"
+                        ><AlertTriangle size={10} /> Unverified link — open with caution</button>
+                      );
+                    })}
                   </div>
                 )}
                 {o.clientNotes && (
