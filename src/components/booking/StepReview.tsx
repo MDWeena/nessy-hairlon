@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eye, Calendar, Clock, Scissors, Image, ChevronLeft, ChevronRight, Check, Mail, MessageCircle, Package, ExternalLink } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { createBooking } from "../../hooks/useBookings";
@@ -14,6 +14,60 @@ import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 
 const MAX_NOTES_LENGTH = 500;
+
+interface NoEmailConfirmModalProps {
+  open: boolean;
+  onClose: () => void;
+  onKeepEmail: () => void;
+  onConfirmNoEmail: () => void;
+}
+
+function NoEmailConfirmModal({ open, onClose, onKeepEmail, onConfirmNoEmail }: NoEmailConfirmModalProps) {
+  const { isDark } = useTheme();
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      className={`fixed inset-0 z-[300] backdrop-blur-sm flex items-center justify-center p-4 box-border [animation:modalOverlayIn_0.25s_ease] ${
+        isDark ? "bg-[rgba(0,0,0,0.75)]" : "bg-[rgba(10,8,6,0.6)]"
+      }`}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface rounded-2xl p-7 w-full max-w-[380px] border border-border [animation:modalContentIn_0.3s_cubic-bezier(0.25,0.1,0.25,1)] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+      >
+        <h3 className="text-base font-bold mb-2 text-text">Are you sure you don't have an email?</h3>
+        <p className="text-[13px] text-text-soft leading-[1.6] mb-6">
+          We use your email to send booking confirmations and reminders. Without it, you'll only receive updates via WhatsApp.
+        </p>
+        <div className="grid gap-2">
+          <GoldButton
+            onClick={onKeepEmail}
+            className="bg-gold text-theme-black border-none py-2.5 px-4 rounded-md text-sm font-bold cursor-pointer"
+          >I have an email — let me add it</GoldButton>
+          <button
+            onClick={onConfirmNoEmail}
+            className="bg-transparent border border-border rounded-md py-2.5 px-4 text-sm text-text-soft cursor-pointer"
+          >Continue without email</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface StepReviewProps {
   allServices: ServiceItem[];
@@ -41,6 +95,10 @@ export function StepReview({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailOptedOut, setEmailOptedOut] = useState(false);
+  const [noEmailModalOpen, setNoEmailModalOpen] = useState(false);
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
 
   // The confirmation screen below swaps in without a step/URL change, so it needs its own
   // scroll-reset.
@@ -63,10 +121,16 @@ export function StepReview({
       setSubmitError("Please enter a valid Nigerian phone number (e.g. 0816 127 1343)");
       return;
     }
-    if (clientEmail.trim() && !isValidEmail(clientEmail.trim())) {
-      setSubmitError("Please enter a valid email address, or leave it blank");
+    const trimmedEmail = clientEmail.trim();
+    if (!trimmedEmail && !emailOptedOut) {
+      setEmailError("Email is required");
       return;
     }
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    setEmailError(null);
     setSubmitting(true);
     try {
       const serviceIds = selectedServices
@@ -258,11 +322,35 @@ export function StepReview({
               />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1.5 font-medium">Email (optional)</label>
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">Email</label>
               <input
-                type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="you@example.com"
-                className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-sm text-text outline-none box-border"
+                ref={emailInputRef}
+                type="email" value={clientEmail}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setClientEmail(next);
+                  setEmailError(null);
+                  if (emailOptedOut && next.trim()) setEmailOptedOut(false);
+                }}
+                placeholder="you@example.com"
+                className={`w-full py-2.5 px-3 rounded-lg border bg-bg-alt text-sm text-text outline-none box-border ${
+                  emailError ? "border-[#EF4444]" : "border-border"
+                }`}
               />
+              {emailError && (
+                <p className="text-xs text-[#EF4444] mt-1.5">{emailError}</p>
+              )}
+              {emailError === "Email is required" && (
+                <button
+                  type="button" onClick={() => setNoEmailModalOpen(true)}
+                  className="text-xs text-gold font-semibold bg-transparent border-none p-0 mt-1.5 cursor-pointer underline"
+                >I don't have an email address</button>
+              )}
+              {!emailError && emailOptedOut && (
+                <p className="text-xs text-text-muted mt-1.5 flex items-center gap-1">
+                  <Check size={12} color={t.gold} /> Proceeding without email
+                </p>
+              )}
             </div>
             <div>
               <div className="flex justify-between items-baseline mb-1.5">
@@ -295,6 +383,20 @@ export function StepReview({
           </GoldButton>
         </div>
       </div>
+
+      <NoEmailConfirmModal
+        open={noEmailModalOpen}
+        onClose={() => setNoEmailModalOpen(false)}
+        onKeepEmail={() => {
+          setNoEmailModalOpen(false);
+          emailInputRef.current?.focus();
+        }}
+        onConfirmNoEmail={() => {
+          setNoEmailModalOpen(false);
+          setEmailOptedOut(true);
+          setEmailError(null);
+        }}
+      />
     </FadeIn>
   );
 }
