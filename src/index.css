@@ -31,14 +31,29 @@
   --nav-h: calc(4rem + env(safe-area-inset-top, 0px));
 }
 
+html {
+  /* Native-app feel: the page itself never rubber-bands/bounces past its own edges — the one
+     exception (pull-to-refresh on Home/Services/Gallery/Track Booking) is implemented in JS,
+     not via the browser's native overscroll, so it isn't affected by this.
+     BUG FIX: this was originally on body, which broke ordinary scrolling app-wide after any
+     interaction that reflows the page (confirmed trigger: opening and closing
+     StyleDetailModal). Cause: `overflow-x: hidden` on both html and body (global.css, pre-
+     existing) forces each one's overflow-y to compute as `auto` too — the CSS Overflow Module
+     rule that an axis left at the visible default gets promoted to auto when the other axis
+     isn't visible. That makes html and body two separate, nested scroll boxes instead of one.
+     With overscroll-behavior: none on body specifically, a scroll gesture landing on the inner
+     box had nowhere to go the moment body's own box couldn't consume it — body explicitly
+     refuses to chain the leftover scroll up to html — so the page just stopped responding to
+     scroll input, with nothing in the DOM/CSS otherwise looking wrong. html has no further
+     ancestor to chain to, so stopping the bounce there is where "no bounce" was always meant to
+     apply, and body is left free to chain to html exactly as normal scroll handling expects. */
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   padding: 0;
   font-family: 'DM Sans', system-ui, sans-serif;
-  /* Native-app feel: the page itself never rubber-bands/bounces past its own edges — the one
-     exception (pull-to-refresh on Home/Services/Gallery/Track Booking) is implemented in JS,
-     not via the browser's native overscroll, so it isn't affected by this. */
-  overscroll-behavior: none;
 }
 
 /* Removes the 300ms tap delay and the default blue/grey tap-highlight flash on every
