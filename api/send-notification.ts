@@ -28,7 +28,7 @@ async function getAuthenticatedUserId(authHeader: string | undefined): Promise<s
 
 /**
  * SECURITY FIX (pre-launch audit): notification types triggered by anon clients
- * (new_booking, client_reschedule, client_cancellation, deposit_claimed) used to
+ * (new_booking, client_cancellation, deposit_claimed) used to
  * trust `payload.booking` wholesale — since the request body is entirely
  * attacker-controlled, anyone who knew (or created, trivially, since booking is
  * public) a real booking id could send a request with a fabricated client_name,
@@ -110,13 +110,8 @@ interface BookingNotificationData {
 type NotificationPayload =
   | { type: "new_booking"; booking: BookingNotificationData }
   | { type: "status_change"; booking: BookingNotificationData; previousStatus: BookingStatus }
-  // previousDate/previousTime are necessarily client-reported: by the time this notification
-  // fires, the reschedule RPC has already overwritten the booking's date/time in the database,
-  // so there is no server-side record of what it was before to re-fetch. Low-severity residual
-  // trust (see fetchBookingById above) — a spoofed value here can only misrepresent what the
-  // admin's notification email *says* happened, not the booking row itself (name/phone/current
-  // date/time/status/price in this email are all re-fetched, not client-supplied).
-  | { type: "client_reschedule"; booking: BookingNotificationData; previousDate: string; previousTime: string }
+  // Reschedule emails are sent by api/reschedule-client.ts / api/reschedule-admin.ts, with old
+  // and new times taken from the database function rather than reported by the browser.
   | { type: "client_cancellation"; booking: BookingNotificationData }
   | { type: "deposit_claimed"; booking: BookingNotificationData }
   | { type: "payment_not_verified"; booking: BookingNotificationData };
@@ -237,14 +232,6 @@ function renderCompletedEmail(booking: BookingNotificationData, siteUrl: string)
   `;
 }
 
-function renderClientRescheduleEmail(booking: BookingNotificationData, previousDate: string, previousTime: string, siteUrl: string): string {
-  return `
-    <h2>A client rescheduled their appointment</h2>
-    <p><strong>${escapeHtml(booking.client_name)}</strong> (${escapeHtml(booking.client_phone)}) moved their appointment from
-      <strong>${previousDate} at ${previousTime}</strong> to <strong>${booking.booking_date} at ${booking.booking_time}</strong>.</p>
-    ${renderAdminCta(siteUrl, booking.id, "View Booking")}
-  `;
-}
 
 function renderClientCancellationEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
@@ -314,7 +301,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
   } else if (
-    payload.type === "new_booking" || payload.type === "client_reschedule" ||
+    payload.type === "new_booking" ||
     payload.type === "client_cancellation" || payload.type === "deposit_claimed"
   ) {
     const trusted = await fetchBookingById(payload.booking.id);
@@ -379,16 +366,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             html: renderStatusChangeEmail(payload.booking, payload.previousStatus),
           });
         }
-      }
-    } else if (payload.type === "client_reschedule") {
-      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
-      if (adminEmail) {
-        await resend.emails.send({
-          from: fromAddress,
-          to: adminEmail,
-          subject: `Client rescheduled: ${payload.booking.client_name}`,
-          html: renderClientRescheduleEmail(payload.booking, payload.previousDate, payload.previousTime, siteUrl),
-        });
       }
     } else if (payload.type === "client_cancellation") {
       const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;

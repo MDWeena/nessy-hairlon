@@ -166,6 +166,9 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     styleReferenceUrls: row.style_reference_urls,
     clientNotes: row.client_notes,
     customStyleCategory: row.custom_style_category,
+    // ?? fallbacks: rows read before 022_booking_reschedules.sql is applied won't have these.
+    clientRescheduleCount: row.client_reschedule_count ?? 0,
+    lastRescheduledAt: row.last_rescheduled_at ?? null,
     paymentProofUrl: row.payment_proof_url,
     attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
     attachmentItems: toMaterialItems(row.attachment_items),

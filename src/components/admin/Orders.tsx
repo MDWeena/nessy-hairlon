@@ -9,11 +9,14 @@ import { supabase } from "../../lib/supabase";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { minPriceForCategory, validateCustomStyleQuote } from "../../lib/servicePricing";
 import { styleReferenceLinkTrust } from "../../lib/validation";
+import { RESCHEDULABLE_STATUSES, isRecentlyRescheduled } from "../../lib/reschedule";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
 import { labelForUrl } from "../../lib/urlLabel";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink, ShieldCheck, AlertTriangle, CalendarClock } from "lucide-react";
+import { AdminReschedulePanel } from "./AdminReschedulePanel";
+import { RescheduleHistory } from "./RescheduleHistory";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -144,8 +147,17 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // list itself is now fetched separately (server-side, paginated) via usePaginatedOrders.
   const {
     bookings, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
-    markBalancePaid, sendBalanceReminder,
+    markBalancePaid, sendBalanceReminder, refetch: refetchBookings,
   } = useBookings();
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  // Captured once so render stays pure; only drives the 7-day "Rescheduled" badge.
+  const [renderNow] = useState(() => Date.now());
+  const [historyOpenIds, setHistoryOpenIds] = useState<Set<string>>(new Set());
+  const toggleHistory = (id: string) => setHistoryOpenIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   // Used to classify custom-style (photo/link) bookings under a category when quoting, and to
   // floor that quote at the cheapest published service in the chosen category.
   const { services: serviceCategories } = useServices();
@@ -274,6 +286,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
 
   const startQuote = (id: string) => {
     setActionError(null);
+    setReschedulingId(null);
     setQuotingId(id);
     setQuoteValue(0);
     setQuoteCategory(null);
@@ -587,6 +600,22 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     <MailWarning size={10} /> No email
                   </div>
                 )}
+                {o.lastRescheduledAt && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {isRecentlyRescheduled(o.lastRescheduledAt, renderNow) && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-0.5 px-[7px] rounded-[10px]">
+                        <CalendarClock size={10} /> Rescheduled
+                      </span>
+                    )}
+                    <button
+                      onClick={() => toggleHistory(o.id)}
+                      className="bg-transparent border-none p-0 text-[10px] text-text-muted underline cursor-pointer"
+                    >{historyOpenIds.has(o.id) ? "Hide history" : "History"}</button>
+                  </div>
+                )}
+                {historyOpenIds.has(o.id) && reschedulingId !== o.id && (
+                  <div className="mt-1.5 max-w-[360px]"><RescheduleHistory bookingId={o.id} /></div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
@@ -630,10 +659,24 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                       className="bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer"
                     >Set Price</button>
                   )}
+                  {RESCHEDULABLE_STATUSES.includes(o.status) && reschedulingId !== o.id && (
+                    <button
+                      onClick={() => { setQuotingId(null); setReschedulingId(o.id); }}
+                      className="bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer flex items-center gap-1"
+                    ><CalendarClock size={12} /> Reschedule</button>
+                  )}
                 </>
               )}
             </div>
           </div>
+
+          {reschedulingId === o.id && (
+            <AdminReschedulePanel
+              order={o}
+              onClose={() => setReschedulingId(null)}
+              onRescheduled={() => { refreshList(); refetchBookings(); }}
+            />
+          )}
 
           {o.status === "quoted" && quotingId !== o.id && (
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-border flex-wrap gap-2">

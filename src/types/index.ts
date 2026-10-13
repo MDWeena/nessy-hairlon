@@ -82,6 +82,8 @@ export interface Order {
   styleReferenceUrls: string[];
   clientNotes: string | null;
   customStyleCategory: string | null;
+  clientRescheduleCount: number;
+  lastRescheduledAt: string | null;
   paymentProofUrl: string | null;
   attachmentPreference: AttachmentPreference | null;
   attachmentItems: MaterialItem[];

@@ -112,6 +112,9 @@ export interface Database {
           style_reference_urls: string[];
           client_notes: string | null;
           custom_style_category: string | null;
+          reference_code: string;
+          client_reschedule_count: number;
+          last_rescheduled_at: string | null;
         };
         Insert: {
           id?: string;
@@ -139,6 +142,8 @@ export interface Database {
           style_reference_urls?: string[];
           client_notes?: string | null;
           custom_style_category?: string | null;
+          client_reschedule_count?: number;
+          last_rescheduled_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
@@ -191,6 +196,38 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["booking_reminders"]["Insert"]>;
+        Relationships: [];
+      };
+      booking_reschedules: {
+        Row: {
+          id: string;
+          booking_id: string;
+          old_date: string;
+          old_start_time: string;
+          new_date: string;
+          new_start_time: string;
+          rescheduled_by: "client" | "admin";
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          old_date: string;
+          old_start_time: string;
+          new_date: string;
+          new_start_time: string;
+          rescheduled_by: "client" | "admin";
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["booking_reschedules"]["Insert"]>;
+        Relationships: [];
+      };
+      api_rate_limit_events: {
+        Row: { id: number; bucket: string; created_at: string };
+        Insert: { id?: number; bucket: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["api_rate_limit_events"]["Insert"]>;
         Relationships: [];
       };
       gallery: {
@@ -261,8 +298,8 @@ export interface Database {
         }[];
       };
       reschedule_booking: {
-        Args: { p_reference: string; p_phone: string; p_new_date: string; p_new_time: string };
-        Returns: undefined;
+        Args: { p_booking_id: string; p_new_date: string; p_new_time: string; p_actor: "client" | "admin"; p_reason?: string | null };
+        Returns: Json;
       };
       cancel_booking: {
         Args: { p_reference: string; p_phone: string };
