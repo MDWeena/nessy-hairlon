@@ -301,9 +301,25 @@ export interface Database {
         Args: { p_booking_id: string; p_new_date: string; p_new_time: string; p_actor: "client" | "admin"; p_reason?: string | null };
         Returns: Json;
       };
-      cancel_booking: {
-        Args: { p_reference: string; p_phone: string };
-        Returns: undefined;
+      cancel_booking_by_id: {
+        Args: { p_booking_id: string };
+        Returns: Json;
+      };
+      create_booking: {
+        Args: {
+          p_client_name: string;
+          p_client_phone: string;
+          p_client_email: string | null;
+          p_booking_date: string;
+          p_booking_time: string;
+          p_service_ids?: string[];
+          p_custom_style_url?: string | null;
+          p_custom_style_description?: string | null;
+          p_style_reference_urls?: Json;
+          p_client_notes?: string | null;
+          p_attachment_preference?: "client_provides" | "nessy_buys" | null;
+        };
+        Returns: string;
       };
       mark_deposit_paid: {
         Args: { p_reference: string; p_phone: string; p_payment_proof_url?: string | null };

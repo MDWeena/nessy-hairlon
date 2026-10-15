@@ -11,6 +11,7 @@ import { minPriceForCategory, validateCustomStyleQuote } from "../../lib/service
 import { styleReferenceLinkTrust } from "../../lib/validation";
 import { RESCHEDULABLE_STATUSES, isRecentlyRescheduled } from "../../lib/reschedule";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
+import type { NotifyResult } from "../../lib/notify";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
 import { labelForUrl } from "../../lib/urlLabel";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
@@ -190,6 +191,14 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [balanceActionId, setBalanceActionId] = useState<string | null>(null);
   const [reminderActionId, setReminderActionId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // The change saved, but its email didn't go out — shown separately from actionError since
+  // nothing needs redoing, the admin just needs to tell the client another way.
+  const [notifyWarning, setNotifyWarning] = useState<string | null>(null);
+  const reportNotification = (result: NotifyResult | null, clientName: string | undefined) => {
+    setNotifyWarning(result?.status === "failed"
+      ? `Saved — but the email to ${clientName ?? "the client"} couldn't be sent (${result.error}). Let them know on WhatsApp.`
+      : null);
+  };
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [highlightFading, setHighlightFading] = useState(false);
 
@@ -327,11 +336,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
 
       const totalPrice = hairCost + sumItems(attachItems) + sumItems(accessItems);
       try {
-        await setQuotedPrice(id, totalPrice, {
+        reportNotification(await setQuotedPrice(id, totalPrice, {
           hairServiceCost: hairCost,
           attachmentItems: attachItems,
           accessoryItems: accessItems,
-        });
+        }), order?.client);
         setQuotingId(null);
         refreshList();
       } catch (err) {
@@ -349,7 +358,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
         return;
       }
       try {
-        await setQuotedPrice(id, price, undefined, isCustomStyle ? (quoteCategory ?? undefined) : undefined);
+        reportNotification(await setQuotedPrice(id, price, undefined, isCustomStyle ? (quoteCategory ?? undefined) : undefined), order?.client);
         setQuotingId(null);
         refreshList();
       } catch (err) {
@@ -362,7 +371,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setActionError(null);
     setBusyId(id);
     try {
-      await updateBookingStatus(id, "confirmed");
+      reportNotification(await updateBookingStatus(id, "confirmed"), bookings.find(o => o.id === id)?.client);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to confirm booking");
@@ -375,7 +384,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setActionError(null);
     setBusyId(id);
     try {
-      await confirmDepositPayment(id);
+      reportNotification(await confirmDepositPayment(id), bookings.find(o => o.id === id)?.client);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to confirm payment");
@@ -388,7 +397,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setActionError(null);
     setBusyId(id);
     try {
-      await rejectDepositPayment(id);
+      reportNotification(await rejectDepositPayment(id), bookings.find(o => o.id === id)?.client);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to update booking");
@@ -429,6 +438,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     <>
       {!isWeekConfirmedMode && ordersError && <ErrorNotice message={ordersError} />}
       {actionError && <ErrorNotice message={actionError} />}
+      {notifyWarning && <ErrorNotice message={notifyWarning} />}
       <div className="flex gap-1.5 mb-4 flex-wrap">
         {FILTERS.map(f => (
           <button

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Package } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-import { lookupBookings, cancelBooking, markDepositPaid } from "../hooks/useBookingLookup";
+import { lookupBookings, markDepositPaid } from "../hooks/useBookingLookup";
 import type { TrackedBooking } from "../hooks/useBookingLookup";
 import { useSettings } from "../hooks/useSettings";
 import { uploadToCloudinary } from "../lib/cloudinary";
@@ -15,6 +15,7 @@ import { StatusBadge } from "../components/ui/StatusBadge";
 import { GoldSpinner } from "../components/ui/GoldSpinner";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { ClientReschedulePanel, WhatsAppNessyLink } from "../components/booking/ClientReschedulePanel";
+import { cancelAsClient, contactProof } from "../lib/rescheduleApi";
 
 interface TrackBookingPageProps {
   navigate: NavigateFn;
@@ -122,13 +123,15 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
 
   const confirmCancel = async () => {
     if (!actionBooking) return;
-    if (!verifyPhone.trim()) { setActionError("Enter the phone number you booked with"); return; }
+    if (!verifyPhone.trim()) { setActionError("Enter the phone number or email you booked with"); return; }
     const ref = actionBooking.reference;
     setActionBusy(true);
     setActionError(null);
     try {
-      await cancelBooking(actionBooking, verifyPhone.trim());
-      setActionSuccess("Your booking has been cancelled.");
+      const res = await cancelAsClient(ref, contactProof(verifyPhone));
+      setActionSuccess(res.notifications.clientEmail === "sent"
+        ? "Your booking has been cancelled. We've emailed you a confirmation."
+        : "Your booking has been cancelled.");
       closeAction();
       setResults(prev => prev?.map(b => b.reference === ref ? { ...b, status: "cancelled" } : b) ?? prev);
     } catch (err) {
@@ -389,11 +392,11 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
                       <>
                         <div className="mb-4">
                           <label className="block text-xs text-text-muted mb-1.5 font-medium">
-                            Confirm the phone number you booked with
+                            {actionMode === "cancel" ? "Confirm the phone number or email you booked with" : "Confirm the phone number you booked with"}
                           </label>
                           <input
                             value={verifyPhone} onChange={(e) => setVerifyPhone(e.target.value)}
-                            placeholder="080..."
+                            placeholder={actionMode === "cancel" ? "080... or you@example.com" : "080..."}
                             className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border"
                           />
                         </div>

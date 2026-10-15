@@ -2,6 +2,8 @@ import {
   MAX_CLIENT_RESCHEDULES, adminRescheduleWhatsAppMessage, formatSlot, newTimeDoesntWorkWhatsAppMessage,
 } from "../../src/lib/reschedule.js";
 import { buildWhatsAppUrl } from "../../src/lib/whatsapp.js";
+import { statusColors } from "../../src/constants/statusColors.js";
+import type { BookingStatus } from "../../src/types/database.js";
 
 export interface RescheduledBooking {
   reference: string;
@@ -147,6 +149,22 @@ export interface NotificationOutcome {
 
 export type SendEmail = (email: RenderedEmail) => Promise<void>;
 
+/** Renders and sends one email, reporting the result instead of throwing. */
+async function deliver(
+  send: SendEmail | null, render: () => RenderedEmail | null, missing: DeliveryStatus, label: string,
+): Promise<DeliveryStatus> {
+  if (!send) return "not_configured";
+  const email = render();
+  if (!email) return missing;
+  try {
+    await send(email);
+    return "sent";
+  } catch (err) {
+    console.error(`notification: failed to send ${label}`, err);
+    return "failed";
+  }
+}
+
 /**
  * Sends whatever the plan calls for. Never throws: by the time this runs the reschedule has
  * already committed, so a mail failure is logged and reported back as a warning — it must
@@ -156,24 +174,13 @@ export async function sendRescheduleNotifications(
   actor: "client" | "admin", b: RescheduledBooking, ctx: RenderContext, send: SendEmail | null,
 ): Promise<NotificationOutcome> {
   const plan = planRescheduleNotifications(actor, b.clientEmail, ctx.adminEmail);
-
-  const deliver = async (kind: EmailKind | null, missing: DeliveryStatus): Promise<DeliveryStatus> => {
-    if (!kind) return missing;
-    if (!send) return "not_configured";
-    const email = renderRescheduleEmail(kind, b, ctx);
-    if (!email) return missing;
-    try {
-      await send(email);
-      return "sent";
-    } catch (err) {
-      console.error(`reschedule: failed to send ${kind} for ${b.reference}`, err);
-      return "failed";
-    }
-  };
+  const send1 = (kind: EmailKind | null, missing: DeliveryStatus) => kind
+    ? deliver(send, () => renderRescheduleEmail(kind, b, ctx), missing, `${kind} for ${b.reference}`)
+    : Promise.resolve(missing);
 
   const [clientEmail, adminEmail] = await Promise.all([
-    deliver(plan.clientEmail, "no_email"),
-    deliver(plan.adminEmail, "not_configured"),
+    send1(plan.clientEmail, "no_email"),
+    send1(plan.adminEmail, "not_configured"),
   ]);
 
   const whatsappUrl = actor === "admin" && (plan.whatsappNeeded || clientEmail === "failed" || clientEmail === "not_configured")
@@ -184,4 +191,84 @@ export async function sendRescheduleNotifications(
     : null;
 
   return { clientEmail, adminEmail, whatsappUrl };
+}
+
+// ─── Client cancellation ───────────────────────────────────────────────────────────────────
+
+export interface CancelledBooking {
+  reference: string;
+  bookingId: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail: string | null;
+  date: string;
+  time: string;
+  previousStatus: BookingStatus;
+}
+
+export type CancelEmailKind = "client_cancelled_by_client" | "admin_alert_client_cancelled";
+
+export interface CancelNotificationPlan {
+  clientEmail: CancelEmailKind | null;
+  adminEmail: CancelEmailKind | null;
+}
+
+/** Same routing as a client reschedule: the client is emailed if they gave an email, the
+ * admin always is (when configured). Nobody needs a WhatsApp nudge — the client did it. */
+export function planCancelNotifications(clientEmail: string | null, adminEmail: string | null): CancelNotificationPlan {
+  return {
+    clientEmail: clientEmail?.trim() ? "client_cancelled_by_client" : null,
+    adminEmail: adminEmail ? "admin_alert_client_cancelled" : null,
+  };
+}
+
+export function renderCancelEmail(kind: CancelEmailKind, b: CancelledBooking, ctx: RenderContext): RenderedEmail | null {
+  const ref = escapeHtml(b.reference);
+  const name = escapeHtml(b.clientName);
+  const slot = formatSlot(b.date, b.time);
+  const hadDeposit = b.previousStatus === "deposit_paid" || b.previousStatus === "confirmed";
+
+  switch (kind) {
+    case "client_cancelled_by_client":
+      if (!b.clientEmail) return null;
+      return {
+        to: b.clientEmail,
+        subject: "Your Nessy Hairlon appointment has been cancelled",
+        html: `
+          <h2>Your appointment has been cancelled</h2>
+          <p>Hi ${name}, your booking <strong>${ref}</strong> for <strong>${slot}</strong> has been cancelled.</p>
+          <p style="font-size:13px;color:#888">Didn't mean to? Contact Nessy as soon as possible — the slot may be given to someone else.</p>
+          ${ctaButton(`${ctx.siteUrl}/book`, "Book Again")}`,
+      };
+
+    case "admin_alert_client_cancelled":
+      if (!ctx.adminEmail) return null;
+      return {
+        to: ctx.adminEmail,
+        subject: `Client cancelled: ${b.clientName}`,
+        html: `
+          <h2>A client cancelled their appointment</h2>
+          <p><strong>${name}</strong> (${escapeHtml(b.clientPhone)}) cancelled booking <strong>${ref}</strong> for <strong>${slot}</strong>.</p>
+          <p>Status before cancelling: <strong>${statusColors[b.previousStatus].label}</strong>${hadDeposit ? " — a deposit may have been paid." : ""}</p>
+          ${ctaButton(`${ctx.siteUrl}/admin?booking=${b.bookingId}`, "View Booking")}`,
+      };
+  }
+}
+
+export interface CancelNotificationOutcome {
+  clientEmail: DeliveryStatus;
+  adminEmail: DeliveryStatus;
+}
+
+/** Never throws — the cancellation has already committed (see sendRescheduleNotifications). */
+export async function sendCancelNotifications(b: CancelledBooking, ctx: RenderContext, send: SendEmail | null): Promise<CancelNotificationOutcome> {
+  const plan = planCancelNotifications(b.clientEmail, ctx.adminEmail);
+  const send1 = (kind: CancelEmailKind | null, missing: DeliveryStatus) => kind
+    ? deliver(send, () => renderCancelEmail(kind, b, ctx), missing, `${kind} for ${b.reference}`)
+    : Promise.resolve(missing);
+  const [clientEmail, adminEmail] = await Promise.all([
+    send1(plan.clientEmail, "no_email"),
+    send1(plan.adminEmail, "not_configured"),
+  ]);
+  return { clientEmail, adminEmail };
 }

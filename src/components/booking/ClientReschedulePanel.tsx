@@ -5,7 +5,7 @@ import type { TrackedBooking } from "../../hooks/useBookingLookup";
 import {
   MAX_CLIENT_RESCHEDULES, blockReasonMessage, blockedRescheduleWhatsAppMessage, formatSlot, type RescheduleBlockReason,
 } from "../../lib/reschedule";
-import { RescheduleRequestError, checkClientReschedule, rescheduleAsClient } from "../../lib/rescheduleApi";
+import { RescheduleRequestError, checkClientReschedule, contactProof, rescheduleAsClient } from "../../lib/rescheduleApi";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldButton } from "../ui/GoldButton";
@@ -32,11 +32,6 @@ export function WhatsAppNessyLink({ booking, nessyPhone }: { booking: TrackedBoo
       className="inline-flex items-center justify-center gap-1.5 w-full bg-[#22c55e] text-white no-underline py-2.5 rounded-lg text-[13px] font-bold"
     ><MessageCircle size={14} /> Message Nessy on WhatsApp</a>
   );
-}
-
-function contactProof(raw: string) {
-  const value = raw.trim();
-  return value.includes("@") ? { email: value } : { phone: value };
 }
 
 export function ClientReschedulePanel({ booking, initialContact, nessyPhone, noticeHours, onRescheduled }: ClientReschedulePanelProps) {

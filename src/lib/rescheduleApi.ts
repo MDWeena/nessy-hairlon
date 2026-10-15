@@ -38,6 +38,12 @@ export interface ClientProof {
   email?: string;
 }
 
+/** One "phone or email" field → the right proof field for the API. */
+export function contactProof(raw: string): ClientProof {
+  const value = raw.trim();
+  return value.includes("@") ? { email: value } : { phone: value };
+}
+
 export interface EligibilityResponse {
   eligibility: RescheduleEligibility;
   noticeHours: number;
@@ -57,6 +63,16 @@ export interface ClientRescheduleResponse {
 
 export function rescheduleAsClient(reference: string, proof: ClientProof, newDate: string, newTime: string): Promise<ClientRescheduleResponse> {
   return post("/api/reschedule-client", { action: "reschedule", reference, ...proof, newDate, newTime });
+}
+
+export interface ClientCancelResponse {
+  booking: { reference: string; date: string; time: string; status: "cancelled" };
+  notifications: { clientEmail: string };
+}
+
+/** Same reference + phone-or-email proof as rescheduling; see api/cancel-client.ts. */
+export function cancelAsClient(reference: string, proof: ClientProof): Promise<ClientCancelResponse> {
+  return post("/api/cancel-client", { reference, ...proof });
 }
 
 export interface AdminRescheduleResponse {

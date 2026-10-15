@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import type { Database } from "../src/types/database.js";
 import { calculateBalanceAmount } from "../src/lib/payments.js";
+import { DEFAULT_FROM_ADDRESS, sendEmailChecked, type EmailClient } from "./_lib/email.js";
 
 type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
 
@@ -88,32 +89,33 @@ function balanceDueFor(booking: BookingRow, depositPercentage: number | null): n
   }, depositPercentage);
 }
 
-async function sendReminder(
+export type ReminderOutcome =
+  | { status: "sent" }
+  | { status: "skipped"; reason: "no_email" | "nothing_owed" }
+  | { status: "failed"; error: string };
+
+export async function sendReminder(
   adminClient: SupabaseClient<Database>,
-  resend: Resend,
+  resend: EmailClient,
   fromAddress: string,
   booking: BookingRow,
   settings: PaymentSettings | null,
   siteUrl: string,
-): Promise<boolean> {
-  if (!booking.client_email) return false;
+): Promise<ReminderOutcome> {
+  if (!booking.client_email) return { status: "skipped", reason: "no_email" };
   const balanceDue = balanceDueFor(booking, settings?.depositPercentage ?? null);
-  if (balanceDue == null || balanceDue <= 0) return false;
+  if (balanceDue == null || balanceDue <= 0) return { status: "skipped", reason: "nothing_owed" };
 
-  try {
-    await resend.emails.send({
-      from: fromAddress,
-      to: booking.client_email,
-      subject: "Outstanding balance for your Nessy Hairlon appointment",
-      html: renderBalanceReminderEmail(booking, balanceDue, settings, siteUrl),
-    });
-  } catch (err) {
-    console.error("process-balance-reminders: failed to send", booking.id, err);
-    return false;
-  }
+  const result = await sendEmailChecked(resend, fromAddress, {
+    to: booking.client_email,
+    subject: "Outstanding balance for your Nessy Hairlon appointment",
+    html: renderBalanceReminderEmail(booking, balanceDue, settings, siteUrl),
+  }, `process-balance-reminders ${booking.id}`);
+  // Not marked as sent, so the next cron sweep tries again.
+  if (!result.ok) return { status: "failed", error: result.error };
 
   await adminClient.from("bookings").update({ balance_reminder_sent_at: new Date().toISOString() }).eq("id", booking.id);
-  return true;
+  return { status: "sent" };
 }
 
 /**
@@ -143,7 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const resend = new Resend(resendApiKey);
-  const fromAddress = process.env.RESEND_FROM_EMAIL || "Nessy Hairlon <onboarding@resend.dev>";
+  const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS;
   const siteUrl = `https://${req.headers.host}`;
 
   const manualBookingId = req.method === "POST" ? (req.body as { bookingId?: string } | undefined)?.bookingId : undefined;
@@ -166,8 +168,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const settings = await fetchPaymentSettings(adminClient);
-    const sent = await sendReminder(adminClient, resend, fromAddress, booking, settings, siteUrl);
-    res.status(200).json({ success: true, sent: sent ? 1 : 0 });
+    const outcome = await sendReminder(adminClient, resend, fromAddress, booking, settings, siteUrl);
+    if (outcome.status === "failed") {
+      res.status(502).json({ success: false, sent: 0, error: `Email could not be sent (${outcome.error})` });
+    } else if (outcome.status === "skipped") {
+      res.status(200).json({ success: true, sent: 0, skipped: true, reason: outcome.reason === "nothing_owed" ? "No balance is owed on this booking" : "This client has no email on file" });
+    } else {
+      res.status(200).json({ success: true, sent: 1 });
+    }
     return;
   }
 
@@ -208,7 +216,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
   if (!dueBookings || dueBookings.length === 0) {
-    res.status(200).json({ success: true, sent: 0, skipped: 0, total: 0 });
+    res.status(200).json({ success: true, sent: 0, skipped: 0, failed: 0, total: 0 });
     return;
   }
 
@@ -216,10 +224,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let sent = 0;
   let skipped = 0;
+  const failures: { bookingId: string; error: string }[] = [];
   for (const booking of dueBookings) {
-    const ok = await sendReminder(adminClient, resend, fromAddress, booking, settings, siteUrl);
-    if (ok) sent++; else skipped++;
+    const outcome = await sendReminder(adminClient, resend, fromAddress, booking, settings, siteUrl);
+    if (outcome.status === "sent") sent++;
+    else if (outcome.status === "skipped") skipped++;
+    else failures.push({ bookingId: booking.id, error: outcome.error });
   }
 
-  res.status(200).json({ success: true, sent, skipped, total: dueBookings.length });
+  res.status(200).json({ success: failures.length === 0, sent, skipped, failed: failures.length, failures, total: dueBookings.length });
 }

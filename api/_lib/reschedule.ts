@@ -3,10 +3,13 @@ import { Resend } from "resend";
 import type { Database } from "../../src/types/database.js";
 import { shortBookingReference } from "../../src/lib/bookingReference.js";
 import {
-  MAX_CLIENT_RESCHEDULES, RESCHEDULE_ERROR_MESSAGES, contactMatchesBooking, getRescheduleEligibility,
+  MAX_CLIENT_RESCHEDULES, RESCHEDULE_ERROR_MESSAGES, cancelErrorMessage, contactMatchesBooking, getRescheduleEligibility,
   isRescheduleErrorCode, normalizeReference, type RescheduleErrorCode,
 } from "../../src/lib/reschedule.js";
-import { sendRescheduleNotifications, type NotificationOutcome, type SendEmail } from "./rescheduleEmails.js";
+import {
+  sendCancelNotifications, sendRescheduleNotifications, type NotificationOutcome, type SendEmail,
+} from "./rescheduleEmails.js";
+import { DEFAULT_FROM_ADDRESS, sendEmailChecked } from "./email.js";
 
 type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
 
@@ -20,6 +23,13 @@ export interface RescheduleRpcResult {
   reason: string | null;
   client_reschedule_count: number;
   reminders_scheduled: number;
+}
+
+export interface CancelRpcResult {
+  booking_id: string;
+  previous_status: BookingRow["status"];
+  date: string;
+  time: string;
 }
 
 export class RescheduleError extends Error {
@@ -40,6 +50,8 @@ export interface RescheduleRepo {
   getNessyPhone(): Promise<string | null>;
   /** Throws RescheduleError on any rule the SQL function rejects. */
   reschedule(bookingId: string, date: string, time: string, actor: "client" | "admin", reason: string | null): Promise<RescheduleRpcResult>;
+  /** Throws RescheduleError (NOT_FOUND / INVALID_STATUS) if cancel_booking_by_id() refuses. */
+  cancel(bookingId: string): Promise<CancelRpcResult>;
   /** Records one hit for `bucket` and returns how many it now has inside the window. */
   hitRateLimit(bucket: string, windowMs: number): Promise<number>;
 }
@@ -57,7 +69,10 @@ export interface HandlerResult {
   body: Record<string, unknown>;
 }
 
+/** Shared by every public client endpoint (reschedule and cancel use one bucket per IP), so
+ * guessing references against one endpoint also uses up the allowance on the other. */
 export const CLIENT_RATE_LIMIT = { max: 20, windowMs: 15 * 60 * 1000 };
+const clientRateLimitBucket = (ip: string) => `client-booking:${ip}`;
 
 const HTTP_STATUS: Record<RescheduleErrorCode, number> = {
   INVALID_REQUEST: 400,
@@ -84,6 +99,11 @@ export function toRescheduleError(err: { code?: string; message?: string } | nul
 
 export function errorResult(code: RescheduleErrorCode, extra: Record<string, unknown> = {}): HandlerResult {
   return { status: HTTP_STATUS[code], body: { ok: false, code, message: RESCHEDULE_ERROR_MESSAGES[code], ...extra } };
+}
+
+function cancelErrorResult(code: RescheduleErrorCode): HandlerResult {
+  const result = errorResult(code);
+  return { ...result, body: { ...result.body, message: cancelErrorMessage(code) } };
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -122,6 +142,35 @@ async function notify(env: RescheduleEnv, actor: "client" | "admin", booking: Bo
 }
 
 /**
+ * The shared front half of every public client endpoint: rate limit, then find the booking by
+ * reference and check the phone OR email against it. Every mismatch — unknown reference, wrong
+ * phone, wrong email — is the same NOT_FOUND, so the endpoints can't be used to discover
+ * bookings. The rate limit runs before the lookup so failed guesses count too.
+ */
+async function verifyClientBooking(
+  env: RescheduleEnv, reference: string, proof: { phone: string; email: string }, ip: string, label: string,
+): Promise<{ booking: BookingRow } | { error: RescheduleErrorCode }> {
+  try {
+    const hits = await env.repo.hitRateLimit(clientRateLimitBucket(ip), CLIENT_RATE_LIMIT.windowMs);
+    if (hits > CLIENT_RATE_LIMIT.max) return { error: "RATE_LIMITED" };
+  } catch (err) {
+    // Fail open: a rate-limit bookkeeping hiccup shouldn't lock every client out.
+    console.error(`${label}: rate limit check failed`, err);
+  }
+
+  if (!/^[0-9A-F]{8}$/.test(reference)) return { error: "NOT_FOUND" };
+
+  try {
+    const candidates = await env.repo.findBookingsByReference(reference);
+    const booking = candidates.find(b => contactMatchesBooking(proof, b));
+    return booking ? { booking } : { error: "NOT_FOUND" };
+  } catch (err) {
+    console.error(`${label}: lookup failed`, err);
+    return { error: "SERVER_ERROR" };
+  }
+}
+
+/**
  * Public, unauthenticated: the client proves ownership with the booking reference plus the
  * phone OR email on that booking. Every mismatch — unknown reference, wrong phone, wrong
  * email — returns the same NOT_FOUND, so the endpoint can't be used to discover bookings.
@@ -140,25 +189,9 @@ export async function handleClientReschedule(env: RescheduleEnv, input: unknown,
   if (!reference || (!phone && !email)) return errorResult("INVALID_REQUEST");
   if (action === "reschedule" && (!DATE_RE.test(newDate) || !TIME_RE.test(newTime))) return errorResult("INVALID_REQUEST");
 
-  try {
-    const hits = await env.repo.hitRateLimit(`reschedule-client:${ip}`, CLIENT_RATE_LIMIT.windowMs);
-    if (hits > CLIENT_RATE_LIMIT.max) return errorResult("RATE_LIMITED");
-  } catch (err) {
-    // Fail open: a rate-limit bookkeeping hiccup shouldn't lock every client out of rescheduling.
-    console.error("reschedule-client: rate limit check failed", err);
-  }
-
-  if (!/^[0-9A-F]{8}$/.test(reference)) return errorResult("NOT_FOUND");
-
-  let booking: BookingRow | undefined;
-  try {
-    const candidates = await env.repo.findBookingsByReference(reference);
-    booking = candidates.find(b => contactMatchesBooking({ phone, email }, b));
-  } catch (err) {
-    console.error("reschedule-client: lookup failed", err);
-    return errorResult("SERVER_ERROR");
-  }
-  if (!booking) return errorResult("NOT_FOUND");
+  const verified = await verifyClientBooking(env, reference, { phone, email }, ip, "reschedule-client");
+  if ("error" in verified) return errorResult(verified.error);
+  const { booking } = verified;
 
   if (action === "check") {
     const noticeHours = await env.repo.getNoticeHours();
@@ -189,6 +222,52 @@ export async function handleClientReschedule(env: RescheduleEnv, input: unknown,
       booking: { reference: shortBookingReference(booking.id), date: result.new_date, time: result.new_time, status: booking.status },
       previous: { date: result.old_date, time: result.old_time },
       remaining: Math.max(0, MAX_CLIENT_RESCHEDULES - result.client_reschedule_count),
+      notifications: { clientEmail: notifications.clientEmail },
+    },
+  };
+}
+
+/**
+ * Public, unauthenticated client cancel — same proof, rate limit and NOT_FOUND-on-mismatch as
+ * handleClientReschedule. The status rule (anything but completed/cancelled) lives in
+ * cancel_booking_by_id(). Emails go out after the cancel commits and can't undo it.
+ */
+export async function handleClientCancel(env: RescheduleEnv, input: unknown, ip: string, siteUrl: string): Promise<HandlerResult> {
+  const body = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const reference = normalizeReference(asString(body.reference));
+  const phone = asString(body.phone);
+  const email = asString(body.email);
+  if (!reference || (!phone && !email)) return cancelErrorResult("INVALID_REQUEST");
+
+  const verified = await verifyClientBooking(env, reference, { phone, email }, ip, "cancel-client");
+  if ("error" in verified) return cancelErrorResult(verified.error);
+  const { booking } = verified;
+
+  let result: CancelRpcResult;
+  try {
+    result = await env.repo.cancel(booking.id);
+  } catch (err) {
+    if (err instanceof RescheduleError) return cancelErrorResult(err.code);
+    console.error("cancel-client: unexpected failure", err);
+    return cancelErrorResult("SERVER_ERROR");
+  }
+
+  const notifications = await sendCancelNotifications({
+    reference: shortBookingReference(booking.id),
+    bookingId: booking.id,
+    clientName: booking.client_name,
+    clientPhone: booking.client_phone,
+    clientEmail: booking.client_email,
+    date: result.date,
+    time: result.time,
+    previousStatus: result.previous_status,
+  }, { siteUrl, adminEmail: env.adminEmail, nessyPhone: null }, env.sendEmail);
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      booking: { reference: shortBookingReference(booking.id), date: result.date, time: result.time, status: "cancelled" },
       notifications: { clientEmail: notifications.clientEmail },
     },
   };
@@ -272,6 +351,11 @@ function supabaseRepo(db: SupabaseClient<Database>): RescheduleRepo {
       if (error) throw toRescheduleError(error) ?? error;
       return data as unknown as RescheduleRpcResult;
     },
+    async cancel(bookingId) {
+      const { data, error } = await db.rpc("cancel_booking_by_id", { p_booking_id: bookingId });
+      if (error) throw toRescheduleError(error) ?? error;
+      return data as unknown as CancelRpcResult;
+    },
     async hitRateLimit(bucket, windowMs) {
       const since = new Date(Date.now() - windowMs).toISOString();
       const { error: insertError } = await db.from("api_rate_limit_events").insert({ bucket });
@@ -294,14 +378,12 @@ export function productionEnv(): RescheduleEnv | null {
   const db = createClient<Database>(supabaseUrl, serviceRoleKey);
 
   const resendApiKey = process.env.RESEND_API_KEY;
-  const fromAddress = process.env.RESEND_FROM_EMAIL || "Nessy Hairlon <onboarding@resend.dev>";
+  const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS;
   const resend = resendApiKey ? new Resend(resendApiKey) : null;
-  // Resend's send() resolves with { error } instead of throwing on API failures, so the error
-  // has to be checked explicitly or a failed email would be reported as sent.
   const sendEmail: SendEmail | null = resend
-    ? async ({ to, subject, html }) => {
-        const { error } = await resend.emails.send({ from: fromAddress, to, subject, html });
-        if (error) throw new Error(`${error.name}: ${error.message}`);
+    ? async (email) => {
+        const result = await sendEmailChecked(resend, fromAddress, email, `booking email to ${email.to}`);
+        if (!result.ok) throw new Error(result.error);
       }
     : null;
 

@@ -32,6 +32,15 @@ export const RESCHEDULE_ERROR_MESSAGES: Record<RescheduleErrorCode, string> = {
   SERVER_ERROR: "Something went wrong. Please try again.",
 };
 
+/** The cancel endpoint shares the reschedule error codes; only these read differently. */
+const CANCEL_MESSAGE_OVERRIDES: Partial<Record<RescheduleErrorCode, string>> = {
+  INVALID_STATUS: "This booking can no longer be cancelled online.",
+};
+
+export function cancelErrorMessage(code: RescheduleErrorCode): string {
+  return CANCEL_MESSAGE_OVERRIDES[code] ?? RESCHEDULE_ERROR_MESSAGES[code];
+}
+
 const KNOWN_CODES = new Set(Object.keys(RESCHEDULE_ERROR_MESSAGES));
 
 export function isRescheduleErrorCode(value: unknown): value is RescheduleErrorCode {

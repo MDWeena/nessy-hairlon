@@ -65,22 +65,6 @@ export async function lookupBookings({ reference, phone }: LookupBookingsQuery):
   }));
 }
 
-/** Cancels a booking from the Track Booking page. Backed by the `cancel_booking` SECURITY
- * DEFINER function, which re-verifies the reference + phone match server-side. (Rescheduling
- * goes through /api/reschedule-client instead — see src/lib/rescheduleApi.ts.) */
-export async function cancelBooking(booking: TrackedBooking, phone: string): Promise<void> {
-  const { error } = await supabase.rpc("cancel_booking", { p_reference: booking.reference, p_phone: phone });
-  if (error) throw new Error(error.message);
-
-  await notify({
-    type: "client_cancellation",
-    booking: {
-      id: booking.id, client_name: booking.clientName, client_email: null, client_phone: phone,
-      booking_date: booking.date, booking_time: booking.time, status: "cancelled", quoted_price: booking.quotedPrice,
-    },
-  });
-}
-
 /**
  * Client claims they've paid their deposit, from the Track Booking page.
  * Backed by the `mark_deposit_paid` SECURITY DEFINER function — only allowed
