@@ -51,8 +51,20 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/offline.html',
+        // BUG FIX: this used to be `navigateFallback: '/offline.html'`, which makes the service
+        // worker answer EVERY navigation to a path that isn't precached (/track, /book,
+        // /admin?booking=…) with the offline page — even with a perfectly good connection. Only
+        // "/" escaped, being precached. So any emailed /track or /admin link, or a refresh on
+        // those pages, showed "You're currently offline" once the service worker was installed.
+        // Navigations now go to the network, and the offline page is only the fallback when the
+        // network actually fails.
+        navigateFallback: null,
         runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkOnly',
+            options: { precacheFallback: { fallbackURL: '/offline.html' } },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -82,5 +94,12 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
     css: false,
+    // Dummy values so src/lib/supabase.ts can be imported in tests. Set here rather than in an
+    // env file (none are tracked) — and these override whatever is in a local .env, so a test
+    // that forgets to mock Supabase can never reach the real project.
+    env: {
+      VITE_SUPABASE_URL: 'https://test.supabase.co',
+      VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+    },
   },
 })

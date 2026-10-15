@@ -9,11 +9,15 @@ import { supabase } from "../../lib/supabase";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { minPriceForCategory, validateCustomStyleQuote } from "../../lib/servicePricing";
 import { styleReferenceLinkTrust } from "../../lib/validation";
+import { RESCHEDULABLE_STATUSES, isRecentlyRescheduled } from "../../lib/reschedule";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
+import type { NotifyResult } from "../../lib/notify";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
 import { labelForUrl } from "../../lib/urlLabel";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
-import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink, ShieldCheck, AlertTriangle, CalendarClock } from "lucide-react";
+import { AdminReschedulePanel } from "./AdminReschedulePanel";
+import { RescheduleHistory } from "./RescheduleHistory";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
@@ -144,8 +148,17 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // list itself is now fetched separately (server-side, paginated) via usePaginatedOrders.
   const {
     bookings, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
-    markBalancePaid, sendBalanceReminder,
+    markBalancePaid, sendBalanceReminder, refetch: refetchBookings,
   } = useBookings();
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  // Captured once so render stays pure; only drives the 7-day "Rescheduled" badge.
+  const [renderNow] = useState(() => Date.now());
+  const [historyOpenIds, setHistoryOpenIds] = useState<Set<string>>(new Set());
+  const toggleHistory = (id: string) => setHistoryOpenIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   // Used to classify custom-style (photo/link) bookings under a category when quoting, and to
   // floor that quote at the cheapest published service in the chosen category.
   const { services: serviceCategories } = useServices();
@@ -178,6 +191,14 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [balanceActionId, setBalanceActionId] = useState<string | null>(null);
   const [reminderActionId, setReminderActionId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // The change saved, but its email didn't go out — shown separately from actionError since
+  // nothing needs redoing, the admin just needs to tell the client another way.
+  const [notifyWarning, setNotifyWarning] = useState<string | null>(null);
+  const reportNotification = (result: NotifyResult | null, clientName: string | undefined) => {
+    setNotifyWarning(result?.status === "failed"
+      ? `Saved — but the email to ${clientName ?? "the client"} couldn't be sent (${result.error}). Let them know on WhatsApp.`
+      : null);
+  };
   const highlightRef = useRef<HTMLDivElement | null>(null);
   const [highlightFading, setHighlightFading] = useState(false);
 
@@ -274,6 +295,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
 
   const startQuote = (id: string) => {
     setActionError(null);
+    setReschedulingId(null);
     setQuotingId(id);
     setQuoteValue(0);
     setQuoteCategory(null);
@@ -314,11 +336,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
 
       const totalPrice = hairCost + sumItems(attachItems) + sumItems(accessItems);
       try {
-        await setQuotedPrice(id, totalPrice, {
+        reportNotification(await setQuotedPrice(id, totalPrice, {
           hairServiceCost: hairCost,
           attachmentItems: attachItems,
           accessoryItems: accessItems,
-        });
+        }), order?.client);
         setQuotingId(null);
         refreshList();
       } catch (err) {
@@ -336,7 +358,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
         return;
       }
       try {
-        await setQuotedPrice(id, price, undefined, isCustomStyle ? (quoteCategory ?? undefined) : undefined);
+        reportNotification(await setQuotedPrice(id, price, undefined, isCustomStyle ? (quoteCategory ?? undefined) : undefined), order?.client);
         setQuotingId(null);
         refreshList();
       } catch (err) {
@@ -349,7 +371,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setActionError(null);
     setBusyId(id);
     try {
-      await updateBookingStatus(id, "confirmed");
+      reportNotification(await updateBookingStatus(id, "confirmed"), bookings.find(o => o.id === id)?.client);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to confirm booking");
@@ -362,7 +384,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setActionError(null);
     setBusyId(id);
     try {
-      await confirmDepositPayment(id);
+      reportNotification(await confirmDepositPayment(id), bookings.find(o => o.id === id)?.client);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to confirm payment");
@@ -375,7 +397,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setActionError(null);
     setBusyId(id);
     try {
-      await rejectDepositPayment(id);
+      reportNotification(await rejectDepositPayment(id), bookings.find(o => o.id === id)?.client);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to update booking");
@@ -416,6 +438,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     <>
       {!isWeekConfirmedMode && ordersError && <ErrorNotice message={ordersError} />}
       {actionError && <ErrorNotice message={actionError} />}
+      {notifyWarning && <ErrorNotice message={notifyWarning} />}
       <div className="flex gap-1.5 mb-4 flex-wrap">
         {FILTERS.map(f => (
           <button
@@ -587,6 +610,22 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     <MailWarning size={10} /> No email
                   </div>
                 )}
+                {o.lastRescheduledAt && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {isRecentlyRescheduled(o.lastRescheduledAt, renderNow) && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-0.5 px-[7px] rounded-[10px]">
+                        <CalendarClock size={10} /> Rescheduled
+                      </span>
+                    )}
+                    <button
+                      onClick={() => toggleHistory(o.id)}
+                      className="bg-transparent border-none p-0 text-[10px] text-text-muted underline cursor-pointer"
+                    >{historyOpenIds.has(o.id) ? "Hide history" : "History"}</button>
+                  </div>
+                )}
+                {historyOpenIds.has(o.id) && reschedulingId !== o.id && (
+                  <div className="mt-1.5 max-w-[360px]"><RescheduleHistory bookingId={o.id} /></div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
@@ -630,10 +669,24 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                       className="bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer"
                     >Set Price</button>
                   )}
+                  {RESCHEDULABLE_STATUSES.includes(o.status) && reschedulingId !== o.id && (
+                    <button
+                      onClick={() => { setQuotingId(null); setReschedulingId(o.id); }}
+                      className="bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer flex items-center gap-1"
+                    ><CalendarClock size={12} /> Reschedule</button>
+                  )}
                 </>
               )}
             </div>
           </div>
+
+          {reschedulingId === o.id && (
+            <AdminReschedulePanel
+              order={o}
+              onClose={() => setReschedulingId(null)}
+              onRescheduled={() => { refreshList(); refetchBookings(); }}
+            />
+          )}
 
           {o.status === "quoted" && quotingId !== o.id && (
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-border flex-wrap gap-2">

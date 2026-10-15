@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Search, Calendar, Clock, Scissors, X, Star, Info, Upload, Package } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-import { lookupBookings, rescheduleBooking, cancelBooking, markDepositPaid } from "../hooks/useBookingLookup";
+import { lookupBookings, markDepositPaid } from "../hooks/useBookingLookup";
 import type { TrackedBooking } from "../hooks/useBookingLookup";
-import { useAvailability, hourFromLabel } from "../hooks/useAvailability";
 import { useSettings } from "../hooks/useSettings";
 import { uploadToCloudinary } from "../lib/cloudinary";
 import { calculateDepositAmount, sumMaterials } from "../lib/payments";
+import { RESCHEDULABLE_STATUSES, blockReasonMessage, getRescheduleEligibility } from "../lib/reschedule";
 import type { NavigateFn, OrderStatus } from "../types";
 import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
 import { StatusBadge } from "../components/ui/StatusBadge";
-import { LoadingNotice } from "../components/ui/LoadingNotice";
 import { GoldSpinner } from "../components/ui/GoldSpinner";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
-import { StepDateTime } from "../components/booking/StepDateTime";
+import { ClientReschedulePanel, WhatsAppNessyLink } from "../components/booking/ClientReschedulePanel";
+import { cancelAsClient, contactProof } from "../lib/rescheduleApi";
 
 interface TrackBookingPageProps {
   navigate: NavigateFn;
@@ -24,14 +24,6 @@ interface TrackBookingPageProps {
 }
 
 type ActionMode = "reschedule" | "cancel" | "pay";
-
-function isPastNoticeWindow(booking: TrackedBooking): boolean {
-  const hour = hourFromLabel(booking.time);
-  if (hour === null) return true;
-  const appointment = new Date(`${booking.date}T00:00:00`);
-  appointment.setHours(hour, 0, 0, 0);
-  return appointment.getTime() - Date.now() < 24 * 60 * 60 * 1000;
-}
 
 function describeStatus(status: OrderStatus, booking: TrackedBooking): { heading: string; body: string } {
   switch (status) {
@@ -65,15 +57,13 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
   const [actionBusy, setActionBusy] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const { bookingDays, loading: availabilityLoading } = useAvailability();
-
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [proofUploading, setProofUploading] = useState(false);
   const proofInputRef = useRef<HTMLInputElement | null>(null);
 
   const looksLikeReference = /[a-z]/i.test(query.trim());
+  // Same fallback as useAvailability when the setting hasn't loaded: err toward more notice.
+  const noticeHours = settings.min_booking_notice_hours ?? 24;
 
   const depositAmount = (booking: TrackedBooking): number | null =>
     calculateDepositAmount(booking, settings.deposit_percentage ?? null);
@@ -115,8 +105,6 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
     setActionError(null);
     setActionSuccess(null);
     setVerifyPhone(!looksLikeReference ? query.trim() : "");
-    setSelectedDayIdx(null);
-    setSelectedTime(null);
     setProofUrl(null);
   };
 
@@ -127,34 +115,23 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
     setProofUrl(null);
   };
 
-  const confirmReschedule = async () => {
-    if (!actionBooking || selectedDayIdx === null || !selectedTime) return;
-    if (!verifyPhone.trim()) { setActionError("Enter the phone number you booked with"); return; }
-    const day = bookingDays[selectedDayIdx];
-    const ref = actionBooking.reference;
-    setActionBusy(true);
-    setActionError(null);
-    try {
-      await rescheduleBooking(actionBooking, verifyPhone.trim(), day.date, selectedTime);
-      setActionSuccess(`Your appointment has been rescheduled to ${day.label} at ${selectedTime}.`);
-      closeAction();
-      setResults(prev => prev?.map(b => b.reference === ref ? { ...b, date: day.date, time: selectedTime } : b) ?? prev);
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to reschedule. Please try again.");
-    } finally {
-      setActionBusy(false);
-    }
+  // The panel stays open to show its own success state; this just keeps the card in sync.
+  const handleRescheduled = (reference: string, date: string, time: string) => {
+    setResults(prev => prev?.map(b => b.reference === reference ? { ...b, date, time } : b) ?? prev);
+    setActionBooking(prev => prev && prev.reference === reference ? { ...prev, date, time } : prev);
   };
 
   const confirmCancel = async () => {
     if (!actionBooking) return;
-    if (!verifyPhone.trim()) { setActionError("Enter the phone number you booked with"); return; }
+    if (!verifyPhone.trim()) { setActionError("Enter the phone number or email you booked with"); return; }
     const ref = actionBooking.reference;
     setActionBusy(true);
     setActionError(null);
     try {
-      await cancelBooking(actionBooking, verifyPhone.trim());
-      setActionSuccess("Your booking has been cancelled.");
+      const res = await cancelAsClient(ref, contactProof(verifyPhone));
+      setActionSuccess(res.notifications.clientEmail === "sent"
+        ? "Your booking has been cancelled. We've emailed you a confirmation."
+        : "Your booking has been cancelled.");
       closeAction();
       setResults(prev => prev?.map(b => b.reference === ref ? { ...b, status: "cancelled" } : b) ?? prev);
     } catch (err) {
@@ -231,8 +208,15 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
       {results && results.length > 0 && (
         <div className="grid gap-4">
           {results.map(b => {
-            const canManage = b.status === "confirmed" || b.status === "quoted";
-            const tooSoon = canManage && isPastNoticeWindow(b);
+            const canCancel = b.status === "confirmed" || b.status === "quoted";
+            const canReschedule = RESCHEDULABLE_STATUSES.includes(b.status);
+            // The reschedule count isn't in lookup_bookings (which must not change), so the limit
+            // is only known after the panel's verify step — but the notice window can be shown now.
+            const preview = getRescheduleEligibility({
+              status: b.status, date: b.date, time: b.time, clientRescheduleCount: 0,
+              noticeHours, actor: "client", now: Date.now(),
+            });
+            const tooSoon = canReschedule && preview.reason === "TOO_LATE";
             const isActingOnThis = actionBooking?.reference === b.reference;
             const statusCopy = describeStatus(b.status, b);
             const deposit = depositAmount(b);
@@ -349,16 +333,28 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
                   </div>
                 )}
 
-                {canManage && !isActingOnThis && (
-                  <div className={`flex gap-2 mt-4 ${b.status === "quoted" ? "pt-0 border-t-0" : "pt-4 border-t border-border"}`}>
-                    <button
-                      onClick={() => openAction(b, "reschedule")}
-                      className="flex-1 bg-gold-bg border border-[#C49A6C30] text-gold py-2 rounded-lg text-xs font-bold cursor-pointer"
-                    >Reschedule</button>
-                    <button
-                      onClick={() => openAction(b, "cancel")}
-                      className="flex-1 bg-transparent border border-[#EF444440] text-[#EF4444] py-2 rounded-lg text-xs font-bold cursor-pointer"
-                    >Cancel</button>
+                {(canReschedule || canCancel) && !isActingOnThis && (
+                  <div className={`mt-4 ${b.status === "quoted" ? "pt-0 border-t-0" : "pt-4 border-t border-border"}`}>
+                    {tooSoon && (
+                      <div className="grid gap-2.5 mb-2.5">
+                        <p className="text-xs text-text-soft leading-[1.6] m-0">{blockReasonMessage("TOO_LATE", noticeHours)}</p>
+                        <WhatsAppNessyLink booking={b} nessyPhone={settings.phone} />
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      {canReschedule && !tooSoon && (
+                        <button
+                          onClick={() => openAction(b, "reschedule")}
+                          className="flex-1 bg-gold-bg border border-[#C49A6C30] text-gold py-2 rounded-lg text-xs font-bold cursor-pointer"
+                        >Reschedule</button>
+                      )}
+                      {canCancel && (
+                        <button
+                          onClick={() => openAction(b, "cancel")}
+                          className="flex-1 bg-transparent border border-[#EF444440] text-[#EF4444] py-2 rounded-lg text-xs font-bold cursor-pointer"
+                        >Cancel</button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -384,37 +380,26 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
 
                     {actionError && <ErrorNotice message={actionError} />}
 
-                    {actionMode === "reschedule" && tooSoon ? (
-                      <p className="text-[13px] text-text-soft leading-[1.6]">
-                        This appointment is too soon to reschedule online. Please call or WhatsApp Nessy directly.
-                      </p>
+                    {actionMode === "reschedule" ? (
+                      <ClientReschedulePanel
+                        booking={b}
+                        initialContact={verifyPhone}
+                        nessyPhone={settings.phone}
+                        noticeHours={noticeHours}
+                        onRescheduled={(date, time) => handleRescheduled(b.reference, date, time)}
+                      />
                     ) : (
                       <>
                         <div className="mb-4">
                           <label className="block text-xs text-text-muted mb-1.5 font-medium">
-                            Confirm the phone number you booked with
+                            {actionMode === "cancel" ? "Confirm the phone number or email you booked with" : "Confirm the phone number you booked with"}
                           </label>
                           <input
                             value={verifyPhone} onChange={(e) => setVerifyPhone(e.target.value)}
-                            placeholder="080..."
+                            placeholder={actionMode === "cancel" ? "080... or you@example.com" : "080..."}
                             className="w-full py-2.5 px-3 rounded-lg border border-border bg-bg-alt text-[13px] text-text outline-none box-border"
                           />
                         </div>
-
-                        {actionMode === "reschedule" && (
-                          availabilityLoading ? (
-                            <LoadingNotice label="Loading available times…" />
-                          ) : (
-                            <StepDateTime
-                              bookingDays={bookingDays}
-                              selectedDayIdx={selectedDayIdx}
-                              onSelectDay={(idx) => { setSelectedDayIdx(idx); setSelectedTime(null); }}
-                              selectedTime={selectedTime}
-                              onSelectTime={setSelectedTime}
-                              onContinue={confirmReschedule}
-                            />
-                          )
-                        )}
 
                         {actionMode === "cancel" && (
                           <>

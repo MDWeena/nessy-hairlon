@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import type { Database } from "../src/types/database.js";
+import { DEFAULT_FROM_ADDRESS, sendEmailChecked } from "./_lib/email.js";
 
 function getAdminClient() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -78,16 +79,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
   if (!dueReminders || dueReminders.length === 0) {
-    res.status(200).json({ success: true, sent: 0, skipped: 0, total: 0 });
+    res.status(200).json({ success: true, sent: 0, skipped: 0, failed: 0, total: 0 });
     return;
   }
 
   const resend = new Resend(resendApiKey);
-  const fromAddress = process.env.RESEND_FROM_EMAIL || "Nessy Hairlon <onboarding@resend.dev>";
+  const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS;
   const siteUrl = `https://${req.headers.host}`;
 
   let sent = 0;
   let skipped = 0;
+  const failures: { reminderId: string; error: string }[] = [];
 
   for (const reminder of dueReminders) {
     const markSent = () => adminClient.from("booking_reminders").update({ sent_at: new Date().toISOString() }).eq("id", reminder.id);
@@ -105,21 +107,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       serviceNames = (services ?? []).map(s => s.name);
     }
 
-    try {
-      await resend.emails.send({
-        from: fromAddress,
-        to: booking.client_email,
-        subject: reminderSubject(reminder.reminder_type),
-        html: renderReminderEmail(booking, serviceNames, siteUrl, reminder.reminder_type),
-      });
-      sent++;
-    } catch (err) {
-      console.error("process-reminders: failed to send", reminder.id, err);
+    const result = await sendEmailChecked(resend, fromAddress, {
+      to: booking.client_email,
+      subject: reminderSubject(reminder.reminder_type),
+      html: renderReminderEmail(booking, serviceNames, siteUrl, reminder.reminder_type),
+    }, `process-reminders ${reminder.id}`);
+    if (!result.ok) {
+      failures.push({ reminderId: reminder.id, error: result.error });
       continue; // leave sent_at null so a later run retries it
     }
 
+    sent++;
     await markSent();
   }
 
-  res.status(200).json({ success: true, sent, skipped, total: dueReminders.length });
+  // Still 200 when some sends failed — the run itself worked, and the failed reminders stay
+  // unsent for the next run. The counts and errors show up in the Vercel cron logs.
+  res.status(200).json({ success: failures.length === 0, sent, skipped, failed: failures.length, failures, total: dueReminders.length });
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { getMonthRange, getWeekRange } from "../lib/date";
-import { notify } from "../lib/notify";
+import { notify, type NotifyResult } from "../lib/notify";
 import { calculateDepositAmount, calculateBalanceAmount, sumMaterials } from "../lib/payments";
 import { isTrustedStyleReferenceUrl } from "../lib/validation";
 import { UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE } from "../constants/trustedDomains";
@@ -166,6 +166,9 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     styleReferenceUrls: row.style_reference_urls,
     clientNotes: row.client_notes,
     customStyleCategory: row.custom_style_category,
+    // ?? fallbacks: rows read before 022_booking_reschedules.sql is applied won't have these.
+    clientRescheduleCount: row.client_reschedule_count ?? 0,
+    lastRescheduledAt: row.last_rescheduled_at ?? null,
     paymentProofUrl: row.payment_proof_url,
     attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
     attachmentItems: toMaterialItems(row.attachment_items),
@@ -204,15 +207,17 @@ interface UseBookingsResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  updateBookingStatus: (id: string, status: OrderStatus) => Promise<void>;
+  /** These resolve with the notification email's outcome (null when no email was attempted),
+   * so the caller can warn when the change saved but the email didn't go out. */
+  updateBookingStatus: (id: string, status: OrderStatus) => Promise<NotifyResult | null>;
   setQuotedPrice: (
     id: string,
     price: number,
     materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
     customStyleCategory?: string,
-  ) => Promise<void>;
-  confirmDepositPayment: (id: string) => Promise<void>;
-  rejectDepositPayment: (id: string) => Promise<void>;
+  ) => Promise<NotifyResult | null>;
+  confirmDepositPayment: (id: string) => Promise<NotifyResult | null>;
+  rejectDepositPayment: (id: string) => Promise<NotifyResult | null>;
   markBalancePaid: (id: string) => Promise<void>;
   sendBalanceReminder: (id: string) => Promise<void>;
 }
@@ -253,8 +258,9 @@ export function useBookings(): UseBookingsResult {
       .update({ status, updated_at: new Date().toISOString() }).eq("id", id);
     if (updateError) await handleWriteError(updateError);
 
+    let notification: NotifyResult | null = null;
     if (existing) {
-      await notify({
+      notification = await notify({
         type: "status_change",
         previousStatus: existing.status,
         booking: {
@@ -268,6 +274,7 @@ export function useBookings(): UseBookingsResult {
       }
     }
     await fetchBookings();
+    return notification;
   }, [rows, fetchBookings]);
 
   const setQuotedPrice = useCallback(async (
@@ -283,8 +290,9 @@ export function useBookings(): UseBookingsResult {
       .update(updates).eq("id", id);
     if (updateError) await handleWriteError(updateError);
 
+    let notification: NotifyResult | null = null;
     if (existing) {
-      await notify({
+      notification = await notify({
         type: "status_change",
         previousStatus: existing.status,
         booking: {
@@ -295,6 +303,7 @@ export function useBookings(): UseBookingsResult {
       });
     }
     await fetchBookings();
+    return notification;
   }, [rows, fetchBookings]);
 
   /** Admin verifies a client's "I've paid" claim: deposit_paid -> confirmed, records when, schedules reminders. */
@@ -306,8 +315,9 @@ export function useBookings(): UseBookingsResult {
       .update({ status: "confirmed", deposit_confirmed_at: nowIso, updated_at: nowIso }).eq("id", id);
     if (updateError) await handleWriteError(updateError);
 
+    let notification: NotifyResult | null = null;
     if (existing) {
-      await notify({
+      notification = await notify({
         type: "status_change",
         previousStatus: existing.status,
         booking: {
@@ -319,6 +329,7 @@ export function useBookings(): UseBookingsResult {
       if (existing.status !== "confirmed") await scheduleReminders(existing);
     }
     await fetchBookings();
+    return notification;
   }, [rows, fetchBookings]);
 
   /** Admin can't find the deposit: deposit_paid -> quoted, asks the client to retry. */
@@ -329,8 +340,9 @@ export function useBookings(): UseBookingsResult {
       .update({ status: "quoted", updated_at: new Date().toISOString() }).eq("id", id);
     if (updateError) await handleWriteError(updateError);
 
+    let notification: NotifyResult | null = null;
     if (existing) {
-      await notify({
+      notification = await notify({
         type: "payment_not_verified",
         booking: {
           id: existing.id, client_name: existing.client_name, client_email: existing.client_email,
@@ -340,6 +352,7 @@ export function useBookings(): UseBookingsResult {
       });
     }
     await fetchBookings();
+    return notification;
   }, [rows, fetchBookings]);
 
   /** Admin marks the remaining balance as collected — whether that was a deposit top-up or, for a booking confirmed without one, the full amount taken in person. */
@@ -365,7 +378,8 @@ export function useBookings(): UseBookingsResult {
     });
     const body = await res.json().catch(() => null);
     if (!res.ok) throw new Error(body?.error || "Failed to send reminder");
-    if (!body?.sent) throw new Error("Reminder was not sent");
+    // The server's own explanation: the Resend error on a failed send, or why it skipped.
+    if (!body?.sent) throw new Error(body?.reason || body?.error || "Reminder was not sent");
     await fetchBookings();
   }, [fetchBookings]);
 
@@ -413,28 +427,35 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
     throw new Error(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
   }
 
-  const id = crypto.randomUUID();
-  const { error } = await supabase.from("bookings").insert({
-    id,
-    client_name: input.clientName,
-    client_phone: input.clientPhone,
-    client_email: input.clientEmail ?? null,
-    booking_date: input.bookingDate,
-    booking_time: input.bookingTime,
-    service_ids: input.serviceIds,
-    custom_style_url: input.customStyleUrl ?? null,
-    custom_style_description: input.customStyleDescription ?? null,
-    style_reference_urls: input.styleReferenceUrls ?? [],
-    client_notes: input.clientNotes ?? null,
-    attachment_preference: input.attachmentPreference ?? null,
+  // create_booking (supabase/migrations/022_booking_reschedules.sql) takes a per-date lock and
+  // re-runs the full availability check — capacity, minimum gap, blocked days/hours, opening
+  // hours, notice — before inserting, so two clients submitting at the same moment can't
+  // overfill a day or land inside each other's gap. The calendar's view can be minutes old.
+  const { data: id, error } = await supabase.rpc("create_booking", {
+    p_client_name: input.clientName,
+    p_client_phone: input.clientPhone,
+    p_client_email: input.clientEmail ?? null,
+    p_booking_date: input.bookingDate,
+    p_booking_time: input.bookingTime,
+    p_service_ids: input.serviceIds,
+    p_custom_style_url: input.customStyleUrl ?? null,
+    p_custom_style_description: input.customStyleDescription ?? null,
+    p_style_reference_urls: input.styleReferenceUrls ?? [],
+    p_client_notes: input.clientNotes ?? null,
+    p_attachment_preference: input.attachmentPreference ?? null,
   });
 
-  if (error) {
-    // 23505 = unique_violation, from the bookings_date_time_unique index (see
-    // supabase/migrations/015_prevent_double_booking.sql) — someone else booked this
-    // exact slot in the time between this client loading the calendar and submitting.
-    if (error.code === "23505") {
+  if (error || !id) {
+    if (!error) throw new Error("Booking could not be created. Please try again.");
+    // SLOT_UNAVAILABLE: the availability check failed under the lock — the slot (or the day)
+    // filled up after this client loaded the calendar. 23505 = unique_violation from the
+    // bookings_date_time_unique index (015_prevent_double_booking.sql), the last-line guard
+    // for the exact same slot.
+    if (error.message === "SLOT_UNAVAILABLE" || error.code === "23505") {
       throw new Error("That time slot was just booked by someone else. Please pick another.");
+    }
+    if (error.message === "INVALID_REQUEST") {
+      throw new Error("Please enter your name and phone number.");
     }
     // 23514 = check_violation — the style_reference_urls_trusted_domains constraint. The
     // client-side check above should always catch this first; this only fires if that check

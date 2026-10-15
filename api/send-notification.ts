@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { statusColors } from "../src/constants/statusColors.js";
 import type { BookingStatus, Database } from "../src/types/database.js";
 import { calculateDepositAmount, sumMaterials as sumMaterialsShared } from "../src/lib/payments.js";
+import { DEFAULT_FROM_ADDRESS, sendEmailChecked, type EmailMessage } from "./_lib/email.js";
 
 function getAdminClient() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -28,7 +29,7 @@ async function getAuthenticatedUserId(authHeader: string | undefined): Promise<s
 
 /**
  * SECURITY FIX (pre-launch audit): notification types triggered by anon clients
- * (new_booking, client_reschedule, client_cancellation, deposit_claimed) used to
+ * (new_booking, client_cancellation, deposit_claimed) used to
  * trust `payload.booking` wholesale — since the request body is entirely
  * attacker-controlled, anyone who knew (or created, trivially, since booking is
  * public) a real booking id could send a request with a fabricated client_name,
@@ -110,13 +111,10 @@ interface BookingNotificationData {
 type NotificationPayload =
   | { type: "new_booking"; booking: BookingNotificationData }
   | { type: "status_change"; booking: BookingNotificationData; previousStatus: BookingStatus }
-  // previousDate/previousTime are necessarily client-reported: by the time this notification
-  // fires, the reschedule RPC has already overwritten the booking's date/time in the database,
-  // so there is no server-side record of what it was before to re-fetch. Low-severity residual
-  // trust (see fetchBookingById above) — a spoofed value here can only misrepresent what the
-  // admin's notification email *says* happened, not the booking row itself (name/phone/current
-  // date/time/status/price in this email are all re-fetched, not client-supplied).
-  | { type: "client_reschedule"; booking: BookingNotificationData; previousDate: string; previousTime: string }
+  // Reschedule and client-cancel emails are sent by api/reschedule-*.ts / api/cancel-client.ts,
+  // straight from the database result rather than reported by the browser.
+  // client_cancellation is only kept for frontends built before api/cancel-client.ts existed
+  // (an installed PWA that hasn't updated yet), and goes once 023 removes their cancel path.
   | { type: "client_cancellation"; booking: BookingNotificationData }
   | { type: "deposit_claimed"; booking: BookingNotificationData }
   | { type: "payment_not_verified"; booking: BookingNotificationData };
@@ -237,14 +235,6 @@ function renderCompletedEmail(booking: BookingNotificationData, siteUrl: string)
   `;
 }
 
-function renderClientRescheduleEmail(booking: BookingNotificationData, previousDate: string, previousTime: string, siteUrl: string): string {
-  return `
-    <h2>A client rescheduled their appointment</h2>
-    <p><strong>${escapeHtml(booking.client_name)}</strong> (${escapeHtml(booking.client_phone)}) moved their appointment from
-      <strong>${previousDate} at ${previousTime}</strong> to <strong>${booking.booking_date} at ${booking.booking_time}</strong>.</p>
-    ${renderAdminCta(siteUrl, booking.id, "View Booking")}
-  `;
-}
 
 function renderClientCancellationEmail(booking: BookingNotificationData, siteUrl: string): string {
   return `
@@ -314,7 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
   } else if (
-    payload.type === "new_booking" || payload.type === "client_reschedule" ||
+    payload.type === "new_booking" ||
     payload.type === "client_cancellation" || payload.type === "deposit_claimed"
   ) {
     const trusted = await fetchBookingById(payload.booking.id);
@@ -330,103 +320,85 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const resend = new Resend(resendApiKey);
-  const fromAddress = process.env.RESEND_FROM_EMAIL || "Nessy Hairlon <onboarding@resend.dev>";
+  // A stale-frontend cancellation notice is only believable if the booking really is cancelled.
+  if (payload.type === "client_cancellation" && payload.booking.status !== "cancelled") {
+    res.status(409).json({ error: "Booking is not cancelled" });
+    return;
+  }
 
+  const siteUrl = `https://${req.headers.host}`;
+  let message: EmailMessage | null;
   try {
-    const siteUrl = `https://${req.headers.host}`;
-
-    if (payload.type === "new_booking") {
-      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
-      if (adminEmail) {
-        await resend.emails.send({
-          from: fromAddress,
-          to: adminEmail,
-          subject: `New booking request from ${payload.booking.client_name}`,
-          html: renderNewBookingEmail(payload.booking, siteUrl),
-        });
-      }
-    } else if (payload.type === "status_change") {
-      if (payload.booking.client_email) {
-        if (payload.booking.status === "quoted") {
-          const settings = await fetchPaymentSettings();
-          await resend.emails.send({
-            from: fromAddress,
-            to: payload.booking.client_email,
-            subject: "Your Nessy Hairlon Quote is Ready",
-            html: renderQuoteReadyEmail(payload.booking, settings, siteUrl),
-          });
-        } else if (payload.booking.status === "confirmed") {
-          const settings = await fetchPaymentSettings();
-          await resend.emails.send({
-            from: fromAddress,
-            to: payload.booking.client_email,
-            subject: "Booking Confirmed — Nessy Hairlon",
-            html: renderBookingConfirmedEmail(payload.booking, settings),
-          });
-        } else if (payload.booking.status === "completed") {
-          await resend.emails.send({
-            from: fromAddress,
-            to: payload.booking.client_email,
-            subject: "Thank you for visiting Nessy Hairlon!",
-            html: renderCompletedEmail(payload.booking, siteUrl),
-          });
-        } else {
-          await resend.emails.send({
-            from: fromAddress,
-            to: payload.booking.client_email,
-            subject: `Your Nessy Hairlon booking is now ${statusColors[payload.booking.status].label}`,
-            html: renderStatusChangeEmail(payload.booking, payload.previousStatus),
-          });
-        }
-      }
-    } else if (payload.type === "client_reschedule") {
-      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
-      if (adminEmail) {
-        await resend.emails.send({
-          from: fromAddress,
-          to: adminEmail,
-          subject: `Client rescheduled: ${payload.booking.client_name}`,
-          html: renderClientRescheduleEmail(payload.booking, payload.previousDate, payload.previousTime, siteUrl),
-        });
-      }
-    } else if (payload.type === "client_cancellation") {
-      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
-      if (adminEmail) {
-        await resend.emails.send({
-          from: fromAddress,
-          to: adminEmail,
-          subject: `Client cancelled: ${payload.booking.client_name}`,
-          html: renderClientCancellationEmail(payload.booking, siteUrl),
-        });
-      }
-    } else if (payload.type === "deposit_claimed") {
-      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
-      if (adminEmail) {
-        await resend.emails.send({
-          from: fromAddress,
-          to: adminEmail,
-          subject: `Deposit claimed: ${payload.booking.client_name} — please verify`,
-          html: renderDepositClaimedEmail(payload.booking, siteUrl),
-        });
-      }
-    } else if (payload.type === "payment_not_verified") {
-      if (payload.booking.client_email) {
-        await resend.emails.send({
-          from: fromAddress,
-          to: payload.booking.client_email,
-          subject: "We couldn't verify your deposit — Nessy Hairlon",
-          html: renderPaymentNotVerifiedEmail(payload.booking),
-        });
-      }
-    } else {
-      res.status(400).json({ error: "Unknown notification type" });
-      return;
-    }
-
-    res.status(200).json({ success: true });
+    message = await buildMessage(payload, siteUrl);
   } catch (err) {
-    console.error("send-notification error:", err);
+    console.error("send-notification: failed to build email", err);
     res.status(500).json({ error: "Failed to send notification" });
+    return;
+  }
+  if (!message) {
+    // Nobody to email (no client email on file, or no admin address configured) — not a failure.
+    res.status(200).json({ success: true, sent: false, skipped: true, reason: "No recipient" });
+    return;
+  }
+
+  const resend = new Resend(resendApiKey);
+  const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS;
+  const result = await sendEmailChecked(resend, fromAddress, message, `send-notification ${payload.type} ${payload.booking.id}`);
+  if (!result.ok) {
+    // 502: the booking change the caller made is fine — it's the email provider that failed.
+    res.status(502).json({ success: false, sent: false, error: `Email could not be sent (${result.error})` });
+    return;
+  }
+  res.status(200).json({ success: true, sent: true });
+}
+
+/** The one email (or none) a notification produces. */
+async function buildMessage(payload: NotificationPayload, siteUrl: string): Promise<EmailMessage | null> {
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || null;
+  const clientEmail = payload.booking.client_email;
+
+  switch (payload.type) {
+    case "new_booking":
+      return adminEmail ? {
+        to: adminEmail,
+        subject: `New booking request from ${payload.booking.client_name}`,
+        html: renderNewBookingEmail(payload.booking, siteUrl),
+      } : null;
+    case "status_change": {
+      if (!clientEmail) return null;
+      const { booking } = payload;
+      if (booking.status === "quoted") {
+        return { to: clientEmail, subject: "Your Nessy Hairlon Quote is Ready", html: renderQuoteReadyEmail(booking, await fetchPaymentSettings(), siteUrl) };
+      }
+      if (booking.status === "confirmed") {
+        return { to: clientEmail, subject: "Booking Confirmed — Nessy Hairlon", html: renderBookingConfirmedEmail(booking, await fetchPaymentSettings()) };
+      }
+      if (booking.status === "completed") {
+        return { to: clientEmail, subject: "Thank you for visiting Nessy Hairlon!", html: renderCompletedEmail(booking, siteUrl) };
+      }
+      return {
+        to: clientEmail,
+        subject: `Your Nessy Hairlon booking is now ${statusColors[booking.status].label}`,
+        html: renderStatusChangeEmail(booking, payload.previousStatus),
+      };
+    }
+    case "client_cancellation":
+      return adminEmail ? {
+        to: adminEmail,
+        subject: `Client cancelled: ${payload.booking.client_name}`,
+        html: renderClientCancellationEmail(payload.booking, siteUrl),
+      } : null;
+    case "deposit_claimed":
+      return adminEmail ? {
+        to: adminEmail,
+        subject: `Deposit claimed: ${payload.booking.client_name} — please verify`,
+        html: renderDepositClaimedEmail(payload.booking, siteUrl),
+      } : null;
+    case "payment_not_verified":
+      return clientEmail ? {
+        to: clientEmail,
+        subject: "We couldn't verify your deposit — Nessy Hairlon",
+        html: renderPaymentNotVerifiedEmail(payload.booking),
+      } : null;
   }
 }

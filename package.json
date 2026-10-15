@@ -21,6 +21,7 @@
     "resend": "^6.27.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
