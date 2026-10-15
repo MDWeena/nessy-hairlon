@@ -51,8 +51,20 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/offline.html',
+        // BUG FIX: this used to be `navigateFallback: '/offline.html'`, which makes the service
+        // worker answer EVERY navigation to a path that isn't precached (/track, /book,
+        // /admin?booking=…) with the offline page — even with a perfectly good connection. Only
+        // "/" escaped, being precached. So any emailed /track or /admin link, or a refresh on
+        // those pages, showed "You're currently offline" once the service worker was installed.
+        // Navigations now go to the network, and the offline page is only the fallback when the
+        // network actually fails.
+        navigateFallback: null,
         runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkOnly',
+            options: { precacheFallback: { fallbackURL: '/offline.html' } },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
