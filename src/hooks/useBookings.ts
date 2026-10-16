@@ -144,7 +144,8 @@ function describeBookingService(row: BookingRow, nameById: Map<string, string>):
   if (hasCustomReference) {
     return names.length ? `${names.join(", ")} (custom)` : "Custom style (reference provided)";
   }
-  return names.length ? names.join(", ") : "—";
+  // No named service and no reference link: a custom style described in words (or uploaded).
+  return names.length ? names.join(", ") : "Custom style";
 }
 
 /** Exported for usePaginatedOrders.ts, which fetches bookings directly (server-side filtered/

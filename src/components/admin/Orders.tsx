@@ -542,7 +542,9 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               isHighlighted && !highlightFading ? "bg-[#C49A6C18]" : "bg-transparent"
             }`}
           >
-          <div className="flex justify-between items-center flex-wrap gap-y-2.5">
+          {/* Below md (768px) the card stacks: client details, then a status/price/WhatsApp row,
+              then full-width action buttons. md and up keep everything on one row. */}
+          <div data-testid="booking-card" className="flex flex-col gap-3 md:flex-row md:justify-between md:items-center md:gap-y-2.5">
             <div className="flex items-center gap-3.5 min-w-0">
               {o.customStyleUrl ? (
                 <a href={o.customStyleUrl} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Open full photo">
@@ -554,9 +556,9 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 </div>
               )}
               <div className="min-w-0">
-                <div className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">{o.client}</div>
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-xs text-text-muted overflow-hidden text-ellipsis whitespace-nowrap">{o.service}</span>
+                <div className="text-sm font-semibold break-words md:overflow-hidden md:text-ellipsis md:whitespace-nowrap">{o.client}</div>
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0 md:flex-nowrap">
+                  <span className="text-xs text-text-muted break-words min-w-0 md:overflow-hidden md:text-ellipsis md:whitespace-nowrap">{o.service}</span>
                   {o.attachmentPreference === "nessy_buys" && (
                     <span className="text-[9px] font-bold text-gold bg-gold-bg py-px px-[7px] rounded-lg shrink-0 whitespace-nowrap">Nessy supplies</span>
                   )}
@@ -566,7 +568,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 </div>
                 <div className="text-[11px] text-text-muted mt-0.5">{o.date} at {o.time}</div>
                 {o.customStyleDescription && (
-                  <div className="text-[11px] text-text-soft mt-1 italic max-w-[320px] overflow-hidden text-ellipsis whitespace-nowrap">
+                  <div className="text-[11px] text-text-soft mt-1 italic max-w-[320px] break-words md:overflow-hidden md:text-ellipsis md:whitespace-nowrap">
                     "{o.customStyleDescription}"
                   </div>
                 )}
@@ -605,22 +607,24 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     "{o.clientNotes}"
                   </div>
                 )}
-                {!o.clientEmail && (
-                  <div className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-[#F59E0B] bg-[#F59E0B15] py-0.5 px-[7px] rounded-[10px]">
-                    <MailWarning size={10} /> No email
-                  </div>
-                )}
-                {o.lastRescheduledAt && (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    {isRecentlyRescheduled(o.lastRescheduledAt, renderNow) && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-0.5 px-[7px] rounded-[10px]">
+                {(!o.clientEmail || o.lastRescheduledAt) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    {!o.clientEmail && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#F59E0B] bg-[#F59E0B15] py-0.5 px-[7px] rounded-[10px] whitespace-nowrap">
+                        <MailWarning size={10} /> No email
+                      </span>
+                    )}
+                    {o.lastRescheduledAt && isRecentlyRescheduled(o.lastRescheduledAt, renderNow) && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-0.5 px-[7px] rounded-[10px] whitespace-nowrap">
                         <CalendarClock size={10} /> Rescheduled
                       </span>
                     )}
-                    <button
-                      onClick={() => toggleHistory(o.id)}
-                      className="bg-transparent border-none p-0 text-[10px] text-text-muted underline cursor-pointer"
-                    >{historyOpenIds.has(o.id) ? "Hide history" : "History"}</button>
+                    {o.lastRescheduledAt && (
+                      <button
+                        onClick={() => toggleHistory(o.id)}
+                        className="bg-transparent border-none p-0 text-[10px] text-text-muted underline cursor-pointer whitespace-nowrap"
+                      >{historyOpenIds.has(o.id) ? "Hide history" : "History"}</button>
+                    )}
                   </div>
                 )}
                 {historyOpenIds.has(o.id) && reschedulingId !== o.id && (
@@ -628,12 +632,12 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div data-testid="booking-actions" className="flex flex-col gap-2.5 min-w-0 md:flex-row md:items-center md:gap-3 md:shrink-0">
               {quotingId === o.id ? (
                 o.attachmentPreference || isCustomStyleOrder(o) ? (
                   <div className="text-xs text-text-soft">Quoting below…</div>
                 ) : (
-                <>
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   <MoneyInput
                     value={quoteValue} onChange={setQuoteValue}
                     placeholder="amount" autoFocus
@@ -641,39 +645,51 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                   />
                   <button
                     onClick={() => submitQuote(o.id)}
-                    className="bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer"
+                    className="flex-1 min-h-11 md:flex-none md:min-h-0 bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer"
                   >Save</button>
                   <button
                     onClick={() => setQuotingId(null)}
-                    className="bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer"
+                    className="flex-1 min-h-11 md:flex-none md:min-h-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer"
                   >Cancel</button>
-                </>
+                </div>
                 )
               ) : (
                 <>
-                  <div className="text-right">
-                    <span className="text-sm font-bold block">{o.price || "—"}</span>
-                    {o.customStyleCategory && (
-                      <span className="text-[10px] text-text-muted">{o.customStyleCategory}</span>
+                  {/* Row 1 on mobile: status, price (only once one is set), WhatsApp on the right.
+                      On md+ the price moves back in front of the status, as before. */}
+                  <div className="flex items-center gap-2.5 min-w-0 md:gap-3">
+                    <StatusBadge status={o.status} />
+                    {(o.price || o.customStyleCategory) && (
+                      <div className="min-w-0 md:-order-1 md:text-right">
+                        {o.price && <span className="text-sm font-bold block">{o.price}</span>}
+                        {o.customStyleCategory && (
+                          <span className="text-[10px] text-text-muted block truncate">{o.customStyleCategory}</span>
+                        )}
+                      </div>
                     )}
+                    <a
+                      href={buildWhatsAppUrl(o.clientPhone, buildClientChatMessage(o))}
+                      target="_blank" rel="noopener noreferrer" title={`WhatsApp ${o.client}`} aria-label={`WhatsApp ${o.client}`}
+                      className="tap-target-sm ml-auto md:ml-0 text-[#22c55e] p-1 rounded-md flex items-center justify-center shrink-0"
+                    ><MessageCircle size={16} /></a>
                   </div>
-                  <StatusBadge status={o.status} />
-                  <a
-                    href={buildWhatsAppUrl(o.clientPhone, buildClientChatMessage(o))}
-                    target="_blank" rel="noopener noreferrer" title={`WhatsApp ${o.client}`}
-                    className="text-[#22c55e] p-1 rounded-md flex items-center justify-center shrink-0"
-                  ><MessageCircle size={16} /></a>
-                  {o.status === "pending_review" && (
-                    <button
-                      onClick={() => startQuote(o.id)}
-                      className="bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer"
-                    >Set Price</button>
-                  )}
-                  {RESCHEDULABLE_STATUSES.includes(o.status) && reschedulingId !== o.id && (
-                    <button
-                      onClick={() => { setQuotingId(null); setReschedulingId(o.id); }}
-                      className="bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer flex items-center gap-1"
-                    ><CalendarClock size={12} /> Reschedule</button>
+                  {/* Row 2 on mobile: equal-width buttons, at least 44px tall, wrapping onto
+                      another row rather than shrinking when there isn't room for them all. */}
+                  {(o.status === "pending_review" || (RESCHEDULABLE_STATUSES.includes(o.status) && reschedulingId !== o.id)) && (
+                    <div className="flex flex-wrap gap-2 md:flex-nowrap">
+                      {o.status === "pending_review" && (
+                        <button
+                          onClick={() => startQuote(o.id)}
+                          className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer whitespace-nowrap"
+                        >Set Price</button>
+                      )}
+                      {RESCHEDULABLE_STATUSES.includes(o.status) && reschedulingId !== o.id && (
+                        <button
+                          onClick={() => { setQuotingId(null); setReschedulingId(o.id); }}
+                          className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
+                        ><CalendarClock size={12} /> Reschedule</button>
+                      )}
+                    </div>
                   )}
                 </>
               )}
@@ -693,7 +709,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               <span className="text-xs text-text-muted">Waiting for client deposit</span>
               <button
                 onClick={() => confirmWithoutDeposit(o.id)} disabled={busyId === o.id}
-                className={`bg-transparent border border-border rounded-md py-1.5 px-3 text-[11px] text-text-soft flex items-center gap-1.5 ${busyId === o.id ? "cursor-wait" : "cursor-pointer"}`}
+                className={`w-full min-h-11 md:w-auto md:min-h-0 justify-center bg-transparent border border-border rounded-md py-1.5 px-3 text-[11px] text-text-soft flex items-center gap-1.5 ${busyId === o.id ? "cursor-wait" : "cursor-pointer"}`}
               >{busyId === o.id && <GoldSpinner size={12} />} {busyId === o.id ? "Confirming…" : "Confirm without deposit"}</button>
             </div>
           )}
@@ -707,14 +723,14 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               ) : (
                 <span className="text-xs text-text-muted">No payment screenshot attached</span>
               )}
-              <div className="flex gap-2 shrink-0">
+              <div className="flex flex-wrap gap-2 w-full md:w-auto md:flex-nowrap md:shrink-0">
                 <button
                   onClick={() => handlePaymentNotFound(o.id)} disabled={busyId === o.id}
-                  className={`bg-transparent border border-[#EF444440] rounded-md py-1.5 px-3 text-[11px] text-[#EF4444] ${busyId === o.id ? "cursor-wait" : "cursor-pointer"}`}
+                  className={`flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 justify-center whitespace-nowrap bg-transparent border border-[#EF444440] rounded-md py-1.5 px-3 text-[11px] text-[#EF4444] ${busyId === o.id ? "cursor-wait" : "cursor-pointer"}`}
                 >Payment Not Found</button>
                 <button
                   onClick={() => handleConfirmPayment(o.id)} disabled={busyId === o.id}
-                  className={`bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-[11px] font-bold flex items-center gap-1.5 ${busyId === o.id ? "cursor-wait" : "cursor-pointer"}`}
+                  className={`flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 justify-center whitespace-nowrap bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-[11px] font-bold flex items-center gap-1.5 ${busyId === o.id ? "cursor-wait" : "cursor-pointer"}`}
                 >{busyId === o.id && <GoldSpinner size={12} color="#0A0A0A" />} {busyId === o.id ? "Confirming…" : "Confirm Payment"}</button>
               </div>
             </div>
@@ -731,12 +747,12 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                   <span className="text-xs text-text-muted">
                     Balance due: <strong className="text-text">{balanceDue != null ? `₦${balanceDue.toLocaleString()}` : "—"}</strong>
                   </span>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap w-full md:w-auto">
                     {datePassed && balanceDue != null && balanceDue > 0 && (
                       o.clientEmail ? (
                         <button
                           onClick={() => handleSendReminder(o.id)} disabled={reminderActionId === o.id}
-                          className={`bg-gold-bg border border-[#C49A6C30] rounded-md py-1.5 px-3 text-[11px] font-semibold text-gold flex items-center gap-1.5 ${reminderActionId === o.id ? "cursor-wait" : "cursor-pointer"}`}
+                          className={`flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 justify-center whitespace-nowrap bg-gold-bg border border-[#C49A6C30] rounded-md py-1.5 px-3 text-[11px] font-semibold text-gold flex items-center gap-1.5 ${reminderActionId === o.id ? "cursor-wait" : "cursor-pointer"}`}
                         >
                           {reminderActionId === o.id ? <GoldSpinner size={12} /> : <Bell size={12} />}
                           {reminderActionId === o.id ? "Sending…" : o.balanceReminderSentAt ? "Resend Reminder" : "Send Balance Reminder"}
@@ -745,13 +761,13 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                         <a
                           href={buildWhatsAppUrl(o.clientPhone, buildBalanceWhatsAppMessage(o, balanceDue, settings))}
                           target="_blank" rel="noopener noreferrer"
-                          className="bg-[#22c55e] text-white border-none rounded-md py-1.5 px-3 text-[11px] font-semibold no-underline flex items-center gap-1.5"
+                          className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 justify-center whitespace-nowrap bg-[#22c55e] text-white border-none rounded-md py-1.5 px-3 text-[11px] font-semibold no-underline flex items-center gap-1.5"
                         ><MessageCircle size={12} /> WhatsApp Reminder</a>
                       )
                     )}
                     <button
                       onClick={() => handleMarkBalancePaid(o.id)} disabled={balanceActionId === o.id}
-                      className={`bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-[11px] font-bold flex items-center gap-1.5 ${balanceActionId === o.id ? "cursor-wait" : "cursor-pointer"}`}
+                      className={`flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 justify-center whitespace-nowrap bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-[11px] font-bold flex items-center gap-1.5 ${balanceActionId === o.id ? "cursor-wait" : "cursor-pointer"}`}
                     >
                       {balanceActionId === o.id && <GoldSpinner size={12} color="#0A0A0A" />}
                       {balanceActionId === o.id ? "Marking…" : "Mark Balance Paid"}
