@@ -66,44 +66,6 @@ export async function lookupBookings({ reference, phone }: LookupBookingsQuery):
 }
 
 /**
- * Reschedules a booking from the (unauthenticated) Track Booking page. Backed
- * by the `reschedule_booking` SECURITY DEFINER function, which re-verifies
- * the reference + phone match server-side and enforces the 24h-notice rule
- * itself — this client-side call can't bypass either check. Best-effort
- * notifies the admin by email afterward.
- */
-export async function rescheduleBooking(booking: TrackedBooking, phone: string, newDate: string, newTime: string): Promise<void> {
-  const { error } = await supabase.rpc("reschedule_booking", {
-    p_reference: booking.reference, p_phone: phone, p_new_date: newDate, p_new_time: newTime,
-  });
-  if (error) throw new Error(error.message);
-
-  await notify({
-    type: "client_reschedule",
-    previousDate: booking.date,
-    previousTime: booking.time,
-    booking: {
-      id: booking.id, client_name: booking.clientName, client_email: null, client_phone: phone,
-      booking_date: newDate, booking_time: newTime, status: booking.status, quoted_price: booking.quotedPrice,
-    },
-  });
-}
-
-/** Cancels a booking from the Track Booking page. Same verification model as rescheduleBooking. */
-export async function cancelBooking(booking: TrackedBooking, phone: string): Promise<void> {
-  const { error } = await supabase.rpc("cancel_booking", { p_reference: booking.reference, p_phone: phone });
-  if (error) throw new Error(error.message);
-
-  await notify({
-    type: "client_cancellation",
-    booking: {
-      id: booking.id, client_name: booking.clientName, client_email: null, client_phone: phone,
-      booking_date: booking.date, booking_time: booking.time, status: "cancelled", quoted_price: booking.quotedPrice,
-    },
-  });
-}
-
-/**
  * Client claims they've paid their deposit, from the Track Booking page.
  * Backed by the `mark_deposit_paid` SECURITY DEFINER function — only allowed
  * from 'quoted', moves the booking to 'deposit_paid' (never straight to

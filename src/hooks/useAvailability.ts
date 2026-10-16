@@ -1,50 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { addDays, toISODateString } from "../lib/date";
+import { computeAvailability, toBookingDays } from "../lib/availability";
+import type { AvailabilityDay, BlockedSlotRow, BookedSlotRow, ScheduleDefaultRow } from "../lib/availability";
 import type { BookingDay } from "../types";
 import type { Database } from "../types/database";
 
-const DAY_KEYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export { formatHourLabel, hourFromLabel } from "../lib/availability";
+export type { AvailabilityDay, AvailabilitySlot } from "../lib/availability";
 
-export interface AvailabilitySlot {
-  hour: number;
-  label: string;
-  isBooked: boolean;
-  isBlocked: boolean;
-  /** Falls within the business's configured min_booking_notice_hours window from right now. */
-  isTooSoon: boolean;
-  /** Not itself booked, but within min_gap_hours of another booking that day (either direction). */
-  isBlockedByGap: boolean;
+export interface UseAvailabilityOptions {
+  /** The booking being rescheduled — see ComputeAvailabilityInput.exclude. */
+  exclude?: { date: string; time: string } | null;
+  ignoreNotice?: boolean;
 }
 
-export interface AvailabilityDay {
-  date: Date;
-  dayKey: string;
-  dateLabel: string;
-  fullLabel: string;
-  isOpen: boolean;
-  isDayBlocked: boolean;
-  slots: AvailabilitySlot[];
-  bookingCount: number;
-  maxSlotsPerDay: number;
-  minGapHours: number;
-  /** bookingCount >= maxSlotsPerDay — the whole day is at capacity regardless of which hours are free. */
-  isFull: boolean;
-}
-
-export function formatHourLabel(hour: number): string {
-  return `${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? "PM" : "AM"}`;
-}
-
-export function hourFromLabel(label: string): number | null {
-  const match = label.match(/^(\d{1,2}):00\s(AM|PM)$/);
-  if (!match) return null;
-  let hour = parseInt(match[1], 10);
-  if (match[2] === "PM" && hour !== 12) hour += 12;
-  if (match[2] === "AM" && hour === 12) hour = 0;
-  return hour;
+interface RawAvailability {
+  today: Date;
+  now: number;
+  noticeHours: number;
+  schedule: ScheduleDefaultRow[];
+  blocked: BlockedSlotRow[];
+  bookings: BookedSlotRow[];
 }
 
 interface UseAvailabilityResult {
@@ -61,8 +39,8 @@ interface UseAvailabilityResult {
   closeDay: (dayKey: string) => Promise<void>;
 }
 
-export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
-  const [days, setDays] = useState<AvailabilityDay[]>([]);
+export function useAvailability(daysAhead: number = 14, options: UseAvailabilityOptions = {}): UseAvailabilityResult {
+  const [raw, setRaw] = useState<RawAvailability | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,78 +74,26 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
     // toward requiring more notice rather than none if this fetch fails.
     if (settingsRes.error) console.error("useAvailability: failed to load min_booking_notice_hours", settingsRes.error);
     const noticeHours = settingsRes.error ? 24 : (Number(settingsRes.data?.value ?? 0) || 0);
-    const noticeMs = noticeHours * 60 * 60 * 1000;
 
-    const scheduleMap = new Map(scheduleRes.data.map(row => [row.day_key, row]));
-
-    const blockedDaySet = new Set<string>();
-    const blockedSlotSet = new Set<string>();
-    for (const row of blockedRes.data) {
-      if (row.hour === null) {
-        blockedDaySet.add(row.date);
-      } else {
-        blockedSlotSet.add(`${row.date}-${row.hour}`);
-      }
-    }
-
-    // Booked hours per date — need the full list (not just a boolean) to compute
-    // the min-gap exclusion zone around each booking, in both directions.
-    const bookedHoursByDate = new Map<string, number[]>();
-    for (const row of bookingsRes.data) {
-      const hour = hourFromLabel(row.booking_time);
-      if (hour === null) continue;
-      const list = bookedHoursByDate.get(row.booking_date) ?? [];
-      list.push(hour);
-      bookedHoursByDate.set(row.booking_date, list);
-    }
-
-    const result: AvailabilityDay[] = [];
-    for (let i = 0; i < daysAhead; i++) {
-      const date = addDays(today, i);
-      const dateStr = toISODateString(date);
-      const dayKey = DAY_KEYS[date.getDay()];
-      const sched = scheduleMap.get(dayKey);
-      const isOpen = sched?.is_open ?? false;
-      const isDayBlocked = blockedDaySet.has(dateStr);
-
-      const bookedHours = bookedHoursByDate.get(dateStr) ?? [];
-      const bookedHourSet = new Set(bookedHours);
-      const maxSlotsPerDay = sched?.max_slots_per_day ?? 3;
-      const minGapHours = sched?.min_gap_hours ?? 3;
-      const isFull = bookedHours.length >= maxSlotsPerDay;
-
-      const slots: AvailabilitySlot[] = [];
-      if (isOpen && sched) {
-        // Inclusive of end_hour — e.g. start=10/end=16 means the 4:00 PM slot is bookable,
-        // it's the START of the last appointment, not the closing time.
-        for (let h = sched.start_hour; h <= sched.end_hour; h++) {
-          const appointment = new Date(date);
-          appointment.setHours(h, 0, 0, 0);
-          const isBooked = bookedHourSet.has(h);
-          const isBlockedByGap = !isBooked && bookedHours.some(bh => Math.abs(h - bh) < minGapHours);
-          slots.push({
-            hour: h,
-            label: formatHourLabel(h),
-            isBooked,
-            isBlocked: blockedSlotSet.has(`${dateStr}-${h}`),
-            isTooSoon: appointment.getTime() - now < noticeMs,
-            isBlockedByGap,
-          });
-        }
-      }
-
-      result.push({
-        date, dayKey,
-        dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
-        fullLabel: `${dayKey}, ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
-        isOpen, isDayBlocked, slots,
-        bookingCount: bookedHours.length, maxSlotsPerDay, minGapHours, isFull,
-      });
-    }
-
-    setDays(result);
+    setRaw({
+      today, now, noticeHours,
+      schedule: scheduleRes.data, blocked: blockedRes.data, bookings: bookingsRes.data,
+    });
     setLoading(false);
   }, [daysAhead]);
+
+  // Computed separately from the fetch (and keyed on primitives, not the options object)
+  // so a caller passing a fresh `exclude` object every render doesn't trigger a refetch loop.
+  const excludeDate = options.exclude?.date ?? null;
+  const excludeTime = options.exclude?.time ?? null;
+  const ignoreNotice = options.ignoreNotice ?? false;
+  const days = useMemo<AvailabilityDay[]>(() => {
+    if (!raw) return [];
+    return computeAvailability({
+      ...raw, daysAhead, ignoreNotice,
+      exclude: excludeDate && excludeTime ? { date: excludeDate, time: excludeTime } : null,
+    });
+  }, [raw, daysAhead, excludeDate, excludeTime, ignoreNotice]);
 
   useEffect(() => {
     fetchAvailability();
@@ -217,16 +143,7 @@ export function useAvailability(daysAhead: number = 14): UseAvailabilityResult {
     await fetchAvailability();
   }, [fetchAvailability]);
 
-  const bookingDays: BookingDay[] = days
-    .filter(d => d.isOpen && !d.isDayBlocked && !d.isFull)
-    .map(d => {
-      const available = d.slots.filter(s => !s.isBooked && !s.isBlocked && !s.isTooSoon && !s.isBlockedByGap);
-      return {
-        key: d.dayKey, label: d.fullLabel, date: toISODateString(d.date),
-        slots: available.map(s => s.label), slotCount: available.length,
-      };
-    })
-    .filter(d => d.slotCount > 0);
+  const bookingDays: BookingDay[] = useMemo(() => toBookingDays(days), [days]);
 
   return { days, bookingDays, loading, error, refetch: fetchAvailability, blockDay, unblockDay, blockSlot, unblockSlot, openDay, closeDay };
 }

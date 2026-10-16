@@ -94,5 +94,12 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
     css: false,
+    // Dummy values so src/lib/supabase.ts can be imported in tests. Set here rather than in an
+    // env file (none are tracked) — and these override whatever is in a local .env, so a test
+    // that forgets to mock Supabase can never reach the real project.
+    env: {
+      VITE_SUPABASE_URL: 'https://test.supabase.co',
+      VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+    },
   },
 })

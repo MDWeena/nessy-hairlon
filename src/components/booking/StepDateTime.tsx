@@ -11,9 +11,11 @@ interface StepDateTimeProps {
   selectedTime: string | null;
   onSelectTime: (time: string) => void;
   onContinue: () => void;
+  /** When rescheduling: the booking's existing slot, shown as "Current" and not selectable. */
+  currentSlot?: { date: string; time: string } | null;
 }
 
-export function StepDateTime({ bookingDays, selectedDayIdx, onSelectDay, selectedTime, onSelectTime, onContinue }: StepDateTimeProps) {
+export function StepDateTime({ bookingDays, selectedDayIdx, onSelectDay, selectedTime, onSelectTime, onContinue, currentSlot }: StepDateTimeProps) {
   const { t } = useTheme();
   const selectedDay = selectedDayIdx !== null ? bookingDays[selectedDayIdx] : null;
 
@@ -43,14 +45,23 @@ export function StepDateTime({ bookingDays, selectedDayIdx, onSelectDay, selecte
               <Clock size={18} color={t.gold} strokeWidth={1.5} /> Choose a time
             </h3>
             <div className="time-slot-grid grid grid-cols-[repeat(auto-fit,minmax(100px,1fr))] gap-2 mb-8">
-              {selectedDay.slots.map(time => (
-                <button
-                  key={time} onClick={() => onSelectTime(time)}
-                  className={`py-3 px-2 rounded-lg cursor-pointer text-sm text-text [transition:all_0.2s] ${
-                    selectedTime === time ? "border-2 border-gold bg-gold-bg font-bold" : "border border-border bg-surface font-normal"
-                  }`}
-                >{time}</button>
-              ))}
+              {selectedDay.slots.map(time => {
+                const isCurrent = currentSlot?.date === selectedDay.date && currentSlot.time === time;
+                return (
+                  <button
+                    key={time} onClick={() => onSelectTime(time)} disabled={isCurrent}
+                    aria-label={isCurrent ? `${time} (your current time)` : undefined}
+                    className={`py-3 px-2 rounded-lg text-sm text-text [transition:all_0.2s] ${
+                      isCurrent ? "border border-dashed border-border bg-bg-alt text-text-muted cursor-default"
+                        : selectedTime === time ? "border-2 border-gold bg-gold-bg font-bold cursor-pointer"
+                        : "border border-border bg-surface font-normal cursor-pointer"
+                    }`}
+                  >
+                    {time}
+                    {isCurrent && <span className="block text-[10px] font-semibold uppercase tracking-[1px] text-gold mt-0.5">Current</span>}
+                  </button>
+                );
+              })}
             </div>
           </>
         )}
