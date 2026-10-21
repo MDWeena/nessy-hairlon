@@ -117,7 +117,7 @@ const FIXTURES: Record<string, Row[]> = {
   settings: [
     ["business_name", "Nessy Hairlon"], ["phone", "08000000000"], ["deposit_percentage", 50],
     ["min_booking_notice_hours", 24], ["bank_name", "Test Bank"], ["account_number", "0123456789"], ["account_name", "Nessy"],
-    ["location_url", "https://maps.app.goo.gl/nessy"],
+    ["location_url", "https://maps.app.goo.gl/nessy"], ["instagram", "@nessy_hairlon"],
   ].map(([key, value], i) => ({ id: `s${i}`, key, value })),
   schedule_defaults: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day_key, i) => ({
     id: `d${i}`, day_key, is_open: true, start_hour: 10, end_hour: 16, max_slots_per_day: 3, min_gap_hours: 3,
