@@ -1,8 +1,10 @@
-import { Phone, Camera, MapPin, Search } from "lucide-react";
+import type { ReactNode } from "react";
+import { Phone, Camera, MapPin, Search, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { LOGO_ICON } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
 import { useSettings } from "../../hooks/useSettings";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
+import { LOCATION_TEXT, MAPS_LINK_ARIA_LABEL, MAPS_LINK_TEXT, mapsUrlFrom } from "../../lib/location";
 import type { NavigateFn } from "../../types";
 import { GoldButton } from "../ui/GoldButton";
 import { WeenaCredit } from "./WeenaCredit";
@@ -12,15 +14,61 @@ interface FooterProps {
   onManageClick: () => void;
 }
 
-const FALLBACK_LOCATION_URL = "https://www.google.com/maps/search/?api=1&query=Lagos,Nigeria";
+const PHONE_TEXT = "0816 127 1343";
+const INSTAGRAM_TEXT = "@nessy_hairlon";
 
-const footerLinkClass = "flex items-center gap-2 mb-2.5 text-[#888] text-[13px] no-underline [transition:color_0.2s] w-fit hover:text-gold";
+/** "@nessy_hairlon" / "nessy_hairlon" → the profile URL; null if missing or not a valid handle. */
+function instagramUrlFrom(handle: string | null | undefined): string | null {
+  const h = (handle ?? "").trim().replace(/^@/, "");
+  return /^[A-Za-z0-9._]{1,30}$/.test(h) ? `https://www.instagram.com/${h}/` : null;
+}
+
+interface ContactRowProps {
+  icon: LucideIcon;
+  gold: string;
+  /** null → plain, non-interactive text (no arrow) — never a dead link. */
+  href: string | null;
+  ariaLabel: string;
+  testId: string;
+  children: ReactNode;
+}
+
+/**
+ * One "Get in touch" row. Every linked row looks the same: gold text, leading icon, a small
+ * trailing arrow that nudges up-right on hover/focus (no movement with reduced motion — just the
+ * brightness change), 44px tall on phones, and a visible focus ring for keyboard users.
+ */
+function ContactRow({ icon: Icon, gold, href, ariaLabel, testId, children }: ContactRowProps) {
+  const icon = <Icon size={14} color={gold} aria-hidden="true" className="shrink-0" />;
+  if (!href) {
+    return (
+      <p data-testid={`${testId}-text`} className="flex items-center gap-2 m-0 min-h-11 md:min-h-7 text-[#888] text-[13px]">
+        {icon} {children}
+      </p>
+    );
+  }
+  return (
+    <a
+      href={href} target="_blank" rel="noopener noreferrer" aria-label={ariaLabel} data-testid={testId}
+      className="group flex items-center gap-2 w-fit min-h-11 md:min-h-7 text-gold text-[13px] font-semibold no-underline whitespace-nowrap rounded-sm [transition:filter_150ms_ease] hover:brightness-125 focus-visible:brightness-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+    >
+      {icon} {children}
+      <ArrowUpRight
+        size={14} aria-hidden="true"
+        className="shrink-0 transition-transform duration-150 ease-out motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5 motion-safe:group-focus-visible:translate-x-0.5 motion-safe:group-focus-visible:-translate-y-0.5"
+      />
+    </a>
+  );
+}
 
 export function Footer({ navigate, onManageClick }: FooterProps) {
   const { t, isDark } = useTheme();
   const { settings } = useSettings();
-  const whatsappHref = buildWhatsAppUrl(settings.phone, "Hi Nessy, I'd like to book an appointment");
-  const locationHref = settings.location_url || FALLBACK_LOCATION_URL;
+  // Each row links only when its setting is present; otherwise it's plain text with no arrow.
+  const whatsappHref = settings.phone?.trim() ? buildWhatsAppUrl(settings.phone, "Hi Nessy, I'd like to book an appointment") : null;
+  const instagramHref = instagramUrlFrom(settings.instagram);
+  // null when no usable map link is set — then the location is plain text, never a dead link.
+  const mapsHref = mapsUrlFrom(settings.location_url);
 
   return (
     <footer className={`${isDark ? "bg-[#0A0806] text-[#999]" : "bg-[#1E1914] text-[#aaa]"} pt-14 px-6 pb-8`}>
@@ -47,15 +95,17 @@ export function Footer({ navigate, onManageClick }: FooterProps) {
         </div>
         <div>
           <h4 className="text-[#ccc] text-[13px] font-bold mb-4 tracking-[0.5px]">Get in touch</h4>
-          <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className={footerLinkClass}>
-            <Phone size={14} color={t.gold} /> 0816 127 1343
-          </a>
-          <a href="https://www.instagram.com/nessy_hairlon/" target="_blank" rel="noopener noreferrer" className={footerLinkClass}>
-            <Camera size={14} color={t.gold} /> @nessy_hairlon
-          </a>
-          <a href={locationHref} target="_blank" rel="noopener noreferrer" className={`${footerLinkClass} mb-0`}>
-            <MapPin size={14} color={t.gold} /> Lagos, Nigeria
-          </a>
+          <div className="flex flex-col gap-1 md:gap-1.5">
+            <ContactRow icon={Phone} gold={t.gold} href={whatsappHref} ariaLabel="Chat with Nessy on WhatsApp" testId="footer-whatsapp-link">
+              {PHONE_TEXT}
+            </ContactRow>
+            <ContactRow icon={Camera} gold={t.gold} href={instagramHref} ariaLabel="Open @nessy_hairlon on Instagram" testId="footer-instagram-link">
+              {INSTAGRAM_TEXT}
+            </ContactRow>
+            <ContactRow icon={MapPin} gold={t.gold} href={mapsHref} ariaLabel={MAPS_LINK_ARIA_LABEL} testId="footer-maps-link">
+              {mapsHref ? MAPS_LINK_TEXT : LOCATION_TEXT}
+            </ContactRow>
+          </div>
         </div>
       </div>
       <div className="border-t border-[#1E1E1E] pt-5 mt-10">

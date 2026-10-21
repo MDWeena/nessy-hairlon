@@ -16,13 +16,15 @@ interface AdminReschedulePanelProps {
   order: Order;
   onClose: () => void;
   onRescheduled: () => void;
+  /** Rendered inside a Sheet, which supplies the title and close button. */
+  inSheet?: boolean;
 }
 
 const REASON_MAX = 500;
 
 /** Admin reschedule: no notice window or client-reschedule limit, but still only slots that
  * are genuinely free (enforced again by reschedule_booking() server-side). */
-export function AdminReschedulePanel({ order, onClose, onRescheduled }: AdminReschedulePanelProps) {
+export function AdminReschedulePanel({ order, onClose, onRescheduled, inSheet = false }: AdminReschedulePanelProps) {
   const [step, setStep] = useState<Step>("pick");
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -62,13 +64,15 @@ export function AdminReschedulePanel({ order, onClose, onRescheduled }: AdminRes
   };
 
   return (
-    <div className="mt-3 pt-3 border-t border-border">
-      <div className="flex justify-between items-center mb-3">
-        <h4 className="text-[13px] font-bold m-0">Reschedule {order.client}</h4>
-        <button onClick={onClose} aria-label="Close" className="tap-target-sm bg-transparent border-none cursor-pointer p-1 flex text-text-muted">
-          <X size={15} />
-        </button>
-      </div>
+    <div className={inSheet ? "" : "mt-3 pt-3 border-t border-border"}>
+      {!inSheet && (
+        <div className="flex justify-between items-center mb-3">
+          <h4 className="text-[13px] font-bold m-0">Reschedule {order.client}</h4>
+          <button onClick={onClose} aria-label="Close" className="tap-target-sm bg-transparent border-none cursor-pointer p-1 flex text-text-muted">
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {error && <ErrorNotice message={error} />}
 

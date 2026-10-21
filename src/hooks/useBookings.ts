@@ -45,7 +45,7 @@ function toDepositInput(r: BookingRow) {
   };
 }
 
-function computeStats(rows: BookingRow[], depositPercentage: number | null): BookingStats {
+export function computeStats(rows: BookingRow[], depositPercentage: number | null): BookingStats {
   const now = new Date();
   const { start: weekStart, end: weekEnd } = getWeekRange(now);
   const { start: monthStart, end: monthEnd } = getMonthRange(now);
@@ -83,7 +83,7 @@ function computeStats(rows: BookingRow[], depositPercentage: number | null): Boo
  * (the deposit formula is full materials + 50% of the styling fee), so it's
  * counted in full the moment there's any payment at all, not split further.
  */
-function computeRevenueBreakdown(rows: BookingRow[], depositPercentage: number | null): RevenueBreakdown {
+export function computeRevenueBreakdown(rows: BookingRow[], depositPercentage: number | null): RevenueBreakdown {
   let depositsReceived = 0;
   let balanceReceived = 0;
   let attachmentMaterialCosts = 0;
@@ -199,7 +199,12 @@ interface UseBookingsResult {
   refetch: () => Promise<void>;
   /** These resolve with the notification email's outcome (null when no email was attempted),
    * so the caller can warn when the change saved but the email didn't go out. */
-  updateBookingStatus: (id: string, status: OrderStatus) => Promise<NotifyResult | null>;
+  updateBookingStatus: (id: string, status: OrderStatus, options?: { notifyClient?: boolean }) => Promise<NotifyResult | null>;
+  /** confirmed → completed; the thank-you + review email (send-notification's "completed"
+   * status_change) goes out only if `sendThankYou` and the client has an email. */
+  markCompleted: (id: string, sendThankYou: boolean) => Promise<NotifyResult | null>;
+  /** completed → confirmed, to undo a mistaken "Mark Completed". Never emails. */
+  moveBackToConfirmed: (id: string) => Promise<void>;
   setQuotedPrice: (
     id: string,
     price: number,
@@ -241,7 +246,8 @@ export function useBookings(): UseBookingsResult {
     fetchBookings();
   }, [fetchBookings]);
 
-  const updateBookingStatus = useCallback(async (id: string, status: OrderStatus) => {
+  const updateBookingStatus = useCallback(async (id: string, status: OrderStatus, options: { notifyClient?: boolean } = {}) => {
+    const notifyClient = options.notifyClient ?? true;
     await assertAuthenticated();
     const existing = rows.find(r => r.id === id);
     const { error: updateError } = await supabase.from("bookings")
@@ -250,7 +256,7 @@ export function useBookings(): UseBookingsResult {
 
     let notification: NotifyResult | null = null;
     if (existing) {
-      notification = await notify({
+      if (notifyClient) notification = await notify({
         type: "status_change",
         previousStatus: existing.status,
         booking: {
@@ -259,7 +265,8 @@ export function useBookings(): UseBookingsResult {
           status, quoted_price: existing.quoted_price,
         },
       });
-      if (status === "confirmed" && existing.status !== "confirmed") {
+      // Reminders belong to a fresh confirmation, not to undoing "completed" by mistake.
+      if (status === "confirmed" && existing.status !== "confirmed" && existing.status !== "completed") {
         await scheduleReminders(existing);
       }
     }
@@ -380,6 +387,8 @@ export function useBookings(): UseBookingsResult {
     stats: computeStats(rows, depositPercentage),
     revenueBreakdown: computeRevenueBreakdown(rows, depositPercentage),
     loading, error, refetch: fetchBookings, updateBookingStatus, setQuotedPrice,
+    markCompleted: (id: string, sendThankYou: boolean) => updateBookingStatus(id, "completed", { notifyClient: sendThankYou }),
+    moveBackToConfirmed: async (id: string) => { await updateBookingStatus(id, "confirmed", { notifyClient: false }); },
     confirmDepositPayment, rejectDepositPayment, markBalancePaid, sendBalanceReminder,
   };
 }

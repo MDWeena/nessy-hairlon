@@ -274,14 +274,17 @@ describe("email content", () => {
     expect(html).toContain("https://wa.me/2348161271343?text=");
     expect(html).toContain(`href="${PRODUCTION_SITE_URL}/track"`);
     expect(html).toContain("View your booking");
-    expect(html).toContain('href="https://maps.app.goo.gl/nessy"');
+    expect(html).toContain('Location: <a href="https://maps.app.goo.gl/nessy" style="color:#C49A6C;font-weight:600">Find us on Google Maps</a>');
     expect(html).not.toMatch(/reschedule/i);
   });
 
-  it("falls back to a generic Lagos map link when no location is set", () => {
-    const { html } = renderReminderEmail("24h_before", booking, { ...ctx, locationUrl: null });
-    expect(html).toContain("Lagos, Nigeria");
-    expect(html).toContain("google.com/maps/search");
+  it("shows plain 'Lagos, Nigeria' — no link — when no usable map URL is set", () => {
+    for (const locationUrl of [null, "", "   ", "not a url", "http://insecure.example.com/map", 'https://x.com/"><script>']) {
+      const { html } = renderReminderEmail("24h_before", booking, { ...ctx, locationUrl });
+      expect(html).toContain("<p>Location: Lagos, Nigeria</p>");
+      expect(html).not.toContain("Find us on Google Maps");
+      expect(html).not.toContain("google.com/maps");
+    }
   });
 });
 

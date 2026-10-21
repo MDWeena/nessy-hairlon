@@ -4,6 +4,7 @@ import type { OrderStatus } from "../../src/types/index.js";
 import { decideReminder, formatLongDate, watDateOf, type ReminderType } from "../../src/lib/reminders.js";
 import { shortBookingReference } from "../../src/lib/bookingReference.js";
 import { buildWhatsAppUrl } from "../../src/lib/whatsapp.js";
+import { LOCATION_TEXT, MAPS_LINK_TEXT, mapsUrlFrom } from "../../src/lib/location.js";
 import type { EmailMessage, EmailResult } from "./email.js";
 
 export interface ReminderBookingRow {
@@ -160,8 +161,6 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-const DEFAULT_LOCATION_URL = "https://www.google.com/maps/search/?api=1&query=Lagos,Nigeria";
-
 export function renderReminderEmail(
   type: ReminderType,
   booking: ReminderBookingRow,
@@ -173,7 +172,11 @@ export function renderReminderEmail(
   const time = escapeHtml(booking.booking_time);
   const services = ctx.serviceNames.length ? ctx.serviceNames.map(escapeHtml).join(", ") : "Custom style";
   const whatsapp = buildWhatsAppUrl(ctx.phone ?? undefined, `Hi Nessy, about my booking ${reference} on ${date} at ${booking.booking_time}.`);
-  const locationUrl = ctx.locationUrl && /^https:\/\//.test(ctx.locationUrl) ? ctx.locationUrl : DEFAULT_LOCATION_URL;
+  // Same rule as the site footer: a link only when there's a usable map URL, else plain text.
+  const mapsUrl = mapsUrlFrom(ctx.locationUrl);
+  const location = mapsUrl
+    ? `<a href="${escapeHtml(mapsUrl)}" style="color:#C49A6C;font-weight:600">${MAPS_LINK_TEXT}</a>`
+    : LOCATION_TEXT;
   return {
     to: booking.client_email!,
     subject: dayBefore ? "Reminder: your Nessy Hairlon appointment is tomorrow" : "Reminder: your Nessy Hairlon appointment is today",
@@ -182,7 +185,7 @@ export function renderReminderEmail(
     <p>Date: <strong>${date}</strong></p>
     <p>Time: <strong>${time}</strong></p>
     <p>Service: <strong>${services}</strong></p>
-    <p>Location: <a href="${escapeHtml(locationUrl)}" style="color:#C49A6C">Lagos, Nigeria</a></p>
+    <p>Location: ${location}</p>
     <p style="margin-top:16px;font-size:13px;color:#666;">
       Need to change anything? <a href="${whatsapp}" style="color:#C49A6C">Message Nessy on WhatsApp</a>
     </p>
