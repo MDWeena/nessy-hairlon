@@ -36,11 +36,9 @@ export async function startApp(): Promise<App> {
   };
 }
 
-/** YYYY-MM-DD, `days` from today (local time — the app's calendars use the browser's date). */
+/** YYYY-MM-DD, `days` from today in Africa/Lagos (UTC+1, no DST) — the app's business timezone. */
 export function day(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return new Date(Date.now() + 60 * 60 * 1000 + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 type Row = Record<string, unknown>;
@@ -93,6 +91,20 @@ export const BOOKINGS: Row[] = [
   booking("aaaaaaa7-0000-4000-8000-000000000007", {
     client_name: "Funke Akindele", status: "cancelled", quoted_price: 45000, booking_date: day(4),
   }),
+  // Today, late enough that it hasn't started: "Today" marker + Mark Completed.
+  booking("aaaaaaa8-0000-4000-8000-000000000008", {
+    client_name: "Kemi Balogun", status: "confirmed", quoted_price: 70000, deposit_confirmed_at: recently,
+    booking_date: day(0), booking_time: "11:59 PM",
+  }),
+  // A confirmed booking whose day has gone by — a no-show to rebook.
+  booking("aaaaaaa9-0000-4000-8000-000000000009", {
+    client_name: "Yetunde Olatunji", status: "confirmed", quoted_price: 50000, deposit_confirmed_at: recently,
+    booking_date: day(-2), booking_time: "12:00 PM",
+  }),
+  booking("aaaaaa10-0000-4000-8000-000000000010", {
+    client_name: "Halima Bello", status: "completed", quoted_price: 80000, deposit_confirmed_at: recently,
+    balance_paid_at: recently, booking_date: day(-6),
+  }),
 ];
 
 const FIXTURES: Record<string, Row[]> = {
@@ -123,18 +135,42 @@ function answerRest(route: Route, table: string) {
   if (table === "public_booking_slots") {
     rows = BOOKINGS.filter(b => b.status !== "cancelled").map(b => ({ booking_date: b.booking_date, booking_time: b.booking_time, status: b.status }));
   }
-  for (const [key, raw] of new URL(request.url()).searchParams) {
-    const m = raw.match(/^(eq|neq|in)\.(.*)$/);
+  const params = new URL(request.url()).searchParams;
+  for (const [key, raw] of params) {
+    const m = raw.match(/^(eq|neq|in|gte|lte|gt|lt)\.(.*)$/);
     if (!m || ["select", "order", "limit", "offset", "or", "and"].includes(key)) continue;
     const [, op, value] = m;
-    if (op === "eq") rows = rows.filter(r => String(r[key]) === value);
-    if (op === "neq") rows = rows.filter(r => String(r[key]) !== value);
+    const v = (r: Row) => String(r[key]);
+    if (op === "eq") rows = rows.filter(r => v(r) === value);
+    if (op === "neq") rows = rows.filter(r => v(r) !== value);
+    if (op === "gte") rows = rows.filter(r => v(r) >= value);
+    if (op === "lte") rows = rows.filter(r => v(r) <= value);
+    if (op === "gt") rows = rows.filter(r => v(r) > value);
+    if (op === "lt") rows = rows.filter(r => v(r) < value);
     if (op === "in") {
-      const values = value.replace(/^\(|\)$/g, "").split(",").map(v => v.replace(/^"|"$/g, ""));
-      rows = rows.filter(r => values.includes(String(r[key])));
+      const values = value.replace(/^\(|\)$/g, "").split(",").map(x => x.replace(/^"|"$/g, ""));
+      rows = rows.filter(r => values.includes(v(r)));
     }
   }
-  const headers = { "content-type": "application/json", "content-range": `0-${Math.max(rows.length - 1, 0)}/${rows.length}`, "access-control-expose-headers": "content-range" };
+  const order = params.get("order");
+  if (order) {
+    const keys = order.split(",").map(part => { const [col, dir] = part.split("."); return { col, desc: dir === "desc" }; });
+    rows = [...rows].sort((a, b) => {
+      for (const { col, desc } of keys) {
+        const c = String(a[col]).localeCompare(String(b[col]));
+        if (c !== 0) return desc ? -c : c;
+      }
+      return 0;
+    });
+  }
+  const total = rows.length;
+  const offset = Number(params.get("offset") ?? 0);
+  const limit = params.get("limit");
+  if (offset > 0 && offset >= total) {
+    return route.fulfill({ status: 416, headers: { "content-type": "application/json", "content-range": `*/${total}` }, body: JSON.stringify({ code: "PGRST103", message: "Requested range not satisfiable" }) });
+  }
+  rows = rows.slice(offset, limit != null ? offset + Number(limit) : undefined);
+  const headers = { "content-type": "application/json", "content-range": `${offset}-${Math.max(offset + rows.length - 1, offset)}/${total}`, "access-control-expose-headers": "content-range" };
   if ((request.headers().accept ?? "").includes("vnd.pgrst.object")) {
     if (rows.length === 0) return route.fulfill({ status: 406, headers, body: JSON.stringify({ code: "PGRST116", message: "no rows" }) });
     return route.fulfill({ status: 200, headers, body: JSON.stringify(rows[0]) });

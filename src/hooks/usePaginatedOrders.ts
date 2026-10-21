@@ -4,17 +4,19 @@ import { rowToOrder } from "./useBookings";
 import type { BookingRow } from "./useBookings";
 import { hourFromLabel } from "./useAvailability";
 import type { Order, OrderFilter } from "../types";
+import { listOrderFor, type ListOrder } from "../lib/adminActions";
+import { watDateOf } from "../lib/reminders";
 
 export const PAGE_SIZE = 20;
 
 export type OrdersStatusFilter = Exclude<OrderFilter, "this_week_confirmed">;
-/** The subset of statuses actually shown as tabs (completed/cancelled bookings aren't a
- * visible tab on this page) — narrower than OrdersStatusFilter so "all" can't be passed
- * where a real status value is required (e.g. a `.eq("status", ...)` call). Exported so
- * Orders.tsx's FILTERS array (and its tabCounts[f] lookups) line up with this exactly. */
-export type VisibleTab = "pending_review" | "quoted" | "deposit_paid" | "confirmed";
+/** One tab per status, so every booking under "All" belongs to exactly one tab and the counts
+ * add up. Narrower than OrdersStatusFilter so "all" can't be passed where a real status value is
+ * required (e.g. a `.eq("status", ...)` call). Exported so Orders.tsx's FILTERS array (and its
+ * tabCounts[f] lookups) line up with this exactly. */
+export type VisibleTab = "pending_review" | "quoted" | "deposit_paid" | "confirmed" | "completed" | "cancelled";
 
-const STATUS_TABS: VisibleTab[] = ["pending_review", "quoted", "deposit_paid", "confirmed"];
+export const STATUS_TABS: VisibleTab[] = ["pending_review", "quoted", "deposit_paid", "confirmed", "completed", "cancelled"];
 
 export interface PaginatedOrdersParams {
   filter: OrdersStatusFilter;
@@ -25,6 +27,7 @@ export interface PaginatedOrdersParams {
 
 interface UsePaginatedOrdersResult {
   items: Order[];
+  order: ListOrder;
   tabCounts: Record<"all" | VisibleTab, number>;
   hasMore: boolean;
   loadingInitial: boolean;
@@ -70,15 +73,28 @@ function buildSearchOrClause(search: string): string | null {
   return parts.join(",");
 }
 
-/** booking_time is free text ("9:00 AM"), not a sortable time column, so a plain .order() on it
- * would sort lexicographically ("10:00 AM" before "9:00 AM") — wrong. The database query below
- * only sorts by booking_date (a real date column, correct either way); this re-sorts same-date
- * rows within an already-small fetched batch using hourFromLabel for a correct same-day order. */
-function sortBatch(rows: BookingRow[]): BookingRow[] {
+/**
+ * The list order, applied to everything loaded so far. booking_time is free text ("9:00 AM"), not
+ * a sortable column, so the database pages by booking_date (+ id as a stable tiebreak) and the
+ * time-of-day order within a date is applied here with hourFromLabel.
+ *   upcoming_first:   today and later, soonest first; then past bookings, most recent first.
+ *   most_recent_first: latest date/time first (Completed, Cancelled).
+ */
+export function sortForList<T extends { booking_date: string; booking_time: string; id: string }>(rows: T[], order: ListOrder, today: string): T[] {
+  const hour = (r: T) => hourFromLabel(r.booking_time) ?? 0;
+  const desc = (a: T, b: T) => b.booking_date.localeCompare(a.booking_date) || hour(b) - hour(a) || a.id.localeCompare(b.id);
+  const asc = (a: T, b: T) => a.booking_date.localeCompare(b.booking_date) || hour(a) - hour(b) || a.id.localeCompare(b.id);
+  if (order === "most_recent_first") return [...rows].sort(desc);
   return [...rows].sort((a, b) => {
-    if (a.booking_date !== b.booking_date) return b.booking_date.localeCompare(a.booking_date);
-    return (hourFromLabel(b.booking_time) ?? 0) - (hourFromLabel(a.booking_time) ?? 0);
+    const pastA = a.booking_date < today, pastB = b.booking_date < today;
+    if (pastA !== pastB) return pastA ? 1 : -1;
+    return pastA ? desc(a, b) : asc(a, b);
   });
+}
+
+/** PostgREST answers a range past the end with 416 (PGRST103) — that's just "no more rows". */
+function isRangeError(err: { code?: string } | null): boolean {
+  return err?.code === "PGRST103";
 }
 
 /** Applies the date-range + search filters shared by both the main paginated fetch and the
@@ -109,7 +125,7 @@ export function usePaginatedOrders({ filter, fromDate, toDate, search }: Paginat
   const [nameById, setNameById] = useState<Map<string, string>>(new Map());
   const [totalCount, setTotalCount] = useState(0);
   const [tabCounts, setTabCounts] = useState<Record<"all" | VisibleTab, number>>({
-    all: 0, pending_review: 0, quoted: 0, deposit_paid: 0, confirmed: 0,
+    all: 0, pending_review: 0, quoted: 0, deposit_paid: 0, confirmed: 0, completed: 0, cancelled: 0,
   });
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -124,15 +140,51 @@ export function usePaginatedOrders({ filter, fromDate, toDate, search }: Paginat
     });
   }, []);
 
+  const order = listOrderFor(filter);
+  // Today in Africa/Lagos, fixed for the life of the list (keeps render pure); the fetches
+  // below use the same boundary between "upcoming" and "past".
+  const [today] = useState(() => watDateOf(Date.now()));
+
+  /**
+   * Fetches rows [offset, offset+limit) of the list in display order. For upcoming-first tabs the
+   * list is two database segments laid end to end — today-and-later ascending, then past
+   * descending — so infinite scroll walks the upcoming bookings first and then the past ones.
+   */
   const fetchRange = useCallback(async (offset: number, limit: number) => {
-    let query = withSharedFilters(supabase.from("bookings").select("*", { count: "exact" }), { fromDate, toDate, search });
-    if (filter !== "all") query = query.eq("status", filter);
-    const { data, error: fetchError, count } = await query
-      .order("booking_date", { ascending: false })
-      .range(offset, offset + limit - 1);
-    if (fetchError) throw fetchError;
-    return { rows: sortBatch(data ?? []), count: count ?? 0 };
-  }, [filter, fromDate, toDate, search]);
+    const base = () => {
+      let q = withSharedFilters(supabase.from("bookings").select("*", { count: "exact" }), { fromDate, toDate, search });
+      if (filter !== "all") q = q.eq("status", filter);
+      return q;
+    };
+    const slice = async (q: ReturnType<typeof base>, from: number, n: number) => {
+      const { data, error: fetchError, count } = await q.range(from, from + n - 1);
+      if (fetchError && !isRangeError(fetchError)) throw fetchError;
+      return { rows: data ?? [], count: count ?? 0 };
+    };
+
+    if (order === "most_recent_first") {
+      const r = await slice(base().order("booking_date", { ascending: false }).order("id"), offset, limit);
+      return { rows: r.rows, count: r.count };
+    }
+
+    const upcoming = await slice(base().gte("booking_date", today).order("booking_date", { ascending: true }).order("id"), offset, limit);
+    let rows = upcoming.rows;
+    let pastCount: number;
+    const remaining = limit - rows.length;
+    if (remaining > 0) {
+      const pastOffset = Math.max(0, offset - upcoming.count);
+      const past = await slice(base().lt("booking_date", today).order("booking_date", { ascending: false }).order("id"), pastOffset, remaining);
+      rows = [...rows, ...past.rows];
+      pastCount = past.count;
+    } else {
+      let head = withSharedFilters(supabase.from("bookings").select("id", { count: "exact", head: true }), { fromDate, toDate, search });
+      if (filter !== "all") head = head.eq("status", filter);
+      const { count, error: countError } = await head.lt("booking_date", today);
+      if (countError) throw countError;
+      pastCount = count ?? 0;
+    }
+    return { rows, count: upcoming.count + pastCount };
+  }, [filter, order, today, fromDate, toDate, search]);
 
   const fetchCounts = useCallback(async () => {
     const countQuery = (status?: VisibleTab) => {
@@ -141,7 +193,7 @@ export function usePaginatedOrders({ filter, fromDate, toDate, search }: Paginat
       return q;
     };
     const [all, ...tabs] = await Promise.all([countQuery(), ...STATUS_TABS.map(s => countQuery(s))]);
-    const next: Record<"all" | VisibleTab, number> = { all: all.count ?? 0, pending_review: 0, quoted: 0, deposit_paid: 0, confirmed: 0 };
+    const next: Record<"all" | VisibleTab, number> = { all: all.count ?? 0, pending_review: 0, quoted: 0, deposit_paid: 0, confirmed: 0, completed: 0, cancelled: 0 };
     STATUS_TABS.forEach((s, i) => { next[s] = tabs[i].count ?? 0; });
     setTabCounts(next);
   }, [fromDate, toDate, search]);
@@ -188,7 +240,8 @@ export function usePaginatedOrders({ filter, fromDate, toDate, search }: Paginat
   }, [rawRows.length, fetchRange, fetchCounts]);
 
   return {
-    items: rawRows.map(r => rowToOrder(r, nameById)),
+    items: sortForList(rawRows, order, today).map(r => rowToOrder(r, nameById)),
+    order,
     tabCounts,
     hasMore: rawRows.length < totalCount,
     loadingInitial, loadingMore, error, loadMore, refetchLoaded,

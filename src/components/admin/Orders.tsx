@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { statusColors } from "../../constants/statusColors";
 import { useBookings, rowToOrder } from "../../hooks/useBookings";
 import { usePaginatedOrders } from "../../hooks/usePaginatedOrders";
@@ -9,7 +9,9 @@ import { supabase } from "../../lib/supabase";
 import { calculateBalanceAmount } from "../../lib/payments";
 import { minPriceForCategory, validateCustomStyleQuote } from "../../lib/servicePricing";
 import { styleReferenceLinkTrust } from "../../lib/validation";
-import { RESCHEDULABLE_STATUSES, isRecentlyRescheduled } from "../../lib/reschedule";
+import { isRecentlyRescheduled } from "../../lib/reschedule";
+import { PRIMARY_LABELS, bookingTiming, cardActions, type MenuAction } from "../../lib/adminActions";
+import { watDateOf } from "../../lib/reminders";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import type { NotifyResult } from "../../lib/notify";
 import { toISODateString, getWeekRange, getMonthRange, addDays } from "../../lib/date";
@@ -17,6 +19,9 @@ import { labelForUrl } from "../../lib/urlLabel";
 import type { MaterialItem, Order, OrderFilter } from "../../types";
 import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Search, X, Filter, ExternalLink, ShieldCheck, AlertTriangle, CalendarClock } from "lucide-react";
 import { AdminReschedulePanel } from "./AdminReschedulePanel";
+import { CardMoreMenu } from "./CardMoreMenu";
+import { MarkCompletedPanel } from "./MarkCompletedPanel";
+import { Sheet } from "../ui/Sheet";
 import { RescheduleHistory } from "./RescheduleHistory";
 import { StatusBadge } from "../ui/StatusBadge";
 import { LoadingNotice } from "../ui/LoadingNotice";
@@ -24,7 +29,8 @@ import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 import { MoneyInput } from "../ui/MoneyInput";
 
-const FILTERS: ("all" | VisibleTab)[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed"];
+// One tab per status (plus All), so every booking in All is in exactly one tab and the counts add up.
+const FILTERS: ("all" | VisibleTab)[] = ["all", "pending_review", "quoted", "deposit_paid", "confirmed", "completed", "cancelled"];
 
 /** A custom style (photo upload or style-reference links) rather than — or alongside — a
  * standard menu selection. Quoting one requires classifying it under a category first (see
@@ -148,11 +154,17 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // list itself is now fetched separately (server-side, paginated) via usePaginatedOrders.
   const {
     bookings, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
-    markBalancePaid, sendBalanceReminder, refetch: refetchBookings,
+    markBalancePaid, sendBalanceReminder, markCompleted, moveBackToConfirmed, refetch: refetchBookings,
   } = useBookings();
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
-  // Captured once so render stays pure; only drives the 7-day "Rescheduled" badge.
+  // "Verify Payment" reveals the payment check (screenshot + Confirm / Not found) for one card.
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  // "Mark Completed" opens an in-page confirmation for one card.
+  const [completingId, setCompletingId] = useState<string | null>(null);
+  // Captured once so render stays pure; drives the "Rescheduled" badge, "Today" marker, the
+  // Past divider and which actions each card offers (today/past vs upcoming, in WAT).
   const [renderNow] = useState(() => Date.now());
+  const todayWat = watDateOf(renderNow);
   const [historyOpenIds, setHistoryOpenIds] = useState<Set<string>>(new Set());
   const toggleHistory = (id: string) => setHistoryOpenIds(prev => {
     const next = new Set(prev);
@@ -255,7 +267,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
 
   const isWeekConfirmedMode = filter === "this_week_confirmed";
   const {
-    items: paginatedItems, tabCounts, hasMore, loadingInitial, loadingMore, error: ordersError, loadMore, refetchLoaded,
+    items: paginatedItems, order: listOrder, tabCounts, hasMore, loadingInitial, loadingMore, error: ordersError, loadMore, refetchLoaded,
   } = usePaginatedOrders({
     filter: isWeekConfirmedMode ? "all" : (filter as OrdersStatusFilter),
     fromDate, toDate, search: debouncedSearch,
@@ -432,6 +444,51 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     }
   };
 
+  const handleMarkCompleted = async (id: string, sendThankYou: boolean) => {
+    setActionError(null);
+    setBusyId(id);
+    try {
+      reportNotification(await markCompleted(id, sendThankYou), bookings.find(o => o.id === id)?.client);
+      setCompletingId(null);
+      refreshList();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to mark as completed");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleMoveBackToConfirmed = async (id: string) => {
+    setActionError(null);
+    setBusyId(id);
+    try {
+      await moveBackToConfirmed(id);
+      setNotifyWarning(null);
+      refreshList();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to move back to Confirmed");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** Opens one card's panel and closes any other, so only one thing is ever open at a time. */
+  const openPanel = (id: string, panel: "quote" | "verify" | "complete" | "reschedule" | null) => {
+    setActionError(null);
+    setQuotingId(null);
+    setVerifyingId(panel === "verify" ? id : null);
+    setCompletingId(panel === "complete" ? id : null);
+    setReschedulingId(panel === "reschedule" ? id : null);
+    if (panel === "quote") startQuote(id);
+  };
+
+  const runMenuAction = (id: string, action: MenuAction) => {
+    if (action === "reschedule") openPanel(id, "reschedule");
+    else if (action === "confirm_without_deposit") confirmWithoutDeposit(id);
+    else if (action === "history") toggleHistory(id);
+    else if (action === "move_back_to_confirmed") handleMoveBackToConfirmed(id);
+  };
+
   if (listLoading) return <LoadingNotice label="Loading bookings…" />;
 
   return (
@@ -535,9 +592,19 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               }, settings.deposit_percentage ?? null)
             : null;
           const datePassed = o.date < toISODateString(new Date());
+          const timing = bookingTiming(o.date, o.time, renderNow);
+          const actions = cardActions(o, renderNow);
+          const startsPast = listOrder === "upcoming_first" && !isWeekConfirmedMode
+            && o.date < todayWat && (i === 0 || items[i - 1].date >= todayWat);
           return (
+          <Fragment key={o.id}>
+          {startsPast && (
+            <div data-testid="past-divider" className="py-2 px-5 bg-bg-alt border-b border-border text-[10px] font-bold uppercase tracking-[1.5px] text-text-muted">
+              Past
+            </div>
+          )}
           <div
-            key={o.id} ref={isHighlighted ? highlightRef : undefined}
+            ref={isHighlighted ? highlightRef : undefined}
             className={`py-4 px-5 [transition:background_0.8s] ${i < items.length - 1 ? "border-b border-border" : "border-b-0"} ${
               isHighlighted && !highlightFading ? "bg-[#C49A6C18]" : "bg-transparent"
             }`}
@@ -566,7 +633,12 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     <span className="text-[9px] font-bold text-text-muted bg-bg-alt py-px px-[7px] rounded-lg shrink-0 whitespace-nowrap">Client supplies</span>
                   )}
                 </div>
-                <div className="text-[11px] text-text-muted mt-0.5">{o.date} at {o.time}</div>
+                <div className="text-[11px] text-text-muted mt-0.5 flex flex-wrap items-center gap-1.5">
+                  <span>{o.date} at {o.time}</span>
+                  {timing.isToday && (
+                    <span data-testid="today-marker" className="text-[9px] font-bold uppercase tracking-[0.5px] text-theme-black bg-gold py-px px-1.5 rounded">Today</span>
+                  )}
+                </div>
                 {o.customStyleDescription && (
                   <div className="text-[11px] text-text-soft mt-1 italic max-w-[320px] break-words md:overflow-hidden md:text-ellipsis md:whitespace-nowrap">
                     "{o.customStyleDescription}"
@@ -607,7 +679,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                     "{o.clientNotes}"
                   </div>
                 )}
-                {(!o.clientEmail || o.lastRescheduledAt) && (
+                {(!o.clientEmail || (o.lastRescheduledAt && isRecentlyRescheduled(o.lastRescheduledAt, renderNow))) && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-1">
                     {!o.clientEmail && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#F59E0B] bg-[#F59E0B15] py-0.5 px-[7px] rounded-[10px] whitespace-nowrap">
@@ -618,12 +690,6 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gold bg-gold-bg py-0.5 px-[7px] rounded-[10px] whitespace-nowrap">
                         <CalendarClock size={10} /> Rescheduled
                       </span>
-                    )}
-                    {o.lastRescheduledAt && (
-                      <button
-                        onClick={() => toggleHistory(o.id)}
-                        className="bg-transparent border-none p-0 text-[10px] text-text-muted underline cursor-pointer whitespace-nowrap"
-                      >{historyOpenIds.has(o.id) ? "Hide history" : "History"}</button>
                     )}
                   </div>
                 )}
@@ -672,24 +738,22 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                       target="_blank" rel="noopener noreferrer" title={`WhatsApp ${o.client}`} aria-label={`WhatsApp ${o.client}`}
                       className="tap-target-sm ml-auto md:ml-0 text-[#22c55e] p-1 rounded-md flex items-center justify-center shrink-0"
                     ><MessageCircle size={16} /></a>
+                    <CardMoreMenu
+                      label={`More actions for ${o.client}`}
+                      items={actions.menu.map(m => ({
+                        key: m.action,
+                        label: m.action === "history" && historyOpenIds.has(o.id) ? "Hide reschedule history" : m.label,
+                        onSelect: () => runMenuAction(o.id, m.action),
+                      }))}
+                    />
                   </div>
-                  {/* Row 2 on mobile: equal-width buttons, at least 44px tall, wrapping onto
-                      another row rather than shrinking when there isn't room for them all. */}
-                  {(o.status === "pending_review" || (RESCHEDULABLE_STATUSES.includes(o.status) && reschedulingId !== o.id)) && (
-                    <div className="flex flex-wrap gap-2 md:flex-nowrap">
-                      {o.status === "pending_review" && (
-                        <button
-                          onClick={() => startQuote(o.id)}
-                          className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer whitespace-nowrap"
-                        >Set Price</button>
-                      )}
-                      {RESCHEDULABLE_STATUSES.includes(o.status) && reschedulingId !== o.id && (
-                        <button
-                          onClick={() => { setQuotingId(null); setReschedulingId(o.id); }}
-                          className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
-                        ><CalendarClock size={12} /> Reschedule</button>
-                      )}
-                    </div>
+                  {/* Row 2 on mobile: the card's one primary action, full width and 44px tall. */}
+                  {actions.primary && !(actions.primary === "verify_payment" && verifyingId === o.id) && completingId !== o.id && (
+                    <button
+                      onClick={() => openPanel(o.id, actions.primary === "set_price" ? "quote" : actions.primary === "verify_payment" ? "verify" : "complete")}
+                      disabled={busyId === o.id}
+                      className="w-full min-h-11 md:w-auto md:min-h-0 bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold cursor-pointer whitespace-nowrap"
+                    >{PRIMARY_LABELS[actions.primary]}</button>
                   )}
                 </>
               )}
@@ -697,24 +761,34 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           </div>
 
           {reschedulingId === o.id && (
-            <AdminReschedulePanel
-              order={o}
-              onClose={() => setReschedulingId(null)}
-              onRescheduled={() => { refreshList(); refetchBookings(); }}
+            // A sheet (bottom sheet on phones), not inline — opening it doesn't shove the cards below around.
+            <Sheet title={`Reschedule ${o.client}`} onClose={() => setReschedulingId(null)}>
+              <AdminReschedulePanel
+                order={o} inSheet
+                onClose={() => setReschedulingId(null)}
+                onRescheduled={() => { refreshList(); refetchBookings(); }}
+              />
+            </Sheet>
+          )}
+
+          {completingId === o.id && (
+            <MarkCompletedPanel
+              clientName={o.client}
+              hasEmail={!!o.clientEmail?.trim()}
+              balancePaid={!!o.balancePaidAt || (balanceDue != null && balanceDue <= 0)}
+              busy={busyId === o.id}
+              onConfirm={(sendThankYou) => handleMarkCompleted(o.id, sendThankYou)}
+              onCancel={() => setCompletingId(null)}
             />
           )}
 
           {o.status === "quoted" && quotingId !== o.id && (
-            <div className="flex justify-between items-center mt-3 pt-3 border-t border-border flex-wrap gap-2">
-              <span className="text-xs text-text-muted">Waiting for client deposit</span>
-              <button
-                onClick={() => confirmWithoutDeposit(o.id)} disabled={busyId === o.id}
-                className={`w-full min-h-11 md:w-auto md:min-h-0 justify-center bg-transparent border border-border rounded-md py-1.5 px-3 text-[11px] text-text-soft flex items-center gap-1.5 ${busyId === o.id ? "cursor-wait" : "cursor-pointer"}`}
-              >{busyId === o.id && <GoldSpinner size={12} />} {busyId === o.id ? "Confirming…" : "Confirm without deposit"}</button>
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border text-xs text-text-muted">
+              {busyId === o.id ? <><GoldSpinner size={12} /> Confirming…</> : "Waiting for client deposit"}
             </div>
           )}
 
-          {o.status === "deposit_paid" && (
+          {o.status === "deposit_paid" && verifyingId === o.id && (
             <div className="flex justify-between items-center mt-3 pt-3 border-t border-border gap-3 flex-wrap">
               {o.paymentProofUrl ? (
                 <a href={o.paymentProofUrl} target="_blank" rel="noopener noreferrer" title="Open payment proof" className="shrink-0">
@@ -898,6 +972,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
             );
           })()}
           </div>
+          </Fragment>
           );
         })}
         {/* Infinite scroll sentinel — loadMore() fires via IntersectionObserver when this

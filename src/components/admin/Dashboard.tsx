@@ -1,4 +1,5 @@
 import { Calendar, Eye, TrendingUp, Users, Clock, AlertCircle, CheckCircle, PieChart } from "lucide-react";
+import { scheduledBetween, todaysSchedule } from "../../lib/dashboardSchedule";
 import { useTheme } from "../../context/ThemeContext";
 import { useBookings } from "../../hooks/useBookings";
 import { hourFromLabel } from "../../hooks/useAvailability";
@@ -19,9 +20,7 @@ function getUpcomingBookings(bookings: Order[], days: number): Order[] {
   const futureDate = new Date(today);
   futureDate.setDate(futureDate.getDate() + days);
   const futureStr = toISODateString(futureDate);
-  return bookings.filter(
-    o => o.date >= todayStr && o.date <= futureStr && (o.status === "confirmed" || o.status === "completed")
-  );
+  return scheduledBetween(bookings, todayStr, futureStr);
 }
 
 function BookingAvatar({ client, customStyleUrl, linked }: { client: string; customStyleUrl: string | null; linked?: boolean }) {
@@ -48,7 +47,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const { bookings, stats, revenueBreakdown, loading, error } = useBookings();
 
   const today = toISODateString(new Date());
-  const todaysBookings = bookings.filter(o => o.date === today && (o.status === "confirmed" || o.status === "completed"));
+  const todaysBookings = todaysSchedule(bookings, today);
   // Soonest appointment first — the booking date/time, not when the request came in.
   const needsAttention = bookings
     .filter(o => o.status === "pending_review" || o.status === "deposit_paid")
