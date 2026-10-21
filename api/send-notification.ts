@@ -5,6 +5,7 @@ import { statusColors } from "../src/constants/statusColors.js";
 import type { BookingStatus, Database } from "../src/types/database.js";
 import { calculateDepositAmount, sumMaterials as sumMaterialsShared } from "../src/lib/payments.js";
 import { DEFAULT_FROM_ADDRESS, sendEmailChecked, type EmailMessage } from "./_lib/email.js";
+import { siteUrl as canonicalSiteUrl } from "./_lib/siteUrl.js";
 
 function getAdminClient() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
@@ -326,7 +327,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const siteUrl = `https://${req.headers.host}`;
+  const siteUrl = canonicalSiteUrl(req.headers.host);
   let message: EmailMessage | null;
   try {
     message = await buildMessage(payload, siteUrl);

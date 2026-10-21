@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { clientIp, errorResult, handleClientCancel, productionEnv } from "./_lib/reschedule.js";
+import { siteUrl } from "./_lib/siteUrl.js";
 
 /** Public cancel endpoint for the Track Booking page — see handleClientCancel. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,6 +14,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(status).json(body);
     return;
   }
-  const { status, body } = await handleClientCancel(env, req.body, clientIp(req.headers), `https://${req.headers.host}`);
+  const { status, body } = await handleClientCancel(env, req.body, clientIp(req.headers), siteUrl(req.headers.host));
   res.status(status).json(body);
 }
