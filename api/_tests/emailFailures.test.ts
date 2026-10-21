@@ -30,8 +30,9 @@ function fakeQuery(table: string) {
     maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
     then: (resolve: (v: unknown) => unknown) => {
       if (updateValues) {
-        updates.push({ table, values: updateValues, id: filters.find(([c]) => c === "id")?.[1][0] });
-        return Promise.resolve({ data: null, error: null }).then(resolve);
+        const id = filters.find(([c]) => c === "id")?.[1][0];
+        updates.push({ table, values: updateValues, id });
+        return Promise.resolve({ data: [{ id }], error: null }).then(resolve);
       }
       return Promise.resolve({ data: rows(), error: null }).then(resolve);
     },
@@ -156,21 +157,50 @@ describe("send-notification", () => {
 // ─── process-reminders ─────────────────────────────────────────────────────────────────────
 
 describe("process-reminders", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("leaves a reminder unsent (for the next run) when Resend rejects it, and reports the failure", async () => {
-    tables.bookings = [booking({ id: "b1", status: "confirmed" }), booking({ id: "b2", status: "confirmed", client_email: "zed@example.com" })];
+    // The morning before both appointments (2026-10-20 at 10:00 AM WAT).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-19T05:00:00Z"));
+    const b1 = booking({ id: "b1", status: "confirmed" });
+    const b2 = booking({ id: "b2", status: "confirmed", client_email: "zed@example.com" });
+    tables.bookings = [b1, b2];
+    // The processor reads each reminder with its booking embedded (PostgREST select).
     tables.booking_reminders = [
-      { id: "r1", booking_id: "b1", reminder_type: "24h_before" },
-      { id: "r2", booking_id: "b2", reminder_type: "24h_before" },
+      { id: "r1", booking_id: "b1", reminder_type: "24h_before", bookings: b1 },
+      { id: "r2", booking_id: "b2", reminder_type: "24h_before", bookings: b2 },
     ];
     send.mockImplementation(async (msg) => msg.to === "ada@example.com" ? REJECTED : OK);
 
     const { default: handler } = await import("../process-reminders");
-    const { req, res, out } = fakeReqRes({ method: "GET", headers: { host: "nessy.test", authorization: "Bearer cron-secret" } });
+    const { req, res, out } = fakeReqRes({ method: "GET", query: {}, headers: { host: "nessy.test", authorization: "Bearer cron-secret" } });
     await handler(req, res);
 
     expect(out.body).toMatchObject({ success: false, sent: 1, failed: 1, total: 2 });
-    expect(out.body.failures).toEqual([{ reminderId: "r1", error: "validation_error: The nessy.test domain is not verified" }]);
-    expect(updates.map(u => u.id)).toEqual(["r2"]);
+    expect((out.body.rows as { reminderId: string; action: string; reason: string }[]).find(r => r.reminderId === "r1"))
+      .toMatchObject({ action: "failed", reason: "validation_error: The nessy.test domain is not verified" });
+    // r1 is claimed, then released after the failed send (sent_at back to null); r2 stays sent.
+    expect(updates.map(u => [u.id, u.values.sent_at === null ? "released" : "claimed"])).toEqual([["r1", "claimed"], ["r1", "released"], ["r2", "claimed"]]);
+  });
+
+  it("dry run needs the cron secret and never sends or writes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-19T05:00:00Z"));
+    const b1 = booking({ id: "b1", status: "confirmed" });
+    tables.bookings = [b1];
+    tables.booking_reminders = [{ id: "r1", booking_id: "b1", reminder_type: "24h_before", bookings: b1 }];
+    const { default: handler } = await import("../process-reminders");
+
+    const anon = fakeReqRes({ method: "GET", query: { dryRun: "1" }, headers: { host: "nessy.test" } });
+    await handler(anon.req, anon.res);
+    expect(anon.out.status).toBe(401);
+
+    const { req, res, out } = fakeReqRes({ method: "GET", query: { dryRun: "1" }, headers: { host: "nessy.test", authorization: "Bearer cron-secret" } });
+    await handler(req, res);
+    expect(out.body).toMatchObject({ dryRun: true, sent: 1, failed: 0 });
+    expect(send).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(0);
   });
 });
 
@@ -200,5 +230,92 @@ describe("process-balance-reminders (manual, from the admin)", () => {
     expect(out).toEqual({ status: 200, body: { success: true, sent: 1 } });
     expect(updates).toHaveLength(1);
     expect(updates[0].values).toHaveProperty("balance_reminder_sent_at");
+  });
+});
+
+// ─── Canonical links: no production email may point at a per-deployment URL ────────────────
+
+describe("production emails never link to a *.vercel.app deployment URL", () => {
+  const DEPLOYMENT_HOST = "nessy-hairlon-8inusvxh9-wify-solutions.vercel.app";
+  const sentHtml = () => send.mock.calls.map(([m]) => (m as unknown as { html: string }).html);
+
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("VERCEL_BRANCH_URL", "nessy-hairlon-git-master-wify-solutions.vercel.app");
+    send.mockResolvedValue(OK);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("send-notification: every notification type", async () => {
+    const { default: handler } = await import("../send-notification");
+    const call = async (body: unknown, auth?: string) => {
+      const { req, res, out } = fakeReqRes({ method: "POST", body, headers: { host: DEPLOYMENT_HOST, ...(auth ? { authorization: `Bearer ${auth}` } : {}) } });
+      await handler(req, res);
+      return out;
+    };
+    tables.bookings = [booking({ status: "cancelled" })];
+    await call({ type: "new_booking", booking: { id: "b1" } });
+    await call({ type: "client_cancellation", booking: { id: "b1" } });
+    await call({ type: "deposit_claimed", booking: { id: "b1" } });
+    for (const status of ["quoted", "confirmed", "completed", "cancelled"]) {
+      await call({ type: "status_change", previousStatus: "pending_review", booking: booking({ status }) }, "admin-token");
+    }
+    await call({ type: "payment_not_verified", booking: booking({ status: "quoted" }) }, "admin-token");
+    const html = sentHtml();
+    expect(html.length).toBe(8);
+    for (const h of html) expect(h).not.toContain(".vercel.app");
+    expect(html.some(h => h.includes("https://nessy-hairlon.wifysolutions.com/admin?booking=b1"))).toBe(true);
+    expect(html.some(h => h.includes("https://nessy-hairlon.wifysolutions.com/track"))).toBe(true);
+  });
+
+  it("balance reminder", async () => {
+    tables.bookings = [booking({ status: "completed", deposit_confirmed_at: "2026-10-01T10:00:00Z" })];
+    const { default: handler } = await import("../process-balance-reminders");
+    const { req, res } = fakeReqRes({ method: "POST", body: { bookingId: "b1" }, headers: { host: DEPLOYMENT_HOST, authorization: "Bearer admin-token" } });
+    await handler(req, res);
+    const [html] = sentHtml();
+    expect(html).toContain("https://nessy-hairlon.wifysolutions.com/track");
+    expect(html).toContain("Tuesday, 20 October 2026");
+    expect(html).not.toContain(".vercel.app");
+  });
+
+  it("appointment reminders (the cron run)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-19T05:00:00Z"));
+    const b1 = booking({ id: "b1", status: "confirmed" });
+    tables.bookings = [b1];
+    tables.booking_reminders = [{ id: "r1", booking_id: "b1", reminder_type: "24h_before", bookings: b1 }];
+    const { default: handler } = await import("../process-reminders");
+    const { req, res } = fakeReqRes({ method: "GET", query: {}, headers: { host: DEPLOYMENT_HOST, authorization: "Bearer cron-secret" } });
+    await handler(req, res);
+    const [html] = sentHtml();
+    expect(html).toContain("https://nessy-hairlon.wifysolutions.com/track");
+    expect(html).not.toContain(".vercel.app");
+  });
+
+  it("reschedule and cancel emails (client and admin)", async () => {
+    const { renderRescheduleEmail, renderCancelEmail } = await import("../_lib/rescheduleEmails");
+    const { siteUrl } = await import("../_lib/siteUrl");
+    const ctx = { siteUrl: siteUrl(DEPLOYMENT_HOST), adminEmail: "nessy@example.com", nessyPhone: "08161271343" };
+    const r = { reference: "BK-B1000000", clientName: "Ada", clientPhone: "08161271343", clientEmail: "ada@example.com", oldDate: "2026-10-20", oldTime: "10:00 AM", newDate: "2026-10-22", newTime: "2:00 PM", reason: null, clientRescheduleCount: 1 };
+    const c = { reference: "BK-B1000000", bookingId: "b1", clientName: "Ada", clientPhone: "08161271343", clientEmail: "ada@example.com", date: "2026-10-20", time: "10:00 AM", previousStatus: "confirmed" as const };
+    const emails = [
+      ...(["client_rescheduled_by_client", "admin_alert_client_rescheduled", "client_rescheduled_by_admin", "admin_copy_admin_rescheduled"] as const).map(k => renderRescheduleEmail(k, r, ctx)),
+      ...(["client_cancelled_by_client", "admin_alert_client_cancelled"] as const).map(k => renderCancelEmail(k, c, ctx)),
+    ];
+    for (const e of emails) {
+      expect(e).not.toBeNull();
+      expect(e!.html).not.toContain(".vercel.app");
+    }
+    expect(emails.some(e => e!.html.includes("https://nessy-hairlon.wifysolutions.com/admin?booking=b1"))).toBe(true);
+  });
+
+  it("no API route builds links from the raw request host any more", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const apiDir = join(__dirname, "..");
+    for (const file of readdirSync(apiDir).filter(f => f.endsWith(".ts"))) {
+      expect(readFileSync(join(apiDir, file), "utf8"), file).not.toMatch(/https:\/\/\$\{req\.headers\.host\}/);
+    }
   });
 });

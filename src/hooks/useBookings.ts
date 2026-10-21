@@ -6,7 +6,7 @@ import { notify, type NotifyResult } from "../lib/notify";
 import { calculateDepositAmount, calculateBalanceAmount, sumMaterials } from "../lib/payments";
 import { isTrustedStyleReferenceUrl } from "../lib/validation";
 import { UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE } from "../constants/trustedDomains";
-import { hourFromLabel } from "./useAvailability";
+import { buildReminderRows } from "../lib/reminders";
 import { useSettings } from "./useSettings";
 import type { Database } from "../types/database";
 import type { AttachmentPreference, MaterialItem, Order, OrderStatus } from "../types";
@@ -114,26 +114,15 @@ function computeRevenueBreakdown(rows: BookingRow[], depositPercentage: number |
 }
 
 /**
- * Creates the "24h before" and "2h before" reminder rows for a just-confirmed
- * booking, so api/process-reminders.ts has something to send. Reminders whose
- * time has already passed (e.g. confirming a booking a few hours out) are
- * simply skipped rather than inserted with a scheduled_for in the past.
+ * Creates the reminder rows for a just-confirmed booking, so api/process-reminders.ts has
+ * something to send: a "day before" and a "morning of" email (see src/lib/reminders.ts).
+ * BUG FIX: this used to compute "appointment − 24h / − 2h" in the BROWSER's timezone and the
+ * processor sent anything past that instant — with a once-a-day cron, "tomorrow" emails landed on
+ * the day itself and "in 2 hours" emails the day after. Rows now carry the WAT send day, and the
+ * processor decides from the booking's current date anyway.
  */
 async function scheduleReminders(booking: { id: string; booking_date: string; booking_time: string }) {
-  const hour = hourFromLabel(booking.booking_time);
-  if (hour === null) return;
-
-  const appointment = new Date(`${booking.booking_date}T00:00:00`);
-  appointment.setHours(hour, 0, 0, 0);
-
-  const rows = [
-    { reminder_type: "24h_before" as const, offsetMs: 24 * 60 * 60 * 1000 },
-    { reminder_type: "2h_before" as const, offsetMs: 2 * 60 * 60 * 1000 },
-  ]
-    .map(r => ({ reminder_type: r.reminder_type, scheduled_for: new Date(appointment.getTime() - r.offsetMs) }))
-    .filter(r => r.scheduled_for.getTime() > Date.now())
-    .map(r => ({ booking_id: booking.id, reminder_type: r.reminder_type, scheduled_for: r.scheduled_for.toISOString() }));
-
+  const rows = buildReminderRows(booking, Date.now());
   if (rows.length === 0) return;
   await supabase.from("booking_reminders").insert(rows);
 }

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { errorResult, handleAdminReschedule, productionEnv } from "./_lib/reschedule.js";
+import { siteUrl } from "./_lib/siteUrl.js";
 
 /** Admin reschedule endpoint (requires the admin's Supabase JWT) — see handleAdminReschedule. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,6 +14,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(status).json(body);
     return;
   }
-  const { status, body } = await handleAdminReschedule(env, req.body, req.headers.authorization, `https://${req.headers.host}`);
+  const { status, body } = await handleAdminReschedule(env, req.body, req.headers.authorization, siteUrl(req.headers.host));
   res.status(status).json(body);
 }

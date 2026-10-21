@@ -4,6 +4,8 @@ import { Resend } from "resend";
 import type { Database } from "../src/types/database.js";
 import { calculateBalanceAmount } from "../src/lib/payments.js";
 import { DEFAULT_FROM_ADDRESS, sendEmailChecked, type EmailClient } from "./_lib/email.js";
+import { siteUrl as canonicalSiteUrl } from "./_lib/siteUrl.js";
+import { formatLongDate } from "../src/lib/reminders.js";
 
 type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
 
@@ -69,7 +71,7 @@ function renderBalanceReminderEmail(booking: BookingRow, balanceDue: number, set
     : "";
   return `
     <h2>Outstanding Balance — Nessy Hairlon</h2>
-    <p>Hi ${escapeHtml(booking.client_name)}, thanks again for visiting! Your appointment on <strong>${booking.booking_date}</strong> is complete, but we haven't yet received the remaining balance.</p>
+    <p>Hi ${escapeHtml(booking.client_name)}, thanks again for visiting! Your appointment on <strong>${formatLongDate(booking.booking_date)}</strong> at <strong>${booking.booking_time}</strong> is complete, but we haven't yet received the remaining balance.</p>
     <p>Balance due: <strong style="color:#C49A6C">${formatPrice(balanceDue)}</strong></p>
     ${paymentBlock}
     <p style="margin-top:16px;font-size:13px;color:#666;">
@@ -146,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const resend = new Resend(resendApiKey);
   const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS;
-  const siteUrl = `https://${req.headers.host}`;
+  const siteUrl = canonicalSiteUrl(req.headers.host);
 
   const manualBookingId = req.method === "POST" ? (req.body as { bookingId?: string } | undefined)?.bookingId : undefined;
 

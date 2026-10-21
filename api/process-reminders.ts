@@ -3,40 +3,17 @@ import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import type { Database } from "../src/types/database.js";
 import { DEFAULT_FROM_ADDRESS, sendEmailChecked } from "./_lib/email.js";
-
-function getAdminClient() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) return null;
-  return createClient<Database>(supabaseUrl, serviceRoleKey);
-}
-
-function reminderSubject(reminderType: string): string {
-  return reminderType === "24h_before"
-    ? "Reminder: Your Nessy Hairlon appointment is tomorrow"
-    : "Reminder: Your Nessy Hairlon appointment is in 2 hours";
-}
-
-function renderReminderEmail(booking: { booking_date: string; booking_time: string }, serviceNames: string[], siteUrl: string, reminderType: string): string {
-  const when = reminderType === "24h_before" ? "tomorrow" : "in 2 hours";
-  return `
-    <h2>See you ${when}!</h2>
-    <p>Date: <strong>${booking.booking_date}</strong></p>
-    <p>Time: <strong>${booking.booking_time}</strong></p>
-    <p>Service: <strong>${serviceNames.length > 0 ? serviceNames.join(", ") : "Custom style"}</strong></p>
-    <p>Location: Lagos, Nigeria</p>
-    <p style="margin-top:16px;font-size:13px;color:#666;">
-      Need to reschedule? Track your booking at <a href="${siteUrl}/track">${siteUrl}/track</a>
-    </p>
-  `;
-}
+import { runReminders, supabaseReminderRepo } from "./_lib/reminderProcessor.js";
+import { siteUrl } from "./_lib/siteUrl.js";
 
 /**
- * Sends due appointment reminders (see supabase/migrations/005_reminders.sql).
- * Intended to run on a schedule (see the "crons" entry in vercel.json — cron
- * frequency below once/day requires a Vercel Pro plan); can also be triggered
- * manually. Uses the service-role key throughout since this has no end user —
- * booking_reminders' RLS only governs authenticated/browser access.
+ * Sends appointment reminders (see src/lib/reminders.ts for the rules). Runs once a day from the
+ * "crons" entry in vercel.json (05:00 UTC = 06:00 WAT; the Hobby plan may fire it any time in
+ * that hour). Every unsent row is re-decided from its booking's CURRENT date and status, so a
+ * reminder can never go out for an appointment that has started or passed, or on the wrong day.
+ *
+ * `?dryRun=1` reports what a real run would do (send / skip / wait, with reasons) without
+ * sending anything or writing to the database. It needs the same CRON_SECRET as a real run.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
@@ -44,84 +21,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  // SECURITY FIX (pre-launch audit): this used to only check CRON_SECRET when
-  // one happened to be set (`if (process.env.CRON_SECRET && ...)`), so an
-  // unset CRON_SECRET left the endpoint fully open to any anonymous caller,
-  // who could trigger real reminder emails to real clients at will. Vercel
-  // sets this header automatically on its own Cron invocations whenever
-  // CRON_SECRET is configured as a project env var — this now fails closed:
-  // CRON_SECRET MUST be set in the Vercel project's environment variables for
-  // this endpoint (including the real cron schedule) to work at all.
+  // SECURITY FIX (pre-launch audit): fails closed — CRON_SECRET MUST be set in the Vercel
+  // project's environment variables for this endpoint (and the real cron schedule) to work.
+  // Vercel sends this header automatically on its own cron invocations.
   if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const adminClient = getAdminClient();
+  const dryRun = req.query?.dryRun === "1" || req.query?.dryRun === "true";
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
-  if (!adminClient || !resendApiKey) {
+  if (!supabaseUrl || !serviceRoleKey || (!resendApiKey && !dryRun)) {
     res.status(200).json({ success: true, skipped: true, reason: "Not configured" });
     return;
   }
 
-  const { data: dueReminders, error } = await adminClient
-    .from("booking_reminders")
-    .select("id, booking_id, reminder_type")
-    .lte("scheduled_for", new Date().toISOString())
-    .is("sent_at", null);
-
-  if (error) {
-    // SECURITY FIX (pre-launch audit): was res.status(500).json({ error: error.message })
-    // — leaked raw Postgres/PostgREST error text to the HTTP caller. Logged server-side
-    // instead; caller gets a generic message.
-    console.error("process-reminders: failed to fetch due reminders", error);
-    res.status(500).json({ error: "Failed to process reminders" });
-    return;
-  }
-  if (!dueReminders || dueReminders.length === 0) {
-    res.status(200).json({ success: true, sent: 0, skipped: 0, failed: 0, total: 0 });
-    return;
-  }
-
-  const resend = new Resend(resendApiKey);
+  const resend = resendApiKey ? new Resend(resendApiKey) : null;
   const fromAddress = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_ADDRESS;
-  const siteUrl = `https://${req.headers.host}`;
-
-  let sent = 0;
-  let skipped = 0;
-  const failures: { reminderId: string; error: string }[] = [];
-
-  for (const reminder of dueReminders) {
-    const markSent = () => adminClient.from("booking_reminders").update({ sent_at: new Date().toISOString() }).eq("id", reminder.id);
-
-    const { data: booking } = await adminClient.from("bookings").select("*").eq("id", reminder.booking_id).maybeSingle();
-    if (!booking || booking.status === "cancelled" || !booking.client_email) {
-      await markSent();
-      skipped++;
-      continue;
-    }
-
-    let serviceNames: string[] = [];
-    if (booking.service_ids.length > 0) {
-      const { data: services } = await adminClient.from("services").select("id, name").in("id", booking.service_ids);
-      serviceNames = (services ?? []).map(s => s.name);
-    }
-
-    const result = await sendEmailChecked(resend, fromAddress, {
-      to: booking.client_email,
-      subject: reminderSubject(reminder.reminder_type),
-      html: renderReminderEmail(booking, serviceNames, siteUrl, reminder.reminder_type),
-    }, `process-reminders ${reminder.id}`);
-    if (!result.ok) {
-      failures.push({ reminderId: reminder.id, error: result.error });
-      continue; // leave sent_at null so a later run retries it
-    }
-
-    sent++;
-    await markSent();
+  try {
+    const result = await runReminders({
+      repo: supabaseReminderRepo(createClient<Database>(supabaseUrl, serviceRoleKey)),
+      send: resend ? message => sendEmailChecked(resend, fromAddress, message, "process-reminders") : null,
+      siteUrl: siteUrl(req.headers.host),
+      now: Date.now(),
+      dryRun,
+    });
+    // Still 200 when some sends failed — the run itself worked, and failed reminders stay unsent
+    // for the next run. The per-row outcomes show up in the Vercel cron logs.
+    res.status(200).json(result);
+  } catch (err) {
+    // Logged server-side; the caller gets a generic message (no raw database errors).
+    console.error("process-reminders: run failed", err);
+    res.status(500).json({ error: "Failed to process reminders" });
   }
-
-  // Still 200 when some sends failed — the run itself worked, and the failed reminders stay
-  // unsent for the next run. The counts and errors show up in the Vercel cron logs.
-  res.status(200).json({ success: failures.length === 0, sent, skipped, failed: failures.length, failures, total: dueReminders.length });
 }
