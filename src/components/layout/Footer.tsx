@@ -1,8 +1,9 @@
-import { Phone, Camera, MapPin, Search } from "lucide-react";
+import { Phone, Camera, MapPin, Search, ArrowUpRight } from "lucide-react";
 import { LOGO_ICON } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
 import { useSettings } from "../../hooks/useSettings";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
+import { LOCATION_TEXT, MAPS_LINK_ARIA_LABEL, MAPS_LINK_TEXT, mapsUrlFrom } from "../../lib/location";
 import type { NavigateFn } from "../../types";
 import { GoldButton } from "../ui/GoldButton";
 import { WeenaCredit } from "./WeenaCredit";
@@ -12,15 +13,14 @@ interface FooterProps {
   onManageClick: () => void;
 }
 
-const FALLBACK_LOCATION_URL = "https://www.google.com/maps/search/?api=1&query=Lagos,Nigeria";
-
 const footerLinkClass = "flex items-center gap-2 mb-2.5 text-[#888] text-[13px] no-underline [transition:color_0.2s] w-fit hover:text-gold";
 
 export function Footer({ navigate, onManageClick }: FooterProps) {
   const { t, isDark } = useTheme();
   const { settings } = useSettings();
   const whatsappHref = buildWhatsAppUrl(settings.phone, "Hi Nessy, I'd like to book an appointment");
-  const locationHref = settings.location_url || FALLBACK_LOCATION_URL;
+  // null when no usable map link is set — then the location is plain text, never a dead link.
+  const mapsHref = mapsUrlFrom(settings.location_url);
 
   return (
     <footer className={`${isDark ? "bg-[#0A0806] text-[#999]" : "bg-[#1E1914] text-[#aaa]"} pt-14 px-6 pb-8`}>
@@ -53,9 +53,21 @@ export function Footer({ navigate, onManageClick }: FooterProps) {
           <a href="https://www.instagram.com/nessy_hairlon/" target="_blank" rel="noopener noreferrer" className={footerLinkClass}>
             <Camera size={14} color={t.gold} /> @nessy_hairlon
           </a>
-          <a href={locationHref} target="_blank" rel="noopener noreferrer" className={`${footerLinkClass} mb-0`}>
-            <MapPin size={14} color={t.gold} /> Lagos, Nigeria
-          </a>
+          {mapsHref ? (
+            // Styled to look tappable (gold, underline on hover/focus, 44px tall on phones) — as
+            // plain grey "Lagos, Nigeria" nobody realised it opened the map.
+            <a
+              href={mapsHref} target="_blank" rel="noopener noreferrer" aria-label={MAPS_LINK_ARIA_LABEL}
+              data-testid="footer-maps-link"
+              className="flex items-center gap-2 mb-0 min-h-11 md:min-h-0 text-gold text-[13px] font-semibold no-underline w-fit underline-offset-4 hover:underline focus-visible:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold rounded-sm"
+            >
+              <MapPin size={14} color={t.gold} aria-hidden="true" /> {MAPS_LINK_TEXT} <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+          ) : (
+            <p data-testid="footer-location-text" className="flex items-center gap-2 m-0 text-[#888] text-[13px]">
+              <MapPin size={14} color={t.gold} aria-hidden="true" /> {LOCATION_TEXT}
+            </p>
+          )}
         </div>
       </div>
       <div className="border-t border-[#1E1E1E] pt-5 mt-10">
