@@ -10,6 +10,8 @@ import { StepDateTime } from "../components/booking/StepDateTime";
 import { StepServices } from "../components/booking/StepServices";
 import { StepReview } from "../components/booking/StepReview";
 import type { AttachmentPreference, NavigateFn } from "../types";
+import { EMPTY_CLIENT, clearBookingDraft, draftHasProgress, loadBookingDraft, saveBookingDraft, type BookingDraft } from "../lib/bookingDraft";
+import { registerDraft } from "../lib/formDrafts";
 
 interface BookingPageProps {
   navigate: NavigateFn;
@@ -20,15 +22,50 @@ interface BookingPageProps {
 export function BookingPage({ navigate, preselectedService, onConsumePreselectedService }: BookingPageProps) {
   const { services, loading: servicesLoading, error: servicesError } = useServices();
   const { bookingDays, loading: availabilityLoading, error: availabilityError } = useAvailability();
-  const [historyResolved, setHistoryResolved] = useState(false);
-  const [step, setStep] = useState(0);
+  // A form saved just before a "Refresh and continue" (or an automatic reload onto a newer
+  // build) is restored here, so the client doesn't retype anything.
+  const [restored] = useState(() => loadBookingDraft());
+  const [historyResolved, setHistoryResolved] = useState(!!restored);
+  const [step, setStep] = useState(restored?.step ?? 0);
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [customStyleUrl, setCustomStyleUrl] = useState<string | null>(null);
-  const [customStyleDescription, setCustomStyleDescription] = useState("");
-  const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>([]);
-  const [attachmentPreference, setAttachmentPreference] = useState<AttachmentPreference | null>(null);
+  const [selectedServices, setSelectedServices] = useState<string[]>(restored?.services ?? []);
+  const [customStyleUrl, setCustomStyleUrl] = useState<string | null>(restored?.customStyleUrl ?? null);
+  const [customStyleDescription, setCustomStyleDescription] = useState(restored?.customStyleDescription ?? "");
+  const [styleReferenceUrls, setStyleReferenceUrls] = useState<string[]>(restored?.styleReferenceUrls ?? []);
+  const [attachmentPreference, setAttachmentPreference] = useState<AttachmentPreference | null>(restored?.attachmentPreference ?? null);
+  const clientRef = useRef<BookingDraft["client"]>(restored?.client ?? EMPTY_CLIENT);
+  // Set once the booking succeeds: nothing left to save, and no reason to hold back a reload.
+  const bookedRef = useRef(false);
+
+  // Put the restored day/slot back once the calendar has loaded. Matched by date, not list
+  // position; if that day or slot is no longer offered, the client picks again.
+  const dayRestoredRef = useRef(false);
+  useEffect(() => {
+    if (dayRestoredRef.current || !restored || bookingDays.length === 0) return;
+    dayRestoredRef.current = true;
+    const idx = restored.dayDate ? bookingDays.findIndex(d => d.date === restored.dayDate) : -1;
+    if (idx < 0) { if (restored.step > 0) setStep(0); return; }
+    setSelectedDayIdx(idx);
+    if (restored.time && bookingDays[idx].slots.includes(restored.time)) setSelectedTime(restored.time);
+    else if (restored.step > 0) setStep(0);
+  }, [restored, bookingDays]);
+
+  // Keep the latest form state reachable for "save before reload" without re-registering.
+  const currentDraft = (): Omit<BookingDraft, "savedAt"> => ({
+    step, dayDate: selectedDayIdx !== null ? bookingDays[selectedDayIdx]?.date ?? null : restored?.dayDate ?? null,
+    time: selectedTime, services: selectedServices, customStyleUrl, customStyleDescription, styleReferenceUrls,
+    attachmentPreference, client: clientRef.current,
+  });
+  const draftRef = useRef(currentDraft);
+  useEffect(() => { draftRef.current = currentDraft; });
+  useEffect(() => registerDraft({
+    // Only a form with something in it is worth restoring — an empty "draft" would skip the
+    // "booked with us before?" step after the reload.
+    save: () => { const d = draftRef.current(); if (!bookedRef.current && draftHasProgress(d)) saveBookingDraft(d); },
+    inProgress: () => !bookedRef.current && draftHasProgress(draftRef.current()),
+  }), []);
+  const handleBooked = () => { bookedRef.current = true; clearBookingDraft(); };
 
   const handleBookAgain = (serviceNames: string[]) => {
     setSelectedServices(serviceNames.filter(name => services.flatMap(c => c.items).some(s => s.name === name)));
@@ -68,7 +105,8 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
   };
 
   const loading = servicesLoading || availabilityLoading;
-  const error = servicesError || availabilityError;
+  // Never show raw database text to clients; the detail is logged where it happened.
+  const error = servicesError || availabilityError ? "We couldn't load the booking calendar. Please refresh the page and try again." : null;
 
   return (
     <section className="pt-12 px-6 pb-[72px] max-w-[680px] mx-auto">
@@ -136,6 +174,9 @@ export function BookingPage({ navigate, preselectedService, onConsumePreselected
               attachmentPreference={attachmentPreference}
               onBack={() => setStep(1)}
               navigate={navigate}
+              initialClient={clientRef.current}
+              onClientChange={(c) => { clientRef.current = c; }}
+              onBooked={handleBooked}
             />
           )}
         </>

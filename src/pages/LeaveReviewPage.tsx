@@ -7,6 +7,7 @@ import { FadeIn } from "../components/ui/FadeIn";
 import { GoldButton } from "../components/ui/GoldButton";
 import { ErrorNotice } from "../components/ui/ErrorNotice";
 import { GoldSpinner } from "../components/ui/GoldSpinner";
+import { toClientError } from "../lib/clientErrors";
 
 export function LeaveReviewPage() {
   const { t } = useTheme();
@@ -39,7 +40,7 @@ export function LeaveReviewPage() {
         setPhone(!looksLikeReference ? trimmed : "");
       }
     } catch (err) {
-      setLookupError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setLookupError(toClientError(err, "track").message);
     } finally {
       setLoading(false);
     }
@@ -55,7 +56,7 @@ export function LeaveReviewPage() {
       await submitReview(booking.reference, phone.trim(), stars, reviewText.trim());
       setSubmitted(true);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to submit review");
+      setSubmitError(toClientError(err, "track").message);
     } finally {
       setSubmitting(false);
     }

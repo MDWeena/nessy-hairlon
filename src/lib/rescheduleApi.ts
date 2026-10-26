@@ -1,12 +1,15 @@
 import { supabase } from "./supabase";
+import { FriendlyError } from "./clientErrors";
 import { RESCHEDULE_ERROR_MESSAGES, isRescheduleErrorCode, type RescheduleEligibility, type RescheduleErrorCode } from "./reschedule";
 import type { OrderStatus } from "../types";
 
-export class RescheduleRequestError extends Error {
+/** Messages come from our own fixed maps (server and client), so they're safe to show as-is. */
+export class RescheduleRequestError extends FriendlyError {
   readonly code: RescheduleErrorCode;
   readonly remaining: number | null;
   constructor(code: RescheduleErrorCode, message: string, remaining: number | null) {
-    super(message);
+    super(message, code === "SLOT_UNAVAILABLE" ? "slot_taken" : code === "SERVER_ERROR" ? "unknown" : "invalid_input");
+    this.name = "RescheduleRequestError";
     this.code = code;
     this.remaining = remaining;
   }

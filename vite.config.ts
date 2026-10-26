@@ -26,13 +26,34 @@ function iosAppTitlePlugin() {
   }
 }
 
+/** One ID per build, baked into the bundle and written to /version.json, so a running copy can
+ * tell when a newer build has been deployed (src/lib/appVersion.ts). */
+const BUILD_ID = `${(process.env.VERCEL_GIT_COMMIT_SHA ?? 'local').slice(0, 7)}-${Date.now().toString(36)}`
+
+function versionFilePlugin() {
+  return {
+    name: 'version-file',
+    apply: 'build' as const,
+    generateBundle(this: { emitFile: (file: { type: 'asset'; fileName: string; source: string }) => void }) {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ buildId: BUILD_ID }) })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   plugins: [
     react(),
     iosAppTitlePlugin(),
+    versionFilePlugin(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registered by src/lib/serviceWorker.ts instead, which also checks for updates when the app
+      // returns to the foreground and hourly, and reloads onto a new build when no form is open.
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'offline.html'],
       manifest: {
         name: appName,
@@ -51,6 +72,16 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // BUG FIX: index.html was precached, so every launch of "/" was answered from the cache the
+        // PREVIOUS service worker wrote — an installed app always started one build behind, and
+        // one left closed since before a backend change ran code calling removed paths (the
+        // 25 Oct "row-level security" booking failure). The page now always comes from the
+        // network (the navigation route below), with offline.html still the offline fallback.
+        globIgnores: ['**/index.html'],
+        // Set explicitly: with injectRegister false the plugin no longer adds these for
+        // autoUpdate, and without them a new worker would sit "waiting" instead of taking over.
+        skipWaiting: true,
+        clientsClaim: true,
         // BUG FIX: this used to be `navigateFallback: '/offline.html'`, which makes the service
         // worker answer EVERY navigation to a path that isn't precached (/track, /book,
         // /admin?booking=…) with the offline page — even with a perfectly good connection. Only
