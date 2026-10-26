@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { getMonthRange, getWeekRange } from "../lib/date";
 import { notify, type NotifyResult } from "../lib/notify";
+import { FriendlyError, SLOT_TAKEN_MESSAGE } from "../lib/clientErrors";
 import { calculateDepositAmount, calculateBalanceAmount, sumMaterials } from "../lib/payments";
 import { isTrustedStyleReferenceUrl } from "../lib/validation";
 import { UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE } from "../constants/trustedDomains";
@@ -408,13 +409,10 @@ export interface CreateBookingInput {
 }
 
 /**
- * Inserts a new booking (client-facing) and best-effort notifies the admin by email.
- * Returns the new booking's id (for the reference code shown on the success screen).
- *
- * Generates the row's id client-side and skips `.select()` so this never asks Postgres
- * to read the row back — anon has no SELECT policy on `bookings` (it contains client
- * PII), only INSERT, so an insert-then-select-back would fail the RETURNING visibility
- * check even though the insert itself succeeded.
+ * Creates a new booking (client-facing) through create_booking() and best-effort notifies the
+ * admin by email. Returns the new booking's id (for the reference code on the success screen).
+ * Known failures throw a FriendlyError; anything else is rethrown as-is for the UI to map with
+ * toClientError() — raw database text is never shown to clients.
  */
 export async function createBooking(input: CreateBookingInput): Promise<string> {
   // SECURITY FIX: style reference links used to be accepted as any well-formed URL — a client
@@ -423,7 +421,7 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
   // since this check alone can be bypassed by calling the Supabase REST API directly.
   const urls = input.styleReferenceUrls ?? [];
   if (urls.some(url => !isTrustedStyleReferenceUrl(url))) {
-    throw new Error(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
+    throw new FriendlyError(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
   }
 
   // create_booking (supabase/migrations/022_booking_reschedules.sql) takes a per-date lock and
@@ -445,24 +443,25 @@ export async function createBooking(input: CreateBookingInput): Promise<string> 
   });
 
   if (error || !id) {
-    if (!error) throw new Error("Booking could not be created. Please try again.");
+    if (!error) throw new FriendlyError("Booking could not be created. Please try again.", "unknown");
     // SLOT_UNAVAILABLE: the availability check failed under the lock — the slot (or the day)
     // filled up after this client loaded the calendar. 23505 = unique_violation from the
     // bookings_date_time_unique index (015_prevent_double_booking.sql), the last-line guard
     // for the exact same slot.
     if (error.message === "SLOT_UNAVAILABLE" || error.code === "23505") {
-      throw new Error("That time slot was just booked by someone else. Please pick another.");
+      throw new FriendlyError(SLOT_TAKEN_MESSAGE, "slot_taken");
     }
     if (error.message === "INVALID_REQUEST") {
-      throw new Error("Please enter your name and phone number.");
+      throw new FriendlyError("Please enter your name and phone number.");
     }
     // 23514 = check_violation — the style_reference_urls_trusted_domains constraint. The
     // client-side check above should always catch this first; this only fires if that check
     // and the DB's copy of the whitelist have drifted out of sync.
     if (error.code === "23514") {
-      throw new Error(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
+      throw new FriendlyError(UNTRUSTED_STYLE_REFERENCE_URL_MESSAGE);
     }
-    throw new Error(error.message);
+    // Permission / row-level-security, a missing function, network trouble, anything else.
+    throw error;
   }
 
   await notify({

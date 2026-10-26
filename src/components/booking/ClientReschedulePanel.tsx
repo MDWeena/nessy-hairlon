@@ -8,6 +8,9 @@ import {
 import { RescheduleRequestError, checkClientReschedule, contactProof, rescheduleAsClient } from "../../lib/rescheduleApi";
 import { buildWhatsAppUrl } from "../../lib/whatsapp";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { RefreshPrompt } from "../ui/RefreshPrompt";
+import { REFRESH_MESSAGES, toClientError } from "../../lib/clientErrors";
+import { isNewVersionAvailable } from "../../lib/appVersion";
 import { GoldButton } from "../ui/GoldButton";
 import { GoldSpinner } from "../ui/GoldSpinner";
 import { LoadingNotice } from "../ui/LoadingNotice";
@@ -36,6 +39,7 @@ export function WhatsAppNessyLink({ booking, nessyPhone }: { booking: TrackedBoo
 
 export function ClientReschedulePanel({ booking, initialContact, nessyPhone, noticeHours, onRescheduled }: ClientReschedulePanelProps) {
   const [step, setStep] = useState<Step>("verify");
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [contact, setContact] = useState(initialContact);
   const [remaining, setRemaining] = useState<number>(MAX_CLIENT_RESCHEDULES);
   const [blockReason, setBlockReason] = useState<RescheduleBlockReason | null>(null);
@@ -66,7 +70,8 @@ export function ClientReschedulePanel({ booking, initialContact, nessyPhone, not
       if (!res.eligibility.eligible && res.eligibility.reason) block(res.eligibility.reason);
       else setStep("pick");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      const { kind, message } = toClientError(err, "track");
+      if (kind === "refresh_needed") setRefreshMessage(message); else setError(message);
     } finally {
       setBusy(false);
     }
@@ -76,6 +81,8 @@ export function ClientReschedulePanel({ booking, initialContact, nessyPhone, not
     if (!selectedDay || !selectedTime) return;
     setBusy(true);
     setError(null);
+    // An out-of-date copy gets the refresh prompt rather than submitting.
+    if (await isNewVersionAvailable()) { setRefreshMessage(REFRESH_MESSAGES.track); setBusy(false); return; }
     try {
       const res = await rescheduleAsClient(booking.reference, contactProof(contact), selectedDay.date, selectedTime);
       setRemaining(res.remaining);
@@ -97,7 +104,8 @@ export function ClientReschedulePanel({ booking, initialContact, nessyPhone, not
           setError(err.message);
         }
       } else {
-        setError("Something went wrong. Please try again.");
+        const { kind, message } = toClientError(err, "track");
+        if (kind === "refresh_needed") setRefreshMessage(message); else setError(message);
       }
     } finally {
       setBusy(false);
@@ -130,6 +138,7 @@ export function ClientReschedulePanel({ booking, initialContact, nessyPhone, not
 
   return (
     <div>
+      {refreshMessage && <RefreshPrompt message={refreshMessage} />}
       {error && <ErrorNotice message={error} />}
 
       {step === "verify" && (
