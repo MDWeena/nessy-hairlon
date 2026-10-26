@@ -37,7 +37,7 @@ export async function lookupBookings({ reference, phone }: LookupBookingsQuery):
   if (!p_reference && !p_phone) return [];
 
   const { data, error } = await supabase.rpc("lookup_bookings", { p_reference, p_phone });
-  if (error) throw new Error(error.message);
+  if (error) throw error; // mapped to a client-safe message by toClientError() in the UI
   if (!data || data.length === 0) return [];
 
   const serviceIds = Array.from(new Set(data.flatMap(row => row.service_ids)));
@@ -76,7 +76,7 @@ export async function markDepositPaid(booking: TrackedBooking, phone: string, pa
   const { error } = await supabase.rpc("mark_deposit_paid", {
     p_reference: booking.reference, p_phone: phone, p_payment_proof_url: paymentProofUrl ?? null,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw error; // mapped to a client-safe message by toClientError() in the UI
 
   await notify({
     type: "deposit_claimed",
@@ -97,5 +97,5 @@ export async function submitReview(reference: string, phone: string, stars: numb
   const { error } = await supabase.rpc("submit_review", {
     p_reference: reference, p_phone: phone, p_stars: stars, p_review_text: reviewText,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw error; // mapped to a client-safe message by toClientError() in the UI
 }

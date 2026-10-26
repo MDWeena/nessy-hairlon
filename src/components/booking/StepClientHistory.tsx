@@ -9,6 +9,7 @@ import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
 import { StatusBadge } from "../ui/StatusBadge";
+import { toClientError } from "../../lib/clientErrors";
 
 interface StepClientHistoryProps {
   navigate: NavigateFn;
@@ -34,7 +35,7 @@ export function StepClientHistory({ navigate, onContinueFresh, onBookAgain }: St
       setResults(found);
       setSearched(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setError(toClientError(err, "track").message);
     } finally {
       setLoading(false);
     }

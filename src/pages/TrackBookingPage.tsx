@@ -16,6 +16,12 @@ import { GoldSpinner } from "../components/ui/GoldSpinner";
 import { PullToRefresh } from "../components/ui/PullToRefresh";
 import { ClientReschedulePanel, WhatsAppNessyLink } from "../components/booking/ClientReschedulePanel";
 import { cancelAsClient, contactProof } from "../lib/rescheduleApi";
+import { REFRESH_MESSAGES, toClientError } from "../lib/clientErrors";
+import { isNewVersionAvailable } from "../lib/appVersion";
+import { readSession, registerDraft, removeSession, writeSession } from "../lib/formDrafts";
+import { RefreshPrompt } from "../components/ui/RefreshPrompt";
+
+const TRACK_DRAFT_KEY = "nessy_track_draft";
 
 interface TrackBookingPageProps {
   navigate: NavigateFn;
@@ -56,6 +62,8 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  // Set when this copy of the site is out of date — offers "Refresh and continue" instead.
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [proofUploading, setProofUploading] = useState(false);
@@ -81,11 +89,35 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
       if (found.length === 0) setError("No booking found for that reference or phone number.");
       setResults(found);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      const { kind, message } = toClientError(err, "track");
+      if (kind === "refresh_needed") setRefreshMessage(message); else setError(message);
     } finally {
       setLoading(false);
     }
   };
+
+  /** Before a cancel / "I've paid": an out-of-date copy gets the refresh prompt instead. */
+  const needsRefresh = async (): Promise<boolean> => {
+    if (!(await isNewVersionAvailable())) return false;
+    setRefreshMessage(REFRESH_MESSAGES.track);
+    return true;
+  };
+
+  // Save the search before a reload onto a newer build, and run it again afterwards.
+  const queryRef = useRef(query);
+  const actionOpenRef = useRef(false);
+  useEffect(() => { queryRef.current = query; actionOpenRef.current = actionMode !== null; });
+  useEffect(() => registerDraft({
+    save: () => { if (queryRef.current.trim()) writeSession(TRACK_DRAFT_KEY, { query: queryRef.current }); },
+    inProgress: () => actionOpenRef.current,
+  }), []);
+  useEffect(() => {
+    if (initialReference) return;
+    const saved = readSession<{ query?: string }>(TRACK_DRAFT_KEY);
+    removeSession(TRACK_DRAFT_KEY);
+    if (saved?.query) { setQuery(saved.query); runSearch(saved.query); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearch = () => runSearch(query);
 
@@ -127,6 +159,7 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
     const ref = actionBooking.reference;
     setActionBusy(true);
     setActionError(null);
+    if (await needsRefresh()) { setActionBusy(false); return; }
     try {
       const res = await cancelAsClient(ref, contactProof(verifyPhone));
       setActionSuccess(res.notifications.clientEmail === "sent"
@@ -135,7 +168,8 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
       closeAction();
       setResults(prev => prev?.map(b => b.reference === ref ? { ...b, status: "cancelled" } : b) ?? prev);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to cancel. Please try again.");
+      const { kind, message } = toClientError(err, "track");
+      if (kind === "refresh_needed") setRefreshMessage(message); else setActionError(message);
     } finally {
       setActionBusy(false);
     }
@@ -163,13 +197,15 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
     const ref = actionBooking.reference;
     setActionBusy(true);
     setActionError(null);
+    if (await needsRefresh()) { setActionBusy(false); return; }
     try {
       await markDepositPaid(actionBooking, verifyPhone.trim(), proofUrl);
       setActionSuccess("Thanks! We've received your payment notification — Nessy will verify and confirm your appointment shortly.");
       closeAction();
       setResults(prev => prev?.map(b => b.reference === ref ? { ...b, status: "deposit_paid" } : b) ?? prev);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to submit. Please try again.");
+      const { kind, message } = toClientError(err, "track");
+      if (kind === "refresh_needed") setRefreshMessage(message); else setActionError(message);
     } finally {
       setActionBusy(false);
     }
@@ -203,6 +239,7 @@ export function TrackBookingPage({ navigate, initialReference, onConsumeInitialR
         </GoldButton>
       </div>
 
+      {refreshMessage && <RefreshPrompt message={refreshMessage} />}
       {error && <ErrorNotice message={error} />}
 
       {results && results.length > 0 && (

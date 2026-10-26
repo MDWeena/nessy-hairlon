@@ -21,6 +21,10 @@
       ]
     },
     {
+      "source": "/version.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+    },
+    {
       "source": "/(.*)",
       "missing": [{ "type": "host", "value": "nessy-hairlon.wifysolutions.com" }],
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]

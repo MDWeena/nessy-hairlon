@@ -11,6 +11,10 @@ import type { AttachmentPreference, BookingDay, NavigateFn, ServiceItem } from "
 import { FadeIn } from "../ui/FadeIn";
 import { GoldButton } from "../ui/GoldButton";
 import { ErrorNotice } from "../ui/ErrorNotice";
+import { RefreshPrompt } from "../ui/RefreshPrompt";
+import { REFRESH_MESSAGES, toClientError } from "../../lib/clientErrors";
+import { isNewVersionAvailable } from "../../lib/appVersion";
+import { EMPTY_CLIENT, type BookingDraft } from "../../lib/bookingDraft";
 import { GoldSpinner } from "../ui/GoldSpinner";
 
 const MAX_NOTES_LENGTH = 500;
@@ -80,23 +84,31 @@ interface StepReviewProps {
   attachmentPreference: AttachmentPreference | null;
   onBack: () => void;
   navigate: NavigateFn;
+  /** Details restored from a saved draft (after a refresh onto a newer build). */
+  initialClient?: BookingDraft["client"];
+  /** Reports the details as they're typed, so they can be saved before a reload. */
+  onClientChange?: (client: BookingDraft["client"]) => void;
+  onBooked?: () => void;
 }
 
 export function StepReview({
   allServices, selectedDay, selectedTime, selectedServices,
   customStyleUrl, customStyleDescription, styleReferenceUrls, attachmentPreference, onBack, navigate,
+  initialClient = EMPTY_CLIENT, onClientChange, onBooked,
 }: StepReviewProps) {
   const { t } = useTheme();
   const { settings } = useSettings();
-  const [clientName, setClientName] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientNotes, setClientNotes] = useState("");
+  const [clientName, setClientName] = useState(initialClient.name);
+  const [clientPhone, setClientPhone] = useState(initialClient.phone);
+  const [clientEmail, setClientEmail] = useState(initialClient.email);
+  const [clientNotes, setClientNotes] = useState(initialClient.notes);
+  // Set when this copy of the site is out of date — offers "Refresh and continue" instead.
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [reference, setReference] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [emailOptedOut, setEmailOptedOut] = useState(false);
+  const [emailOptedOut, setEmailOptedOut] = useState(initialClient.emailOptedOut);
   const [noEmailModalOpen, setNoEmailModalOpen] = useState(false);
   const emailInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -107,6 +119,10 @@ export function StepReview({
   }, [reference]);
 
   const isCustom = !!customStyleUrl || styleReferenceUrls.length > 0;
+
+  useEffect(() => {
+    onClientChange?.({ name: clientName, phone: clientPhone, email: clientEmail, notes: clientNotes, emailOptedOut });
+  }, [clientName, clientPhone, clientEmail, clientNotes, emailOptedOut, onClientChange]);
 
   const handleConfirm = async () => {
     if (!selectedDay || !selectedTime) return;
@@ -132,6 +148,13 @@ export function StepReview({
     }
     setEmailError(null);
     setSubmitting(true);
+    // An out-of-date copy would call backend paths that may no longer exist — catch it before
+    // submitting and offer the refresh (the form is saved and restored across it).
+    if (await isNewVersionAvailable()) {
+      setRefreshMessage(REFRESH_MESSAGES.booking);
+      setSubmitting(false);
+      return;
+    }
     try {
       const serviceIds = selectedServices
         .map(name => allServices.find(s => s.name === name)?.id)
@@ -150,8 +173,11 @@ export function StepReview({
         attachmentPreference,
       });
       setReference(shortBookingReference(id));
+      onBooked?.();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to submit booking");
+      const { kind, message } = toClientError(err, "booking");
+      if (kind === "refresh_needed") setRefreshMessage(message);
+      else setSubmitError(message);
     } finally {
       setSubmitting(false);
     }
@@ -368,6 +394,7 @@ export function StepReview({
           </div>
         </div>
 
+        {refreshMessage && <RefreshPrompt message={refreshMessage} />}
         {submitError && <ErrorNotice message={submitError} />}
 
         <div className="flex gap-3">
