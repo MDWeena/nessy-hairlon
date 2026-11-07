@@ -33,9 +33,10 @@ function MonthCard({ m, onOpen }: { m: MonthFigures; onOpen: () => void }) {
         </div>
         <div className="text-[13px] mt-1"><ProfitLoss value={m.profit} /></div>
         <div className="text-[12px] text-text-muted mt-0.5">
-          {m.appointments} appointment{m.appointments === 1 ? "" : "s"} · {m.workingDays} working day{m.workingDays === 1 ? "" : "s"}
+          {m.appointments} appointment{m.appointments === 1 ? "" : "s"} · {m.workingDays} hair day{m.workingDays === 1 ? "" : "s"}
           {m.costs.productsMissing > 0 && ` · ${m.costs.productsMissing} missing product cost`}
         </div>
+        <div className="text-[12px] text-text-muted mt-0.5" data-testid="month-card-received">Money received in {m.label.split(" ")[0]}: {formatNaira(m.moneyReceived)}</div>
       </div>
       <ChevronRight size={18} className="text-text-muted shrink-0" aria-hidden="true" />
     </button>
@@ -95,6 +96,11 @@ export function Finances() {
             </button>
           )}
 
+          {!fin.trackingStartConfirmed && (
+            <p data-testid="tracking-start-banner" className="m-0 mb-3 text-[12px] p-3 rounded-lg border border-[#F59E0B60] bg-[#F59E0B14] text-text">
+              Choose when your finances start in Settings → Business costs. Until then these figures count from the first booking ever made, and month reports aren't closed.
+            </p>
+          )}
           <Card title={`Since ${fin.trackingStart ? `${shortDate(fin.trackingStart)} ${fin.trackingStart.slice(0, 4)}` : "launch"}`} testId="finance-overview">
             <div className="mb-3"><ProfitLoss value={t.profit} className="text-2xl" /></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
@@ -103,6 +109,8 @@ export function Finances() {
               <Stat label="Outstanding" value={formatNaira(t.outstanding)} />
               <Stat label="Total costs" value={formatNaira(t.costs.total)} />
             </div>
+            <Line label="Money received" value={formatNaira(t.moneyReceived)}
+              hint="Every payment that came in, by the date it arrived — includes deposits for appointments that haven't happened yet, so it differs from Earned and Collected" />
             <Line label="Products used" value={formatNaira(t.costs.products)} />
             <Line label="Materials bought for clients" value={formatNaira(t.costs.materials)} />
             <Line label="Transport" value={formatNaira(t.costs.transport)} />

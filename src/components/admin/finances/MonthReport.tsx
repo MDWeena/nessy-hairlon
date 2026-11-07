@@ -15,7 +15,7 @@ interface MonthReportProps {
 }
 
 function transportExplanation(m: MonthFigures): string {
-  if (m.workingDays === 0) return "No working days yet";
+  if (m.workingDays === 0) return "No hair days yet";
   const rates = [...new Set(m.costs.transportDays.map(d => d.rate))];
   return rates.length === 1
     ? `${m.workingDays} day${m.workingDays === 1 ? "" : "s"} × ${formatNaira(rates[0])}`
@@ -51,7 +51,7 @@ export function MonthReport({ month: m, insights, report, onBack, onFillProductC
           <Stat label="Earned" value={formatNaira(m.earned)} />
           <Stat label="Costs" value={formatNaira(m.costs.total)} />
           <Stat label="Appointments" value={m.appointments} />
-          <Stat label="Working days" value={m.workingDays} />
+          <Stat label="Hair days" value={m.workingDays} />
         </div>
       </Card>
 
@@ -76,7 +76,7 @@ export function MonthReport({ month: m, insights, report, onBack, onFillProductC
             </div>
           ))}
         </Line>
-        <Line label="Collected" value={formatNaira(m.collected)} hint="Deposits and balances actually received for this month's appointments" />
+        <Line label="Collected" value={formatNaira(m.collected)} hint="Paid so far for this month's appointments, whenever the money arrived" />
         <Line label="Outstanding" value={formatNaira(m.outstanding)} hint={m.unpaid.length ? `${m.unpaid.length} client${m.unpaid.length === 1 ? "" : "s"} still owe a balance` : "Everyone has paid in full"}>
           {m.unpaid.length > 0 && (
             <ul data-testid="unpaid-list" className="m-0 mt-1.5 pl-0 list-none grid gap-1">
@@ -89,6 +89,21 @@ export function MonthReport({ month: m, insights, report, onBack, onFillProductC
             </ul>
           )}
         </Line>
+      </Card>
+
+      {/* Cash in by payment date — deliberately separate from Earned / Collected */}
+      <Card title={`Money received in ${m.label.split(" ")[0]}`} testId="money-received">
+        <div className="flex justify-between items-baseline gap-3">
+          <span className="text-[13px] text-text-soft">Cash in this month</span>
+          <span className="text-[17px] font-bold">{formatNaira(m.moneyReceived)}</span>
+        </div>
+        <p className="text-[11px] text-text-muted mt-1 mb-2">
+          Every payment that arrived between {shortDate(`${m.month}-01`)} and {shortDate(m.lastDayCounted > `${m.month}-01` ? m.lastDayCounted : `${m.month}-01`)}, whatever the appointment date — e.g. a deposit paid now for next month's booking.
+          This is not the same as Earned (the full price of this month's appointments) or Collected (what this month's appointments have paid).
+        </p>
+        <Line label="Deposits" value={formatNaira(m.moneyReceivedBreakdown.deposits)} />
+        <Line label="Balances" value={formatNaira(m.moneyReceivedBreakdown.balances)} />
+        {m.moneyReceivedBreakdown.refunds > 0 && <Line label="Refunds paid back" value={`−${formatNaira(m.moneyReceivedBreakdown.refunds)}`} />}
       </Card>
 
       {/* Costs */}

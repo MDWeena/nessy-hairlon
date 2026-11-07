@@ -1,0 +1,30 @@
+-- Lock down anon's table-level read privilege on bookings.
+--
+-- ⚠️  APPLY ONLY AFTER the new frontend (the Finances release, with 024) has been live in
+-- production for ~24 hours, so no open tab or cached service-worker copy of an older build is
+-- still running. Same reason 023 was split from 022.
+--
+-- What changes: anon (the public key every visitor's browser holds) loses SELECT on the bookings
+-- table. Today that privilege is already useless — RLS has had no anon SELECT policy since 002,
+-- so a direct read returns zero rows — but it's the last thing standing between anon and the
+-- private product_cost / product_cost_note columns (024) if a policy were ever added by mistake.
+-- After this, a direct anon read fails with "permission denied" instead of returning nothing.
+--
+-- What does NOT change (all keep working, because none of them reads bookings as anon):
+--   * the booking calendar's taken slots — public_booking_slots view (runs as its owner; exposes
+--     booking_date, booking_time, status only)
+--   * booking form — create_booking() (security definer)
+--   * Track Booking, client history / "book again", Leave a Review lookup — lookup_bookings()
+--     (security definer, explicit column list without product cost)
+--   * "I've paid the deposit" — mark_deposit_paid(); reviews — submit_review() (security definer)
+--   * client reschedule / cancel, notifications, reminders — server API with the service role
+--   * the admin — signed in as authenticated, which has its own policy
+--
+-- Deliberately NOT revoked: anon's INSERT/UPDATE/DELETE privileges on bookings. RLS already denies
+-- all three (no anon policies since 023), and keeping them means an old cached client that still
+-- tries a direct insert gets the "row-level security" error the app already maps to a friendly
+-- message (stale-client hotfix), not a new "permission denied" one.
+--
+-- Rollback: grant select on bookings to anon;
+
+revoke select on bookings from anon;

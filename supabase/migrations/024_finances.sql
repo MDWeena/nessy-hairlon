@@ -5,10 +5,15 @@
 -- SAFE TO APPLY TO A LIVE DATABASE: this migration only ADDS. It creates new tables, adds two
 -- nullable columns to bookings (no default → no table rewrite, every existing row reads NULL),
 -- and INSERTs into the NEW tables only (the payments backfill and initial rates/config). It never
--- UPDATEs or DELETEs an existing row. The only change to an existing object's permissions is
--- revoking anon's table-level SELECT on bookings, which anon could never use anyway (there has
--- never been an anon SELECT policy) — it makes the private product-cost columns unreachable for
--- anon at the privilege level as well as by RLS.
+-- UPDATEs or DELETEs an existing row, and it changes NO permission on any existing object: anon
+-- keeps exactly the access it had before 024. (anon still can't read bookings rows — RLS has had
+-- no anon SELECT policy since 002 — so the new product-cost columns aren't readable by anon
+-- either.) Revoking anon's table-level privilege on bookings is a separate step: 025, applied
+-- only after the new frontend has been live for ~24h.
+--
+-- Not set here, because they need confirming first: the tracking start date (chosen in
+-- Settings → Business costs, or by the rollout step). The starting rates below apply from
+-- whatever the tracking start is.
 --
 -- Every new table: RLS on, the signed-in admin (authenticated) only, nothing for anon. The
 -- month-close cron writes monthly_reports with the service role.
@@ -21,11 +26,9 @@ alter table bookings
 alter table bookings drop constraint if exists product_cost_non_negative;
 alter table bookings add constraint product_cost_non_negative check (product_cost is null or product_cost >= 0);
 
--- Clients only ever reach bookings through security-definer functions (lookup_bookings,
--- create_booking) and the server API (service role) — none return these columns. anon has no
--- SELECT policy on bookings; dropping the table-level privilege too means product_cost can't be
--- read by anon even if a policy were ever added by mistake.
-revoke select on bookings from anon;
+-- Clients only ever reach bookings through public_booking_slots (3 columns), security-definer
+-- functions (lookup_bookings, create_booking, mark_deposit_paid, submit_review) and the server API
+-- (service role) — none return these columns, and anon has no SELECT policy on bookings.
 
 -- ─── 2. Payments ledger ────────────────────────────────────────────────────────────────────
 -- One row per payment as confirmed by the admin, with the amount AT THAT MOMENT, so editing a
@@ -118,19 +121,15 @@ begin
 end $$;
 
 -- ─── 6. Starting data (new tables only) ────────────────────────────────────────────────────
--- Current rates, effective from the start of time so every tracked day has one.
+-- Starting rates (confirmed by Nessy): staff salary ₦30,000 a month; transport ₦1,500 per hair
+-- day (a day with at least one appointment). '2000-01-01' means "from the tracking start": no day
+-- before the tracking start is ever counted, so the starting rate covers every tracked day
+-- whatever start date is chosen. Later changes are added with their own effective-from date.
 insert into cost_rates (kind, amount, effective_from) values
-  ('staff_salary', 50000, date '2000-01-01'),
+  ('staff_salary', 30000, date '2000-01-01'),
   ('transport_daily', 1500, date '2000-01-01')
 on conflict (kind, effective_from) do nothing;
 
--- Tracking start: the (Lagos) date the first booking was made. Editable in Settings.
-insert into finance_config (key, value)
-select 'tracking_start_date', to_jsonb(coalesce(
-  (select min((created_at at time zone 'Africa/Lagos')::date) from bookings),
-  (now() at time zone 'Africa/Lagos')::date
-)::text)
-on conflict (key) do nothing;
 
 -- ─── 7. Backfill the ledger from existing confirmed deposits / paid balances ───────────────
 -- Same formulas as src/lib/payments.ts (calculateDepositAmount / calculateBalanceAmount), using

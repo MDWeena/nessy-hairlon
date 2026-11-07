@@ -16,7 +16,7 @@ function rows(): FinanceRows {
     bookings: [booking("a", "2026-10-20"), booking("b", "2026-11-05")] as never,
     services: [], payments: [], expenses: [], recurring: [],
     rates: [
-      { id: "r1", kind: "staff_salary", amount: 50000, effective_from: "2000-01-01", created_at: "" },
+      { id: "r1", kind: "staff_salary", amount: 30000, effective_from: "2000-01-01", created_at: "" },
       { id: "r2", kind: "transport_daily", amount: 1500, effective_from: "2000-01-01", created_at: "" },
     ],
     config: [{ key: "tracking_start_date", value: "2026-10-14", updated_at: "" }],
@@ -64,6 +64,18 @@ describe("month close", () => {
     const r = repo();
     const res = await closeMonths(r, Date.parse("2026-11-01T01:00:00Z"), true);
     expect(res.closed.map(c => c.month)).toEqual(["2026-10"]);
+    expect(r.inserted).toEqual([]);
+  });
+});
+
+describe("month close before the tracking start is chosen", () => {
+  it("closes nothing and says why", async () => {
+    const r = repo();
+    const load = r.load;
+    r.load = async () => { const x = await load(); return { ...x, rows: { ...x.rows, config: [] } }; };
+    const res = await closeMonths(r, Date.parse("2026-11-01T01:00:00Z"), false);
+    expect(res.closed).toEqual([]);
+    expect(res.skipped).toMatch(/Tracking start/);
     expect(r.inserted).toEqual([]);
   });
 });

@@ -16,7 +16,7 @@ function bk(over: Partial<FinBooking> & { date: string }): FinBooking {
   };
 }
 const RATES: RateEntry[] = [
-  { kind: "staff_salary", amount: 50000, effectiveFrom: "2000-01-01" },
+  { kind: "staff_salary", amount: 30000, effectiveFrom: "2000-01-01" },
   { kind: "transport_daily", amount: 1500, effectiveFrom: "2000-01-01" },
 ];
 function input(over: Partial<FinanceInput> = {}): FinanceInput {
@@ -63,7 +63,7 @@ describe("rule 2: what counts as earned", () => {
   });
 
   it("uses the full agreed price, materials included", () => {
-    const b = bk({ date: "2026-11-02", quotedPrice: 80000, attachmentPreference: "nessy_buys", hairServiceCost: 50000,
+    const b = bk({ date: "2026-11-02", quotedPrice: 80000, attachmentPreference: "nessy_buys", hairServiceCost: 30000,
       attachmentItems: [{ quantity: 3, unitCost: 10000 }] });
     const m = computeMonth(input({ bookings: [b] }), "2026-11");
     expect(m.earned).toBe(80000);
@@ -128,16 +128,16 @@ describe("rules 5d and 6: salary proration and rate history", () => {
     const m = computeMonth(input(), "2026-10");
     expect(m.isLaunchPartial).toBe(true);
     expect(m.daysCounted).toBe(18);
-    expect(m.costs.salary).toBe(Math.round(50000 * 18 / 31));
+    expect(m.costs.salary).toBe(Math.round(30000 * 18 / 31));
     expect(m.costs.salaryNote).toContain("Part month: live from 14 Oct, salary prorated 18/31");
   });
 
   it("charges a full month afterwards, and month-to-date for the current month", () => {
     const past = computeMonth(input({ now: Date.parse("2026-12-05T11:00:00Z") }), "2026-11");
-    expect(past.costs.salary).toBe(50000);
+    expect(past.costs.salary).toBe(30000);
     const current = computeMonth(input(), "2026-11");
     expect(current.daysCounted).toBe(7);
-    expect(current.costs.salary).toBe(Math.round(50000 * 7 / 30));
+    expect(current.costs.salary).toBe(Math.round(30000 * 7 / 30));
     expect(current.costs.salaryNote).toContain("Month to date: 7 of 30 days");
   });
 
@@ -145,15 +145,15 @@ describe("rules 5d and 6: salary proration and rate history", () => {
     const rates: RateEntry[] = [...RATES, { kind: "transport_daily", amount: 2000, effectiveFrom: "2026-10-20" }, { kind: "staff_salary", amount: 60000, effectiveFrom: "2026-12-01" }];
     const m = computeMonth(input({ rates, bookings: [bk({ date: "2026-10-19" }), bk({ date: "2026-10-20" })] }), "2026-10");
     expect(m.costs.transportDays.map(d => d.rate)).toEqual([1500, 2000]);
-    expect(m.costs.salary).toBe(Math.round(50000 * 18 / 31));
-    expect(rateOn(rates, "staff_salary", "2026-11-30")).toBe(50000);
+    expect(m.costs.salary).toBe(Math.round(30000 * 18 / 31));
+    expect(rateOn(rates, "staff_salary", "2026-11-30")).toBe(30000);
     expect(rateOn(rates, "staff_salary", "2026-12-01")).toBe(60000);
   });
 
   it("a mid-month salary change is split by day", () => {
     const rates: RateEntry[] = [...RATES, { kind: "staff_salary", amount: 62000, effectiveFrom: "2026-11-16" }];
     const m = computeMonth(input({ rates, now: Date.parse("2026-12-05T11:00:00Z") }), "2026-11");
-    expect(m.costs.salary).toBe(Math.round(50000 * 15 / 30 + 62000 * 15 / 30));
+    expect(m.costs.salary).toBe(Math.round(30000 * 15 / 30 + 62000 * 15 / 30));
   });
 });
 
@@ -180,7 +180,7 @@ describe("rule 7: product costs, including missing ones", () => {
 
 describe("rule 10: ledger vs backfill vs derived", () => {
   it("uses the ledger amount even after the price was edited later", () => {
-    const b = bk({ date: "2026-11-02", quotedPrice: 50000, depositConfirmedAt: "2026-10-30T10:00:00Z" });
+    const b = bk({ date: "2026-11-02", quotedPrice: 30000, depositConfirmedAt: "2026-10-30T10:00:00Z" });
     const pays = paymentsFor(b, [pay(b.id, "deposit", 15000, "2026-10-30T10:00:00Z")], 50);
     expect(pays).toEqual([{ kind: "deposit", amount: 15000, receivedAt: "2026-10-30T10:00:00Z", origin: "ledger" }]);
   });
@@ -205,7 +205,7 @@ describe("rule 9: profit, margin and cash profit", () => {
       expenses: [{ id: "e1", date: "2026-11-10", category: "Data & phone", amount: 5000, note: null }],
     });
     const m = computeMonth(i, "2026-11");
-    const costs = 3000 + 1500 + 50000 + 5000;
+    const costs = 3000 + 1500 + 30000 + 5000;
     expect(m.costs.total).toBe(costs);
     expect(m.profit).toBe(30000 + 15000 - costs);
     expect(m.cashProfit).toBe(15000 + 15000 - costs);
@@ -288,7 +288,7 @@ describe("insights", () => {
   it("break-even: fixed costs ÷ what each booking leaves", () => {
     const m = month([bk({ date: "2026-11-03", quotedPrice: 30000, productCost: 3000 })]);
     const be = breakEvenInsight(m)!;
-    // 30,000 − 3,000 products − 1,500 transport = 25,500 per booking; 50,000 / 25,500 → 2
+    // 30,000 − 3,000 products − 1,500 transport = 25,500 per booking; 30,000 / 25,500 → 2
     expect(be.title).toBe("Break-even: about 2 bookings a month");
     expect(be.body).toMatch(/You did 1/);
   });
@@ -311,10 +311,10 @@ describe("insights", () => {
   });
 
   it("salary load as a share of revenue, with the trend", () => {
-    const prev = month([bk({ date: "2026-10-20", quotedPrice: 50000 })], {}, "2026-10");
+    const prev = month([bk({ date: "2026-10-20", quotedPrice: 30000 })], {}, "2026-10");
     const m = month([bk({ date: "2026-11-03", quotedPrice: 100000 }), bk({ date: "2026-11-04", quotedPrice: 100000 })]);
     const s = salaryInsight(m, prev)!;
-    expect(s.title).toBe("Salary is 25% of income");
+    expect(s.title).toBe("Salary is 15% of income");
     expect(s.body).toMatch(/down from 58% last month/);
   });
 
@@ -345,5 +345,37 @@ describe("insights", () => {
       expect(ins[0].id).toBe("lead");
       for (const i of ins) expect(i.figures.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("money received this month (cash in, by received date)", () => {
+  it("counts each payment in the month it arrived, whatever the appointment month", () => {
+    const oct = bk({ date: "2026-10-25" });                          // balance arrives in November
+    const nov = bk({ date: "2026-11-20", status: "confirmed" });     // deposit paid in October, not yet earned
+    const gone = bk({ date: "2026-10-28", status: "cancelled" });    // deposit in Oct, refunded in Nov
+    const i = input({
+      bookings: [oct, nov, gone],
+      payments: [
+        pay(oct.id, "deposit", 15000, "2026-10-20T10:00:00Z"), pay(oct.id, "balance", 15000, "2026-11-02T10:00:00Z"),
+        pay(nov.id, "deposit", 15000, "2026-10-31T22:30:00Z"), // 31 Oct 23:30 WAT → October
+        pay(gone.id, "deposit", 10000, "2026-10-21T10:00:00Z"), pay(gone.id, "refund", 10000, "2026-11-03T10:00:00Z"),
+      ],
+    });
+    const o = computeMonth(i, "2026-10"), n = computeMonth(i, "2026-11");
+    expect(o.moneyReceived).toBe(15000 + 15000 + 10000);
+    expect(o.moneyReceivedBreakdown).toEqual({ deposits: 40000, balances: 0, refunds: 0, payments: 3 });
+    expect(n.moneyReceived).toBe(15000 - 10000);
+    expect(n.moneyReceivedBreakdown).toEqual({ deposits: 0, balances: 15000, refunds: 10000, payments: 2 });
+    // …and it is a different number from Collected (what each month's appointments have paid).
+    expect(o.collected).toBe(30000);
+    expect(n.collected).toBe(0);
+    expect(computeAll(i).totals.moneyReceived).toBe(45000);
+  });
+
+  it("is kept in the closed snapshot and reported if it changes later", () => {
+    const a = bk({ date: "2026-10-20" });
+    const closed = snapshotOf(computeMonth(input({ bookings: [a] }), "2026-10"));
+    const later = computeMonth(input({ bookings: [a], payments: [pay(a.id, "balance", 30000, "2026-10-29T10:00:00Z")] }), "2026-10");
+    expect(changesSinceClose(closed, later).map(c => c.display)).toContain("Money received: ₦0 → ₦30,000");
   });
 });

@@ -17,7 +17,7 @@ import type { OrderStatus } from "../types/index.js";
  *  4. Kept deposits = deposits received on bookings later cancelled, minus any recorded refund,
  *     counted in the month of the original appointment.
  *  5. Costs: products used (bookings.product_cost), materials bought for clients (nessy_buys
- *     items), transport (one fare per distinct working day), staff salary and other expenses
+ *     items), transport (one fare per distinct hair day), staff salary and other expenses
  *     (one-off and recurring). Salary and recurring expenses accrue per day, so the launch month
  *     and the current month count only the days that apply.
  *  6. Rates (salary, transport) are a history: the rate effective on a given day is the latest
@@ -289,6 +289,11 @@ export interface MonthFigures {
   collected: number;
   outstanding: number;
   unpaid: UnpaidBooking[];
+  /** Cash in: payments whose received date (Lagos) falls in this month, whatever the
+   * appointment's month — deposits + balances − refunds. Not the same as `collected`, which is
+   * what this month's appointments have paid (possibly in an earlier or later month). */
+  moneyReceived: number;
+  moneyReceivedBreakdown: { deposits: number; balances: number; refunds: number; payments: number };
   costs: {
     products: number;
     productBookings: number;
@@ -367,6 +372,19 @@ export function computeMonth(input: FinanceInput, month: string): MonthFigures {
   }
   const keptDeposits = sum(keptDepositList.map(k => k.amount));
 
+  // Money received this month: by the payment's received date, for any booking.
+  const moneyReceivedBreakdown = { deposits: 0, balances: 0, refunds: 0, payments: 0 };
+  for (const b of input.bookings) {
+    for (const p of paymentsFor(b, input.payments, input.depositPercentage)) {
+      if (monthOf(watDateOf(Date.parse(p.receivedAt))) !== month) continue;
+      moneyReceivedBreakdown.payments += 1;
+      if (p.kind === "deposit") moneyReceivedBreakdown.deposits += p.amount;
+      else if (p.kind === "balance") moneyReceivedBreakdown.balances += p.amount;
+      else moneyReceivedBreakdown.refunds += p.amount;
+    }
+  }
+  const moneyReceived = moneyReceivedBreakdown.deposits + moneyReceivedBreakdown.balances - moneyReceivedBreakdown.refunds;
+
   // Costs: products, materials
   const productsMissingIds = earnedBookings.filter(b => b.productCost == null).map(b => b.id);
   const products = sum(earnedBookings.map(b => b.productCost ?? 0));
@@ -377,7 +395,7 @@ export function computeMonth(input: FinanceInput, month: string): MonthFigures {
     if (m) transactions.push({ date: b.date, direction: "out", kind: "materials", label: `Materials bought · ${b.clientName}`, amount: m, bookingId: b.id });
   }
 
-  // Transport: one fare per distinct working day, at that day's rate
+  // Transport: one fare per distinct hair day, at that day's rate
   const byDay = new Map<string, number>();
   for (const b of earnedBookings) byDay.set(b.date, (byDay.get(b.date) ?? 0) + 1);
   const transportDays = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b))
@@ -457,6 +475,7 @@ export function computeMonth(input: FinanceInput, month: string): MonthFigures {
     daysCounted: countedDays.length, daysInMonth: dim, firstDayCounted, lastDayCounted,
     appointments: earnedBookings.length, workingDays: transportDays.length,
     earned, keptDeposits, keptDepositList, collected, outstanding: sum(unpaid.map(u => u.owed)), unpaid,
+    moneyReceived, moneyReceivedBreakdown,
     costs: {
       products, productBookings: earnedBookings.length - productsMissingIds.length, productsMissing: productsMissingIds.length, productsMissingIds,
       materials, materialBookings: earnedBookings.filter(b => materialsCost(b) > 0).length,
@@ -480,6 +499,8 @@ export interface FinanceTotals {
   keptDeposits: number;
   collected: number;
   outstanding: number;
+  /** All payments received since tracking started, by received date. */
+  moneyReceived: number;
   appointments: number;
   costs: { products: number; materials: number; transport: number; salary: number; otherExpenses: number; total: number };
   profit: number;
@@ -494,7 +515,7 @@ export function computeAll(input: FinanceInput): { months: MonthFigures[]; total
     months,
     totals: {
       earned: t(m => m.earned), keptDeposits: t(m => m.keptDeposits), collected: t(m => m.collected),
-      outstanding: t(m => m.outstanding), appointments: t(m => m.appointments),
+      outstanding: t(m => m.outstanding), moneyReceived: t(m => m.moneyReceived), appointments: t(m => m.appointments),
       costs: {
         products: t(m => m.costs.products), materials: t(m => m.costs.materials), transport: t(m => m.costs.transport),
         salary: t(m => m.costs.salary), otherExpenses: t(m => m.costs.oneOffExpenses + m.costs.recurringExpenses), total: t(m => m.costs.total),
@@ -512,6 +533,7 @@ export interface MonthSnapshot {
   keptDeposits: number;
   collected: number;
   outstanding: number;
+  moneyReceived: number;
   appointments: number;
   workingDays: number;
   products: number;
@@ -527,7 +549,7 @@ export interface MonthSnapshot {
 
 export function snapshotOf(m: MonthFigures): MonthSnapshot {
   return {
-    earned: m.earned, keptDeposits: m.keptDeposits, collected: m.collected, outstanding: m.outstanding,
+    earned: m.earned, keptDeposits: m.keptDeposits, collected: m.collected, outstanding: m.outstanding, moneyReceived: m.moneyReceived,
     appointments: m.appointments, workingDays: m.workingDays, products: m.costs.products, productsMissing: m.costs.productsMissing,
     materials: m.costs.materials, transport: m.costs.transport, salary: m.costs.salary,
     otherExpenses: m.costs.oneOffExpenses + m.costs.recurringExpenses, totalCosts: m.costs.total,
@@ -536,8 +558,8 @@ export function snapshotOf(m: MonthFigures): MonthSnapshot {
 }
 
 const SNAPSHOT_LABELS: Record<keyof MonthSnapshot, string> = {
-  earned: "Earned", keptDeposits: "Kept deposits", collected: "Collected", outstanding: "Outstanding",
-  appointments: "Appointments", workingDays: "Working days", products: "Products", productsMissing: "Bookings missing product cost",
+  earned: "Earned", keptDeposits: "Kept deposits", collected: "Collected", outstanding: "Outstanding", moneyReceived: "Money received",
+  appointments: "Appointments", workingDays: "Hair days", products: "Products", productsMissing: "Bookings missing product cost",
   materials: "Materials", transport: "Transport", salary: "Salary", otherExpenses: "Other expenses",
   totalCosts: "Total costs", profit: "Profit", cashProfit: "Cash profit",
 };

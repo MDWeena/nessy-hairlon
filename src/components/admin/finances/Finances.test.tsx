@@ -26,7 +26,7 @@ function makeState(over: Partial<FinanceState> = {}): FinanceState {
     payments: [
       { bookingId: a.id, kind: "deposit", amount: 15000, receivedAt: "2026-10-18T10:00:00Z", source: "app" },
     ],
-    rates: [{ kind: "staff_salary", amount: 50000, effectiveFrom: "2000-01-01" }, { kind: "transport_daily", amount: 1500, effectiveFrom: "2000-01-01" }],
+    rates: [{ kind: "staff_salary", amount: 30000, effectiveFrom: "2000-01-01" }, { kind: "transport_daily", amount: 1500, effectiveFrom: "2000-01-01" }],
     expenses: [{ id: "e1", date: "2026-11-03", category: "Equipment & tools", amount: 25000, note: "Dryer" }],
     recurring: [], trackingStart: "2026-10-14", depositPercentage: 50, now: NOW,
   };
@@ -40,7 +40,12 @@ function makeState(over: Partial<FinanceState> = {}): FinanceState {
     months: all.months, totals: all.totals,
     insightsByMonth: new Map(all.months.map((m, i) => [m.month, generateInsights(m, i ? all.months[i - 1] : null)])),
     reports: new Map([["2026-10", { month: "2026-10", figures: closedSnapshot, insights: [], closedAt: "2026-11-01T01:00:00Z" }]]),
-    trackingStart: "2026-10-14", categoryCosts: new Map([["Styling", 4000]]),
+    trackingStart: "2026-10-14", trackingStartConfirmed: true,
+    earliestBookings: [
+      { id: "t0", firstName: "Test", createdDate: "2026-10-13", createdTime: "21:05", appointmentDate: "2026-10-14", status: "cancelled" },
+      { id: "b1", firstName: "Ngozi", createdDate: "2026-10-14", createdTime: "09:12", appointmentDate: "2026-10-20", status: "completed" },
+    ],
+    categoryCosts: new Map([["Styling", 4000]]),
     refetch: vi.fn(), addExpense: vi.fn(async () => {}), updateExpense: vi.fn(async () => {}), deleteExpense: vi.fn(async () => {}),
     addRecurring: vi.fn(async () => {}), stopRecurring: vi.fn(async () => {}), setRate: vi.fn(async () => {}), setTrackingStart: vi.fn(async () => {}),
     setCategoryCost: vi.fn(async () => {}), setProductCost: vi.fn(async () => {}), recordRefund: vi.fn(async () => {}),
@@ -61,7 +66,19 @@ describe("Finances overview", () => {
     expect(cards.map(c => c.dataset.testid)).toEqual(["month-card-2026-11", "month-card-2026-10"]);
     expect(within(cards[1]).getByText("Part month")).toBeInTheDocument();
     expect(within(cards[0]).getByText("Month to date")).toBeInTheDocument();
-    expect(within(cards[1]).getByText(/3 appointments · 2 working days/)).toBeInTheDocument();
+    expect(within(cards[1]).getByText(/3 appointments · 2 hair days/)).toBeInTheDocument();
+  });
+
+  it("shows money received (cash in by payment date) on the overview and each month card", () => {
+    render(<Finances />);
+    expect(within(screen.getByTestId("finance-overview")).getByText("Money received")).toBeInTheDocument();
+    expect(within(screen.getByTestId("month-card-2026-10")).getByTestId("month-card-received")).toHaveTextContent("Money received in October: ₦15,000");
+  });
+
+  it("asks to choose the tracking start while it isn't confirmed", () => {
+    fin.state = makeState({ trackingStartConfirmed: false });
+    render(<Finances />);
+    expect(screen.getByTestId("tracking-start-banner")).toHaveTextContent("Settings → Business costs");
   });
 
   it("flags bookings missing a product cost", () => {
@@ -106,6 +123,14 @@ describe("Month report", () => {
     expect(box).toHaveTextContent(/Collected: ₦\d[\d,]* → ₦/);
   });
 
+  it("shows money received in the month separately from Earned and Collected", () => {
+    openOctober();
+    const box = screen.getByTestId("money-received");
+    expect(box).toHaveTextContent("Money received in October");
+    expect(box).toHaveTextContent("₦15,000");
+    expect(box).toHaveTextContent(/not the same as Earned/);
+  });
+
   it("filters transactions by money in / out", () => {
     openOctober();
     const tx = screen.getByTestId("transactions-section");
@@ -147,19 +172,29 @@ describe("Business costs settings", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
     fin.state = makeState({ rows: { ...makeState().rows!, rates: [
-      { id: "r1", kind: "staff_salary", amount: 50000, effective_from: "2000-01-01", created_at: "" },
+      { id: "r1", kind: "staff_salary", amount: 30000, effective_from: "2000-01-01", created_at: "" },
       { id: "r2", kind: "transport_daily", amount: 1500, effective_from: "2000-01-01", created_at: "" },
     ] } });
     try {
       render(<BusinessCostsSettings />);
       const salary = screen.getByTestId("rate-staff_salary");
-      expect(salary).toHaveTextContent("₦50,000");
+      expect(salary).toHaveTextContent("₦30,000");
       fireEvent.click(within(salary).getByRole("button", { name: "Change" }));
       expect(within(salary).getByLabelText("Effective from")).toHaveValue("2026-12-01");
       fireEvent.click(within(salary).getByRole("button", { name: "Save" }));
-      await vi.waitFor(() => expect(fin.state.setRate).toHaveBeenCalledWith("staff_salary", 50000, "2026-12-01"));
+      await vi.waitFor(() => expect(fin.state.setRate).toHaveBeenCalledWith("staff_salary", 30000, "2026-12-01"));
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("lists the earliest bookings next to the tracking start, and 'Use this date' fills it in", () => {
+    fin.state = makeState({ trackingStartConfirmed: false });
+    render(<BusinessCostsSettings />);
+    expect(screen.getByTestId("tracking-start-unconfirmed")).toBeInTheDocument();
+    const list = screen.getByTestId("earliest-bookings");
+    expect(list).toHaveTextContent("13 Oct 2026, 21:05 · Test · appt 14 Oct · cancelled");
+    fireEvent.click(within(list).getAllByRole("button", { name: "Use this date" })[1]);
+    expect(screen.getByLabelText("Tracking start date")).toHaveValue("2026-10-14");
   });
 });
