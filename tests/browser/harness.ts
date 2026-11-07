@@ -133,7 +133,7 @@ const FIXTURES: Record<string, Row[]> = {
     return rows;
   }),
   cost_rates: [
-    { id: "r1", kind: "staff_salary", amount: 50000, effective_from: "2000-01-01" },
+    { id: "r1", kind: "staff_salary", amount: 30000, effective_from: "2000-01-01" },
     { id: "r2", kind: "transport_daily", amount: 1500, effective_from: "2000-01-01" },
     { id: "r3", kind: "transport_daily", amount: 2000, effective_from: day(-20) },
   ],

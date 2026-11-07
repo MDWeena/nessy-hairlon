@@ -145,7 +145,7 @@ export function transportInsight(m: MonthFigures): Insight | null {
   if (single.length === 0) {
     return {
       id: "transport", tone: "good", title: "Transport used well",
-      body: `Every working day had more than one appointment, so each fare was shared.`,
+      body: `Every hair day had more than one appointment, so each fare was shared.`,
       figures: [{ label: "Transport", value: `${plural(m.workingDays, "day")} · ${formatNaira(m.costs.transport)}` }],
     };
   }

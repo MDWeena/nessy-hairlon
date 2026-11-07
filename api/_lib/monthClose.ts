@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../src/types/database.js";
 import { computeMonth, monthsToClose, previousMonth, snapshotOf, type MonthSnapshot } from "../../src/lib/finance.js";
 import { generateInsights, type Insight } from "../../src/lib/financeInsights.js";
-import { toFinanceInput, type FinanceRows } from "../../src/lib/financeData.js";
+import { toFinanceInput, trackingStartConfirmed, type FinanceRows } from "../../src/lib/financeData.js";
 
 export interface MonthReportRow {
   month: string; // "2026-10-01"
@@ -22,6 +22,8 @@ export interface MonthCloseResult {
   ranAt: string;
   closed: { month: string; profit: number; insights: number }[];
   alreadyClosed: string[];
+  /** Set when nothing was closed on purpose (e.g. the tracking start hasn't been chosen yet). */
+  skipped?: string;
 }
 
 /**
@@ -31,6 +33,10 @@ export interface MonthCloseResult {
  */
 export async function closeMonths(repo: MonthCloseRepo, now: number, dryRun: boolean): Promise<MonthCloseResult> {
   const { rows, closedMonths } = await repo.load();
+  // Never snapshot a month against a guessed start date: wait until the admin has chosen it.
+  if (!trackingStartConfirmed(rows.config)) {
+    return { success: true, dryRun, ranAt: new Date(now).toISOString(), closed: [], alreadyClosed: closedMonths, skipped: "Tracking start date not chosen yet (Settings → Business costs)" };
+  }
   const input = toFinanceInput(rows, now);
   const due = monthsToClose(input, closedMonths);
   const closed: MonthCloseResult["closed"] = [];

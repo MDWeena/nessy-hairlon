@@ -11,7 +11,7 @@ import { LoadingNotice } from "../../ui/LoadingNotice";
 const INPUT = "w-full py-2 px-2.5 rounded-md border border-border bg-bg-alt text-[13px] text-text outline-none box-border min-h-11 md:min-h-0";
 const RATE_LABELS: Record<RateKind, { title: string; unit: string }> = {
   staff_salary: { title: "Staff salary", unit: "a month" },
-  transport_daily: { title: "Daily transport", unit: "per working day" },
+  transport_daily: { title: "Daily transport", unit: "per hair day (a day with at least one appointment)" },
 };
 
 /**
@@ -66,7 +66,7 @@ export function BusinessCostsSettings() {
             </div>
             {upcoming.map(u => <p key={u.effectiveFrom} className="text-[11px] text-text-muted mt-1 mb-0">Changes to {formatNaira(u.amount)} from {shortDate(u.effectiveFrom)} {u.effectiveFrom.slice(0, 4)}</p>)}
             {history.length > 1 && (
-              <p className="text-[11px] text-text-muted mt-1 mb-0">History: {history.map(h => `${formatNaira(h.amount)} ${h.effectiveFrom <= "2000-01-01" ? "from the start" : `from ${shortDate(h.effectiveFrom)} ${h.effectiveFrom.slice(0, 4)}`}`).join(" · ")}</p>
+              <p className="text-[11px] text-text-muted mt-1 mb-0">History: {history.map(h => `${formatNaira(h.amount)} ${h.effectiveFrom <= "2000-01-01" ? "from the tracking start" : `from ${shortDate(h.effectiveFrom)} ${h.effectiveFrom.slice(0, 4)}`}`).join(" · ")}</p>
             )}
             {isEditing && editing && (
               <div className="grid gap-2.5 mt-3 p-3 rounded-lg border border-border bg-bg-alt">
@@ -90,14 +90,40 @@ export function BusinessCostsSettings() {
 
       <div className="py-3 border-b border-border">
         <div className="text-[13px] text-text-soft">Tracking start date</div>
-        <p className="text-[11px] text-text-muted mt-0.5 mb-2">Finances count from this day. The first month is prorated from here.</p>
+        <p className="text-[11px] text-text-muted mt-0.5 mb-2">Finances count from this day, and the starting salary and transport rates apply from it. The first month is prorated from here.</p>
+        {!fin.trackingStartConfirmed && (
+          <p data-testid="tracking-start-unconfirmed" className="text-[12px] text-text mt-0 mb-2 p-2 rounded-md border border-[#F59E0B60] bg-[#F59E0B14]">
+            Not chosen yet — reports use the first booking's date{fin.trackingStart ? ` (${shortDate(fin.trackingStart)} ${fin.trackingStart.slice(0, 4)})` : ""} for now, and month reports won't be closed until you save a date.
+          </p>
+        )}
         <div className="flex gap-2 items-center">
           <input type="date" aria-label="Tracking start date" value={startDraft ?? fin.trackingStart ?? ""} onChange={e => setStartDraft(e.target.value)} className={`${INPUT} max-w-[200px]`} />
           {startDraft && startDraft !== fin.trackingStart && (
             <button type="button" disabled={busy} onClick={() => run(async () => { await fin.setTrackingStart(startDraft); setStartDraft(null); })}
               className="bg-gold text-theme-black border-none rounded-md py-1.5 px-3.5 text-xs font-bold cursor-pointer min-h-11 md:min-h-0">Save</button>
           )}
+          {!startDraft && !fin.trackingStartConfirmed && fin.trackingStart && (
+            <button type="button" disabled={busy} onClick={() => run(() => fin.setTrackingStart(fin.trackingStart!))}
+              className="bg-gold text-theme-black border-none rounded-md py-1.5 px-3.5 text-xs font-bold cursor-pointer min-h-11 md:min-h-0">Confirm</button>
+          )}
         </div>
+        {fin.earliestBookings.length > 0 && (
+          <div data-testid="earliest-bookings" className="mt-3">
+            <div className="text-[11px] text-text-muted font-semibold mb-1">First bookings made (Lagos time) — skip any test bookings</div>
+            <ul className="m-0 p-0 list-none grid gap-1">
+              {fin.earliestBookings.map(b => (
+                <li key={b.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[12px]">
+                  <span className="text-text-soft min-w-0">
+                    <span className="font-semibold text-text">{shortDate(b.createdDate)} {b.createdDate.slice(0, 4)}, {b.createdTime}</span>
+                    {" · "}{b.firstName || "—"} · appt {shortDate(b.appointmentDate)} · {b.status.replace(/_/g, " ")}
+                  </span>
+                  <button type="button" onClick={() => setStartDraft(b.createdDate)}
+                    className="bg-transparent border-none p-0 text-[11px] text-gold underline cursor-pointer shrink-0 min-h-11 md:min-h-0">Use this date</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="pt-3" data-testid="category-costs">

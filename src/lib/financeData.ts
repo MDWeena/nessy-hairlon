@@ -53,6 +53,27 @@ function asCategory(c: string): ExpenseCategory {
 
 export const TRACKING_START_KEY = "tracking_start_date";
 
+/** True once the admin has chosen the tracking start (Settings → Business costs). Until then the
+ * figures fall back to the first booking's date and the month close waits. */
+export function trackingStartConfirmed(config: Tables["finance_config"]["Row"][]): boolean {
+  const v = config.find(c => c.key === TRACKING_START_KEY)?.value;
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+}
+
+export interface EarlyBooking { id: string; firstName: string; createdDate: string; createdTime: string; appointmentDate: string; status: string }
+
+/** The first bookings ever made (Lagos time) — shown next to the tracking start field to help
+ * pick it, and to spot test bookings made before launch. */
+export function earliestBookings(bookings: BookingRow[], n = 5): EarlyBooking[] {
+  return [...bookings].sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(0, n).map(b => {
+    const lagos = new Date(Date.parse(b.created_at) + 3600_000).toISOString();
+    return {
+      id: b.id, firstName: (b.client_name ?? "").trim().split(/\s+/)[0] ?? "", createdDate: lagos.slice(0, 10),
+      createdTime: lagos.slice(11, 16), appointmentDate: b.booking_date, status: b.status,
+    };
+  });
+}
+
 export function trackingStartFrom(config: Tables["finance_config"]["Row"][], bookings: BookingRow[]): string {
   const v = config.find(c => c.key === TRACKING_START_KEY)?.value;
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;

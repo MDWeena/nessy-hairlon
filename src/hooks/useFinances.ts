@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { computeAll, type ExpenseCategory, type MonthFigures, type MonthSnapshot, type RateKind } from "../lib/finance";
 import { generateInsights, type Insight } from "../lib/financeInsights";
-import { TRACKING_START_KEY, toFinanceInput, type FinanceRows } from "../lib/financeData";
+import { TRACKING_START_KEY, earliestBookings, toFinanceInput, trackingStartConfirmed, type EarlyBooking, type FinanceRows } from "../lib/financeData";
 import type { Database } from "../types/database";
 
 type Tables = Database["public"]["Tables"];
@@ -27,6 +27,10 @@ export interface FinanceState {
   insightsByMonth: Map<string, Insight[]>;
   reports: Map<string, ClosedReport>;
   trackingStart: string | null;
+  /** False until the admin picks the tracking start in Settings (figures use the first booking's date meanwhile). */
+  trackingStartConfirmed: boolean;
+  /** The 5 earliest bookings by creation time, to help choose the tracking start. */
+  earliestBookings: EarlyBooking[];
   categoryCosts: Map<string, number>;
   refetch: () => Promise<void>;
   addExpense: (e: { date: string; category: ExpenseCategory; amount: number; note: string | null }) => Promise<void>;
@@ -116,6 +120,8 @@ export function useFinances(): FinanceState {
     months: computed?.months ?? [], totals: computed?.totals ?? null,
     insightsByMonth: computed?.insightsByMonth ?? new Map(), reports,
     trackingStart: computed?.trackingStart ?? null,
+    trackingStartConfirmed: rows ? trackingStartConfirmed(rows.config) : false,
+    earliestBookings: rows ? earliestBookings(rows.bookings) : [],
     categoryCosts: new Map(categoryRows.map(c => [c.category, c.typical_cost])),
     refetch,
     addExpense: (e) => write(() => check(supabase.from("expenses").insert({ expense_date: e.date, category: e.category, amount: e.amount, note: e.note }))),

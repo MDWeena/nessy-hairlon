@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { applyMigration, createMigratedDb, watDate } from "./testDb";
 import { calculateBalanceAmount, calculateDepositAmount } from "../../src/lib/payments";
 
@@ -26,6 +29,12 @@ const SEED = `
 const FINGERPRINT = `select id::text, md5(row_to_json(b)::text) as h from (select * from bookings) b order by id`;
 
 let before: { id: string; h: string }[];
+let grantsBefore: unknown[];
+/** Every privilege anon / authenticated hold on tables and views that existed before 024. */
+const GRANTS = `select table_name, grantee, privilege_type from information_schema.role_table_grants
+  where grantee in ('anon', 'authenticated') and table_schema = 'public'
+    and table_name not in ('payments', 'cost_rates', 'expenses', 'recurring_expenses', 'category_product_costs', 'finance_config', 'monthly_reports')
+  order by 1, 2, 3`;
 
 beforeAll(async () => {
   db = await createMigratedDb({ upTo: "023" });
@@ -38,6 +47,7 @@ beforeAll(async () => {
   `);
   before = (await db.query<{ id: string; h: string }>(FINGERPRINT)).rows;
   await db.exec("grant select, insert, update, delete on all tables in schema public to authenticated, anon");
+  grantsBefore = (await db.query(GRANTS)).rows;
   await applyMigration(db, "024_finances.sql");
 }, 90_000);
 
@@ -98,11 +108,15 @@ describe("024 on a database with existing bookings", () => {
     expect(await n()).toBe(first);
   });
 
-  it("starts the rates and tracking start date", async () => {
-    const rates = await db.query<{ kind: string; amount: number }>("select kind, amount from cost_rates order by kind");
-    expect(rates.rows).toEqual([{ kind: "staff_salary", amount: 50000 }, { kind: "transport_daily", amount: 1500 }]);
-    const start = await db.query<{ v: string }>("select value #>> '{}' as v from finance_config where key = 'tracking_start_date'");
-    expect(start.rows[0].v).toBe("2026-10-14");
+  it("starts the rates (₦30,000 salary, ₦1,500 per hair day) from the tracking start, and leaves the tracking start to be confirmed", async () => {
+    const rates = await db.query<{ kind: string; amount: number; f: string }>("select kind, amount, effective_from::text as f from cost_rates order by kind");
+    expect(rates.rows).toEqual([{ kind: "staff_salary", amount: 30000, f: "2000-01-01" }, { kind: "transport_daily", amount: 1500, f: "2000-01-01" }]);
+    const start = await db.query("select 1 from finance_config where key = 'tracking_start_date'");
+    expect(start.rows).toEqual([]);
+  });
+
+  it("leaves anon's (and authenticated's) privileges on every existing table and view exactly as before", async () => {
+    expect((await db.query(GRANTS)).rows).toEqual(grantsBefore);
   });
 });
 
@@ -112,13 +126,10 @@ describe("security: product_cost and finance data are admin-only", () => {
     try { return await db.query<T>(sql); } finally { await db.exec("reset role"); }
   };
 
-  it("anon can't select product_cost (or anything) from bookings", async () => {
+  it("after 024, anon still reads no bookings rows — so no product cost (RLS, as before 024)", async () => {
     await db.exec("update bookings set product_cost = 4321, product_cost_note = 'secret' where id = '00000000-0000-4000-8000-000000000001'");
-    await expect(asRole("anon", "select product_cost from bookings")).rejects.toThrow(/permission denied/);
-    await expect(asRole("anon", "select * from bookings")).rejects.toThrow(/permission denied/);
-    const priv = await db.query<{ a: boolean; b: boolean }>(
-      "select has_column_privilege('anon', 'bookings', 'product_cost', 'select') as a, has_column_privilege('anon', 'bookings', 'product_cost_note', 'select') as b");
-    expect(priv.rows[0]).toEqual({ a: false, b: false });
+    expect((await asRole("anon", "select product_cost, product_cost_note from bookings")).rows).toEqual([]);
+    expect((await asRole("anon", "select * from bookings")).rows).toEqual([]);
   });
 
   it("no anon access to any new table", async () => {
@@ -152,4 +163,85 @@ describe("security: product_cost and finance data are admin-only", () => {
   it("the ledger allows one deposit and one balance per booking", async () => {
     await expect(db.exec("insert into payments (booking_id, kind, amount) values ('00000000-0000-4000-8000-000000000001', 'deposit', 1)")).rejects.toThrow(/payments_one_per_kind/);
   });
+});
+
+describe("025: anon loses table-level SELECT on bookings; every client path keeps working", () => {
+  const asAnon = async <T>(sql: string) => {
+    await db.exec("set role anon");
+    try { return await db.query<T>(sql); } finally { await db.exec("reset role"); }
+  };
+
+  beforeAll(async () => { await applyMigration(db, "025_lock_down_anon_bookings.sql"); });
+
+  it("a direct anon read of bookings is refused outright", async () => {
+    await expect(asAnon("select product_cost from bookings")).rejects.toThrow(/permission denied/);
+    await expect(asAnon("select * from bookings")).rejects.toThrow(/permission denied/);
+    const priv = await db.query<{ a: boolean; b: boolean }>(
+      "select has_column_privilege('anon', 'bookings', 'product_cost', 'select') as a, has_column_privilege('anon', 'bookings', 'product_cost_note', 'select') as b");
+    expect(priv.rows[0]).toEqual({ a: false, b: false });
+  });
+
+  it("keeps anon's other bookings privileges (RLS still denies them) so old clients get the mapped RLS error", async () => {
+    const p = await db.query<{ i: boolean }>("select has_table_privilege('anon', 'bookings', 'insert') as i");
+    expect(p.rows[0].i).toBe(true);
+    await expect(asAnon("insert into bookings (client_name, client_phone, booking_date, booking_time) values ('x', '0800', '2099-01-01', '10:00 AM')")).rejects.toThrow(/row-level security/);
+  });
+
+  it("the calendar's taken slots and the booking lookups still work as anon", async () => {
+    const slots = await asAnon<{ booking_date: string }>("select booking_date, booking_time, status from public_booking_slots");
+    expect(slots.rows.length).toBeGreaterThan(0);
+    const lookup = await asAnon<Record<string, unknown>>("select * from lookup_bookings(null, '0801')");
+    expect(lookup.rows).toHaveLength(1);
+    expect(JSON.stringify(lookup.rows)).not.toMatch(/4321|secret/);
+  });
+
+  it("changes nothing else: every other privilege identical to before 024", async () => {
+    const after = (await db.query<{ table_name: string; grantee: string; privilege_type: string }>(GRANTS)).rows;
+    const removed = (grantsBefore as typeof after).filter(g => !after.some(a => a.table_name === g.table_name && a.grantee === g.grantee && a.privilege_type === g.privilege_type));
+    expect(removed).toEqual([{ table_name: "bookings", grantee: "anon", privilege_type: "SELECT" }]);
+    expect(after.length).toBe(grantsBefore.length - 1);
+  });
+});
+
+describe("rollout scripts: 024 applied in one transaction with in-transaction checks", () => {
+  const rollout = (f: string) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "supabase", "rollout", "finances", f), "utf8");
+  const migration = (f: string) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "supabase", "migrations", f), "utf8").replace(/create extension if not exists pgcrypto;/i, "");
+  const fresh = async () => {
+    const d = await createMigratedDb({ upTo: "023" });
+    await d.exec(`grant usage on schema public to anon, authenticated, service_role;
+      grant select, insert, update, delete on bookings to anon, authenticated; ${SEED}`);
+    await d.exec("grant select, insert, update, delete on all tables in schema public to authenticated, anon");
+    return d;
+  };
+  const tableExists = async (d: Awaited<ReturnType<typeof fresh>>, t: string) =>
+    (await d.query<{ e: boolean }>(`select to_regclass('public.${t}') is not null as e`)).rows[0].e;
+
+  it("passes and commits on a healthy database", async () => {
+    const d = await fresh();
+    try {
+      await d.exec(rollout("024_pre_checks.sql") + migration("024_finances.sql") + rollout("024_post_checks.sql"));
+      expect(await tableExists(d, "payments")).toBe(true);
+    } finally { await d.close(); }
+  }, 90_000);
+
+  it("aborts and rolls back everything if an existing booking would change", async () => {
+    const d = await fresh();
+    try {
+      const tampered = migration("024_finances.sql") + "\nupdate bookings set notes = 'changed' where id = '00000000-0000-4000-8000-000000000001';\n";
+      await expect(d.exec(rollout("024_pre_checks.sql") + tampered + rollout("024_post_checks.sql"))).rejects.toThrow(/CHECK FAILED: bookings fingerprint changed/);
+      await d.exec("rollback");
+      expect(await tableExists(d, "payments")).toBe(false);
+      expect((await d.query<{ n: string }>("select notes as n from bookings where id = '00000000-0000-4000-8000-000000000001'")).rows[0].n).not.toBe("changed");
+    } finally { await d.close(); }
+  }, 90_000);
+
+  it("aborts if a permission on an existing object would change", async () => {
+    const d = await fresh();
+    try {
+      const tampered = migration("024_finances.sql") + "\nrevoke select on bookings from anon;\n";
+      await expect(d.exec(rollout("024_pre_checks.sql") + tampered + rollout("024_post_checks.sql"))).rejects.toThrow(/CHECK FAILED: 1 privilege/);
+      await d.exec("rollback");
+      expect(await tableExists(d, "payments")).toBe(false);
+    } finally { await d.close(); }
+  }, 90_000);
 });
