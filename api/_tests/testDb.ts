@@ -22,18 +22,25 @@ export async function createMigratedDb(options: { upTo?: string } = {}): Promise
     create role anon nologin;
     create role authenticated nologin;
     create role service_role nologin bypassrls;
+    -- Supabase's auth.uid(): the signed-in user's id, from the request's JWT claims.
+    create schema auth;
+    create function auth.uid() returns uuid language sql stable as
+      $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   `);
   const files = readdirSync(migrationsDir).filter(f => f.endsWith(".sql")).sort()
     .filter(f => options.upTo === undefined || f.slice(0, 3) <= options.upTo);
-  for (const file of files) {
-    const sql = readFileSync(join(migrationsDir, file), "utf8").replace(/create extension if not exists pgcrypto;/i, "");
-    try {
-      await db.exec(sql);
-    } catch (err) {
-      throw new Error(`Migration ${file} failed: ${(err as Error).message}`);
-    }
-  }
+  for (const file of files) await applyMigration(db, file);
   return db;
+}
+
+/** Applies one migration file (e.g. "024_finances.sql") to an already-migrated database. */
+export async function applyMigration(db: PGlite, file: string): Promise<void> {
+  const sql = readFileSync(join(migrationsDir, file), "utf8").replace(/create extension if not exists pgcrypto;/i, "");
+  try {
+    await db.exec(sql);
+  } catch (err) {
+    throw new Error(`Migration ${file} failed: ${(err as Error).message}`);
+  }
 }
 
 /** Today's date in Africa/Lagos, offset by `days`, as YYYY-MM-DD. */

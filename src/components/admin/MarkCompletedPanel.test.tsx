@@ -20,7 +20,7 @@ describe("MarkCompletedPanel", () => {
     render(<MarkCompletedPanel {...base} hasEmail balancePaid onConfirm={onConfirm} />);
     expect(screen.getByRole("checkbox", { name: /Send thank-you email/ })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Mark Completed" }));
-    expect(onConfirm).toHaveBeenCalledWith(true);
+    expect(onConfirm).toHaveBeenCalledWith(true, null);
   });
 
   it("lets the admin untick it", () => {
@@ -28,7 +28,7 @@ describe("MarkCompletedPanel", () => {
     render(<MarkCompletedPanel {...base} hasEmail balancePaid={false} onConfirm={onConfirm} />);
     fireEvent.click(screen.getByRole("checkbox", { name: /Send thank-you email/ }));
     fireEvent.click(screen.getByRole("button", { name: "Mark Completed" }));
-    expect(onConfirm).toHaveBeenCalledWith(false);
+    expect(onConfirm).toHaveBeenCalledWith(false, null);
   });
 
   it("offers no email for a client without one, and never asks to send it", () => {
@@ -37,7 +37,7 @@ describe("MarkCompletedPanel", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.getByText(/No email on file/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mark Completed" }));
-    expect(onConfirm).toHaveBeenCalledWith(false);
+    expect(onConfirm).toHaveBeenCalledWith(false, null);
   });
 
   it("Cancel closes without confirming", () => {
@@ -47,5 +47,19 @@ describe("MarkCompletedPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalled();
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("prefills the product cost (the quote's, else the category's typical) and passes the adjusted value", () => {
+    const onConfirm = vi.fn();
+    const { unmount } = render(<MarkCompletedPanel {...base} hasEmail balancePaid productCost={null} typicalProductCost={4000} category="Styling" onConfirm={onConfirm} />);
+    const field = screen.getByLabelText(/Products used \(private\)/);
+    expect(field).toHaveValue("4,000");
+    expect(screen.getByText(/private — not shown to client/)).toBeInTheDocument();
+    fireEvent.change(field, { target: { value: "3500" } });
+    fireEvent.click(screen.getByRole("button", { name: "Mark Completed" }));
+    expect(onConfirm).toHaveBeenCalledWith(true, 3500);
+    unmount();
+    render(<MarkCompletedPanel {...base} hasEmail balancePaid productCost={2500} typicalProductCost={4000} onConfirm={onConfirm} />);
+    expect(screen.getByLabelText(/Products used \(private\)/)).toHaveValue("2,500");
   });
 });

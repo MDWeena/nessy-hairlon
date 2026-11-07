@@ -319,3 +319,30 @@ describe("production emails never link to a *.vercel.app deployment URL", () => 
     }
   });
 });
+
+// ─── Rule 7: the private product cost never appears in a notification ──────────────────────
+
+describe("send-notification never includes the private product cost", () => {
+  beforeEach(() => { send.mockResolvedValue(OK); });
+
+  it("for every notification type", async () => {
+    const { default: handler } = await import("../send-notification");
+    const call = async (body: unknown, auth?: string) => {
+      const { req, res, out } = fakeReqRes({ method: "POST", body, headers: { host: "nessy.test", ...(auth ? { authorization: `Bearer ${auth}` } : {}) } });
+      await handler(req, res);
+      return out;
+    };
+    const secret = { product_cost: 98765, product_cost_note: "secret-supplier-note" };
+    tables.bookings = [booking({ status: "cancelled", ...secret })];
+    await call({ type: "new_booking", booking: { id: "b1" } });
+    await call({ type: "client_cancellation", booking: { id: "b1" } });
+    await call({ type: "deposit_claimed", booking: { id: "b1" } });
+    for (const status of ["quoted", "confirmed", "completed", "cancelled"]) {
+      await call({ type: "status_change", previousStatus: "pending_review", booking: booking({ status, ...secret }) }, "admin-token");
+    }
+    await call({ type: "payment_not_verified", booking: booking({ status: "quoted", ...secret }) }, "admin-token");
+    const html = send.mock.calls.map(([m]) => JSON.stringify(m));
+    expect(html.length).toBe(8);
+    for (const h of html) expect(h).not.toMatch(/98765|98,765|secret-supplier-note|product_cost/);
+  });
+});
