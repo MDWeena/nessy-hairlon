@@ -77,7 +77,7 @@ export function MonthReport({ month: m, insights, report, onBack, onFillProductC
           ))}
         </Line>
         <Line label="Collected" value={formatNaira(m.collected)} hint="Paid so far for this month's appointments, whenever the money arrived" />
-        <Line label="Outstanding" value={formatNaira(m.outstanding)} hint={m.unpaid.length ? `${m.unpaid.length} client${m.unpaid.length === 1 ? "" : "s"} still owe a balance` : "Everyone has paid in full"}>
+        <Line label="Outstanding" value={formatNaira(m.outstanding)} hint={m.unpaid.length ? `${m.unpaid.length} ${m.unpaid.length === 1 ? "client still owes" : "clients still owe"} a balance` : "Everyone has paid in full"}>
           {m.unpaid.length > 0 && (
             <ul data-testid="unpaid-list" className="m-0 mt-1.5 pl-0 list-none grid gap-1">
               {m.unpaid.map(u => (
