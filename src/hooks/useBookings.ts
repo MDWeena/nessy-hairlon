@@ -46,6 +46,21 @@ function toDepositInput(r: BookingRow) {
   };
 }
 
+/**
+ * Records a payment in the ledger (024) with the amount AT THIS MOMENT, so a later price edit
+ * can't rewrite history. One deposit / one balance per booking (re-confirming is a no-op).
+ * The booking change itself has already saved; if only this fails, say so plainly.
+ */
+async function recordPayment(bookingId: string, kind: "deposit" | "balance", amount: number | null): Promise<void> {
+  if (!amount || amount <= 0) return;
+  const { error } = await supabase.from("payments")
+    .upsert({ booking_id: bookingId, kind, amount, received_at: new Date().toISOString(), source: "app" }, { onConflict: "booking_id,kind", ignoreDuplicates: true });
+  if (error) {
+    console.error(`recordPayment: couldn't record ${kind} for ${bookingId}`, error);
+    throw new Error(`Saved — but the ${kind} couldn't be added to Finances. Please refresh and try again.`);
+  }
+}
+
 export function computeStats(rows: BookingRow[], depositPercentage: number | null): BookingStats {
   const now = new Date();
   const { start: weekStart, end: weekEnd } = getWeekRange(now);
@@ -160,6 +175,9 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     // ?? fallbacks: rows read before 022_booking_reschedules.sql is applied won't have these.
     clientRescheduleCount: row.client_reschedule_count ?? 0,
     lastRescheduledAt: row.last_rescheduled_at ?? null,
+    serviceIds: row.service_ids ?? [],
+    productCost: row.product_cost ?? null,
+    productCostNote: row.product_cost_note ?? null,
     paymentProofUrl: row.payment_proof_url,
     attachmentPreference: (row.attachment_preference as AttachmentPreference) ?? null,
     attachmentItems: toMaterialItems(row.attachment_items),
@@ -178,6 +196,7 @@ export function buildQuotedPriceUpdate(
   price: number,
   materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
   customStyleCategory?: string,
+  productCost?: number | null,
 ): Database["public"]["Tables"]["bookings"]["Update"] {
   const updates: Database["public"]["Tables"]["bookings"]["Update"] = { quoted_price: price, status: "quoted", updated_at: new Date().toISOString() };
   if (materials) {
@@ -188,6 +207,8 @@ export function buildQuotedPriceUpdate(
   if (customStyleCategory) {
     updates.custom_style_category = customStyleCategory;
   }
+  // Admin-only (024): the products she expects to use — private, never shown to the client.
+  if (productCost !== undefined) updates.product_cost = productCost;
   return updates;
 }
 
@@ -203,7 +224,7 @@ interface UseBookingsResult {
   updateBookingStatus: (id: string, status: OrderStatus, options?: { notifyClient?: boolean }) => Promise<NotifyResult | null>;
   /** confirmed → completed; the thank-you + review email (send-notification's "completed"
    * status_change) goes out only if `sendThankYou` and the client has an email. */
-  markCompleted: (id: string, sendThankYou: boolean) => Promise<NotifyResult | null>;
+  markCompleted: (id: string, sendThankYou: boolean, productCost?: number | null) => Promise<NotifyResult | null>;
   /** completed → confirmed, to undo a mistaken "Mark Completed". Never emails. */
   moveBackToConfirmed: (id: string) => Promise<void>;
   setQuotedPrice: (
@@ -211,6 +232,7 @@ interface UseBookingsResult {
     price: number,
     materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
     customStyleCategory?: string,
+    productCost?: number | null,
   ) => Promise<NotifyResult | null>;
   confirmDepositPayment: (id: string) => Promise<NotifyResult | null>;
   rejectDepositPayment: (id: string) => Promise<NotifyResult | null>;
@@ -280,10 +302,11 @@ export function useBookings(): UseBookingsResult {
     price: number,
     materials?: { hairServiceCost: number; attachmentItems: MaterialItem[]; accessoryItems: MaterialItem[] },
     customStyleCategory?: string,
+    productCost?: number | null,
   ) => {
     await assertAuthenticated();
     const existing = rows.find(r => r.id === id);
-    const updates = buildQuotedPriceUpdate(price, materials, customStyleCategory);
+    const updates = buildQuotedPriceUpdate(price, materials, customStyleCategory, productCost);
     const { error: updateError } = await supabase.from("bookings")
       .update(updates).eq("id", id);
     if (updateError) await handleWriteError(updateError);
@@ -312,6 +335,7 @@ export function useBookings(): UseBookingsResult {
     const { error: updateError } = await supabase.from("bookings")
       .update({ status: "confirmed", deposit_confirmed_at: nowIso, updated_at: nowIso }).eq("id", id);
     if (updateError) await handleWriteError(updateError);
+    if (existing) await recordPayment(id, "deposit", calculateDepositAmount(toDepositInput(existing), settings.deposit_percentage ?? null));
 
     let notification: NotifyResult | null = null;
     if (existing) {
@@ -328,7 +352,7 @@ export function useBookings(): UseBookingsResult {
     }
     await fetchBookings();
     return notification;
-  }, [rows, fetchBookings]);
+  }, [rows, fetchBookings, settings.deposit_percentage]);
 
   /** Admin can't find the deposit: deposit_paid -> quoted, asks the client to retry. */
   const rejectDepositPayment = useCallback(async (id: string) => {
@@ -356,12 +380,17 @@ export function useBookings(): UseBookingsResult {
   /** Admin marks the remaining balance as collected — whether that was a deposit top-up or, for a booking confirmed without one, the full amount taken in person. */
   const markBalancePaid = useCallback(async (id: string) => {
     await assertAuthenticated();
+    const existing = rows.find(r => r.id === id);
     const nowIso = new Date().toISOString();
     const { error: updateError } = await supabase.from("bookings")
       .update({ balance_paid_at: nowIso, updated_at: nowIso }).eq("id", id);
     if (updateError) await handleWriteError(updateError);
+    if (existing) {
+      await recordPayment(id, "balance", calculateBalanceAmount(
+        { ...toDepositInput(existing), depositConfirmedAt: existing.deposit_confirmed_at }, settings.deposit_percentage ?? null));
+    }
     await fetchBookings();
-  }, [fetchBookings]);
+  }, [rows, fetchBookings, settings.deposit_percentage]);
 
   /** Manually (re)sends the balance-due reminder email for one booking, via the same endpoint the daily cron uses. */
   const sendBalanceReminder = useCallback(async (id: string) => {
@@ -388,7 +417,14 @@ export function useBookings(): UseBookingsResult {
     stats: computeStats(rows, depositPercentage),
     revenueBreakdown: computeRevenueBreakdown(rows, depositPercentage),
     loading, error, refetch: fetchBookings, updateBookingStatus, setQuotedPrice,
-    markCompleted: (id: string, sendThankYou: boolean) => updateBookingStatus(id, "completed", { notifyClient: sendThankYou }),
+    markCompleted: async (id: string, sendThankYou: boolean, productCost?: number | null) => {
+      // What she actually used, adjustable at completion (admin-only, never shown to clients).
+      if (productCost !== undefined) {
+        const { error: pcError } = await supabase.from("bookings").update({ product_cost: productCost }).eq("id", id);
+        if (pcError) await handleWriteError(pcError);
+      }
+      return updateBookingStatus(id, "completed", { notifyClient: sendThankYou });
+    },
     moveBackToConfirmed: async (id: string) => { await updateBookingStatus(id, "confirmed", { notifyClient: false }); },
     confirmDepositPayment, rejectDepositPayment, markBalancePaid, sendBalanceReminder,
   };

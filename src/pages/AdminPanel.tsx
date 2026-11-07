@@ -10,6 +10,7 @@ import { ServicesManager } from "../components/admin/ServicesManager";
 import { ClientStories } from "../components/admin/ClientStories";
 import { GalleryManager } from "../components/admin/GalleryManager";
 import { Settings } from "../components/admin/Settings";
+import { Finances } from "../components/admin/finances/Finances";
 import type { OrderFilter } from "../types";
 
 interface AdminPanelProps {
@@ -58,6 +59,7 @@ export function AdminPanel({ onViewSite, onLogout, onInactivityLogout, deepLinkB
             <>
               {adminPage === "dashboard" && <Dashboard onNavigate={switchAdminPage} />}
               {adminPage === "orders" && <Orders initialFilter={ordersFilter} highlightBookingId={deepLinkBookingId} />}
+              {adminPage === "finances" && <Finances />}
               {adminPage === "availability" && <Availability />}
               {adminPage === "services" && <ServicesManager />}
               {adminPage === "stories" && <ClientStories />}

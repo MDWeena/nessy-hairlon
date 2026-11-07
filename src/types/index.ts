@@ -92,6 +92,10 @@ export interface Order {
   depositConfirmedAt: string | null;
   balancePaidAt: string | null;
   balanceReminderSentAt: string | null;
+  serviceIds: string[];
+  /** Admin-only: products used (naira); null = not entered yet. */
+  productCost: number | null;
+  productCostNote: string | null;
 }
 
 /** "this_week_confirmed" is dashboard-only (Revenue card drill-down) — never shown as a visible filter tab. */

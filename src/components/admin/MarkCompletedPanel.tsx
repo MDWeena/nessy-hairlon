@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { GoldSpinner } from "../ui/GoldSpinner";
+import { ProductCostField } from "./ProductCostField";
 
 interface MarkCompletedPanelProps {
   clientName: string;
@@ -8,13 +9,21 @@ interface MarkCompletedPanelProps {
   /** Balance marked paid (or nothing owed); otherwise a warning shows before confirming. */
   balancePaid: boolean;
   busy: boolean;
-  onConfirm: (sendThankYou: boolean) => void;
+  /** Current product cost (null = not entered) and the category's typical cost, for the field. */
+  productCost?: number | null;
+  typicalProductCost?: number | null;
+  category?: string | null;
+  onConfirm: (sendThankYou: boolean, productCost: number | null) => void;
   onCancel: () => void;
 }
 
 /** In-page confirmation for "Mark Completed" (no browser confirm()). */
-export function MarkCompletedPanel({ clientName, hasEmail, balancePaid, busy, onConfirm, onCancel }: MarkCompletedPanelProps) {
+export function MarkCompletedPanel({
+  clientName, hasEmail, balancePaid, busy, productCost = null, typicalProductCost = null, category = null, onConfirm, onCancel,
+}: MarkCompletedPanelProps) {
   const [sendThankYou, setSendThankYou] = useState(true);
+  // Adjust to what was actually used; prefilled from the quote, else the category's typical cost.
+  const [cost, setCost] = useState<number | null>(productCost ?? typicalProductCost);
 
   return (
     <div data-testid="mark-completed-panel" className="mt-3 pt-3 border-t border-border grid gap-3">
@@ -24,6 +33,7 @@ export function MarkCompletedPanel({ clientName, hasEmail, balancePaid, busy, on
           <AlertTriangle size={14} className="shrink-0 mt-px" /> Balance not marked as paid. Mark completed anyway?
         </p>
       )}
+      <ProductCostField value={cost} onChange={setCost} typical={typicalProductCost} category={category} label="Products used" />
       {hasEmail ? (
         <label className="flex items-center gap-2.5 text-xs text-text-soft cursor-pointer min-h-11 md:min-h-0">
           <input
@@ -41,7 +51,7 @@ export function MarkCompletedPanel({ clientName, hasEmail, balancePaid, busy, on
           className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer"
         >Cancel</button>
         <button
-          onClick={() => onConfirm(hasEmail && sendThankYou)} disabled={busy}
+          onClick={() => onConfirm(hasEmail && sendThankYou, cost)} disabled={busy}
           className={`flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 ${busy ? "cursor-wait" : "cursor-pointer"}`}
         >
           {busy ? <GoldSpinner size={12} color="#0A0A0A" /> : <CheckCircle2 size={13} />}

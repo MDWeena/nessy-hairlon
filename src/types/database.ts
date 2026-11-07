@@ -115,6 +115,9 @@ export interface Database {
           reference_code: string;
           client_reschedule_count: number;
           last_rescheduled_at: string | null;
+          /** Admin-only (024): products used, in naira. Never sent to clients. */
+          product_cost: number | null;
+          product_cost_note: string | null;
         };
         Insert: {
           id?: string;
@@ -144,6 +147,8 @@ export interface Database {
           custom_style_category?: string | null;
           client_reschedule_count?: number;
           last_rescheduled_at?: string | null;
+          product_cost?: number | null;
+          product_cost_note?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
@@ -222,6 +227,54 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["booking_reschedules"]["Insert"]>;
+        Relationships: [];
+      };
+      payments: {
+        Row: {
+          id: string; booking_id: string; kind: "deposit" | "balance" | "refund"; amount: number; received_at: string;
+          created_by: string | null; source: "app" | "backfill"; note: string | null; created_at: string;
+        };
+        Insert: {
+          id?: string; booking_id: string; kind: "deposit" | "balance" | "refund"; amount: number; received_at?: string;
+          created_by?: string | null; source?: "app" | "backfill"; note?: string | null; created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["payments"]["Insert"]>;
+        Relationships: [];
+      };
+      cost_rates: {
+        Row: { id: string; kind: "staff_salary" | "transport_daily"; amount: number; effective_from: string; created_at: string };
+        Insert: { id?: string; kind: "staff_salary" | "transport_daily"; amount: number; effective_from: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["cost_rates"]["Insert"]>;
+        Relationships: [];
+      };
+      expenses: {
+        Row: { id: string; expense_date: string; category: string; amount: number; note: string | null; created_at: string };
+        Insert: { id?: string; expense_date: string; category: string; amount: number; note?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["expenses"]["Insert"]>;
+        Relationships: [];
+      };
+      recurring_expenses: {
+        Row: { id: string; category: string; amount: number; note: string | null; start_date: string; end_date: string | null; created_at: string };
+        Insert: { id?: string; category: string; amount: number; note?: string | null; start_date: string; end_date?: string | null; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["recurring_expenses"]["Insert"]>;
+        Relationships: [];
+      };
+      category_product_costs: {
+        Row: { category: string; typical_cost: number; updated_at: string };
+        Insert: { category: string; typical_cost: number; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["category_product_costs"]["Insert"]>;
+        Relationships: [];
+      };
+      finance_config: {
+        Row: { key: string; value: Json; updated_at: string };
+        Insert: { key: string; value: Json; updated_at?: string };
+        Update: Partial<Database["public"]["Tables"]["finance_config"]["Insert"]>;
+        Relationships: [];
+      };
+      monthly_reports: {
+        Row: { month: string; figures: Json; insights: Json; closed_at: string };
+        Insert: { month: string; figures: Json; insights: Json; closed_at?: string };
+        Update: Partial<Database["public"]["Tables"]["monthly_reports"]["Insert"]>;
         Relationships: [];
       };
       api_rate_limit_events: {

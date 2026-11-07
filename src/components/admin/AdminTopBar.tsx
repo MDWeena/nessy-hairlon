@@ -9,6 +9,7 @@ interface AdminTopBarProps {
 const TITLES: Record<string, string> = {
   dashboard: "Dashboard",
   orders: "Bookings",
+  finances: "Finances",
   availability: "Availability",
   services: "Services",
   stories: "Client Stories",

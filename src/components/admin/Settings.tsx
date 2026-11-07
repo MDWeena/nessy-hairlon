@@ -11,6 +11,7 @@ import { GoldButton } from "../ui/GoldButton";
 import { LoadingNotice } from "../ui/LoadingNotice";
 import { ErrorNotice } from "../ui/ErrorNotice";
 import { GoldSpinner } from "../ui/GoldSpinner";
+import { BusinessCostsSettings } from "./finances/BusinessCostsSettings";
 
 type FieldKind = "text" | "percent" | "minutes" | "hours";
 
@@ -415,6 +416,7 @@ export function Settings() {
         );
       })}
       <BookingRulesSection />
+      <BusinessCostsSettings />
       <AboutPageSection />
     </div>
   );

@@ -21,6 +21,8 @@ import { Plus, Minus, Trash2, CheckCircle2, Bell, MessageCircle, MailWarning, Se
 import { AdminReschedulePanel } from "./AdminReschedulePanel";
 import { CardMoreMenu } from "./CardMoreMenu";
 import { MarkCompletedPanel } from "./MarkCompletedPanel";
+import { ProductCostField } from "./ProductCostField";
+import { useCategoryProductCosts } from "../../hooks/useFinances";
 import { Sheet } from "../ui/Sheet";
 import { RescheduleHistory } from "./RescheduleHistory";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -174,6 +176,15 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   // Used to classify custom-style (photo/link) bookings under a category when quoting, and to
   // floor that quote at the cheapest published service in the chosen category.
   const { services: serviceCategories } = useServices();
+  // Private product cost (024): prefilled from the booking's category's typical cost.
+  const typicalProductCosts = useCategoryProductCosts();
+  const categoryByServiceId = new Map(serviceCategories.flatMap(c => c.items.map(i => [i.id, c.cat] as const)));
+  const categoryOf = (o: Order, override?: string | null): string | null =>
+    override ?? o.serviceIds.map(id => categoryByServiceId.get(id)).find(Boolean) ?? o.customStyleCategory ?? null;
+  const typicalFor = (category: string | null) => (category ? typicalProductCosts.get(category) ?? null : null);
+  const [productCostValue, setProductCostValue] = useState<number | null>(null);
+  const [productCostTouched, setProductCostTouched] = useState(false);
+  const changeProductCost = (v: number | null) => { setProductCostTouched(true); setProductCostValue(v); };
   const categoryMinPrices = new Map(serviceCategories.map(c => [c.cat, minPriceForCategory(c.items)]));
   // A deep-link from Dashboard (e.g. the "Pending review" stat card) always wins over
   // whatever filter a prior session left in sessionStorage — restoring stale filters should
@@ -311,6 +322,9 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setQuotingId(id);
     setQuoteValue(0);
     setQuoteCategory(null);
+    const order = bookings.find(o => o.id === id);
+    setProductCostValue(order?.productCost ?? (order ? typicalFor(categoryOf(order)) : null));
+    setProductCostTouched(false);
     setHairCostValue(0);
     setAttachItems([]);
     setAccessItems([]);
@@ -352,7 +366,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
           hairServiceCost: hairCost,
           attachmentItems: attachItems,
           accessoryItems: accessItems,
-        }), order?.client);
+        }, undefined, productCostValue), order?.client);
         setQuotingId(null);
         refreshList();
       } catch (err) {
@@ -370,7 +384,7 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
         return;
       }
       try {
-        reportNotification(await setQuotedPrice(id, price, undefined, isCustomStyle ? (quoteCategory ?? undefined) : undefined), order?.client);
+        reportNotification(await setQuotedPrice(id, price, undefined, isCustomStyle ? (quoteCategory ?? undefined) : undefined, productCostValue), order?.client);
         setQuotingId(null);
         refreshList();
       } catch (err) {
@@ -444,11 +458,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     }
   };
 
-  const handleMarkCompleted = async (id: string, sendThankYou: boolean) => {
+  const handleMarkCompleted = async (id: string, sendThankYou: boolean, productCost?: number | null) => {
     setActionError(null);
     setBusyId(id);
     try {
-      reportNotification(await markCompleted(id, sendThankYou), bookings.find(o => o.id === id)?.client);
+      reportNotification(await markCompleted(id, sendThankYou, productCost), bookings.find(o => o.id === id)?.client);
       setCompletingId(null);
       refreshList();
     } catch (err) {
@@ -771,13 +785,25 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
             </Sheet>
           )}
 
+          {quotingId === o.id && !o.attachmentPreference && !isCustomStyleOrder(o) && (
+            <div className="mt-3 pt-3 border-t border-border max-w-[360px]">
+              <ProductCostField
+                value={productCostValue} onChange={changeProductCost}
+                category={categoryOf(o)} typical={typicalFor(categoryOf(o))}
+              />
+            </div>
+          )}
+
           {completingId === o.id && (
             <MarkCompletedPanel
               clientName={o.client}
               hasEmail={!!o.clientEmail?.trim()}
               balancePaid={!!o.balancePaidAt || (balanceDue != null && balanceDue <= 0)}
               busy={busyId === o.id}
-              onConfirm={(sendThankYou) => handleMarkCompleted(o.id, sendThankYou)}
+              productCost={o.productCost}
+              typicalProductCost={typicalFor(categoryOf(o))}
+              category={categoryOf(o)}
+              onConfirm={(sendThankYou, productCost) => handleMarkCompleted(o.id, sendThankYou, productCost)}
               onCancel={() => setCompletingId(null)}
             />
           )}
@@ -908,6 +934,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                   {accessItems.length > 0 && <div className="text-[11px] text-text-soft text-right">Subtotal: ₦{sumItems(accessItems).toLocaleString()}</div>}
                 </div>
 
+                <ProductCostField
+                  value={productCostValue} onChange={changeProductCost}
+                  category={categoryOf(o)} typical={typicalFor(categoryOf(o))}
+                />
+
                 {/* Total and actions */}
                 <div className="border-t border-border pt-2.5 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2.5">
                   <div className="text-[13px] font-bold">
@@ -931,7 +962,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                   <div>
                     <label className="text-[11px] text-text-muted font-semibold mb-1 block">Select Category</label>
                     <select
-                      value={quoteCategory ?? ""} onChange={(e) => setQuoteCategory(e.target.value || null)}
+                      value={quoteCategory ?? ""} onChange={(e) => {
+                        const cat = e.target.value || null;
+                        setQuoteCategory(cat);
+                        if (!productCostTouched) setProductCostValue(typicalFor(cat));
+                      }}
                       className={`${SELECT_CLASS} w-full`}
                     >
                       <option value="">Choose a category…</option>
@@ -954,6 +989,11 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                       style={{ width: "100%", fontSize: 13 }}
                     />
                   </div>
+
+                  <ProductCostField
+                    value={productCostValue} onChange={changeProductCost}
+                    category={quoteCategory} typical={typicalFor(quoteCategory)}
+                  />
 
                   <div className="flex justify-end gap-2">
                     <button
