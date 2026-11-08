@@ -110,18 +110,31 @@ describe("Move back to Confirmed", () => {
 describe("Mark Completed on a past quoted / deposit-paid booking (no deposit step)", () => {
   const quoted = (over: Record<string, unknown> = {}) => booking({ status: "quoted", deposit_confirmed_at: null, quoted_price: 20000, ...over });
 
-  it("'Client paid in full on the day': records the full price as today's balance in the ledger and completes it", async () => {
+  it("'Client paid in full on the day': records the full price in the ledger, dated the APPOINTMENT day, and completes it", async () => {
     const { result } = await setup([quoted()]);
-    const before = Date.now();
     await act(async () => { await result.current.completeWithoutConfirming("b1", { paidInFull: true, sendThankYou: true, productCost: 3000 }); });
     const patch = state.updates[0].values;
-    expect(patch).toMatchObject({ product_cost: 3000 });
-    expect(Date.parse(patch.balance_paid_at as string)).toBeGreaterThanOrEqual(before);
+    // 20 Oct, 10:00 AM in Lagos = 09:00 UTC — so Money received counts it in October.
+    expect(patch).toMatchObject({ product_cost: 3000, balance_paid_at: "2026-10-20T09:00:00.000Z" });
     expect(state.upserts).toHaveLength(1);
-    expect(state.upserts[0]).toMatchObject({ table: "payments", values: { booking_id: "b1", kind: "balance", amount: 20000, source: "app" }, options: { onConflict: "booking_id,kind", ignoreDuplicates: true } });
-    expect(Date.parse(state.upserts[0].values.received_at as string)).toBeGreaterThanOrEqual(before);
+    expect(state.upserts[0]).toMatchObject({ table: "payments", values: { booking_id: "b1", kind: "balance", amount: 20000, source: "app", received_at: "2026-10-20T09:00:00.000Z" }, options: { onConflict: "booking_id,kind", ignoreDuplicates: true } });
     expect(state.updates.map(u => u.values.status).filter(Boolean)).toEqual(["completed"]);
     expect(notify.mock.calls[0]).toEqual([expect.objectContaining({ type: "status_change", previousStatus: "quoted", booking: expect.objectContaining({ status: "completed" }) })]);
+  });
+
+  it("records another date if she was paid on a different day (midday Lagos)", async () => {
+    const { result } = await setup([quoted({ created_at: "2026-10-15T09:00:00Z" })]);
+    await act(async () => { await result.current.completeWithoutConfirming("b1", { paidInFull: true, sendThankYou: false, receivedOn: "2026-10-22" }); });
+    expect(state.upserts[0].values.received_at).toBe("2026-10-22T11:00:00.000Z");
+    expect(state.updates[0].values.balance_paid_at).toBe("2026-10-22T11:00:00.000Z");
+  });
+
+  it("refuses a future date or one before the booking was made — and writes nothing", async () => {
+    const { result } = await setup([quoted({ created_at: "2026-10-15T09:00:00Z" })]);
+    await expect(result.current.completeWithoutConfirming("b1", { paidInFull: true, sendThankYou: false, receivedOn: "2099-01-01" })).rejects.toThrow(/can't be in the future/);
+    await expect(result.current.completeWithoutConfirming("b1", { paidInFull: true, sendThankYou: false, receivedOn: "2026-10-14" })).rejects.toThrow(/before the booking was made/);
+    expect(state.updates).toEqual([]);
+    expect(state.upserts).toEqual([]);
   });
 
   it("unticked: completes it with the balance still outstanding — no payment recorded", async () => {
@@ -154,5 +167,27 @@ describe("Cancel booking (a quoted appointment that never happened)", () => {
     await act(async () => { await result.current.cancelBooking("b1"); });
     expect(state.updates.map(u => u.values.status)).toEqual(["cancelled"]);
     expect(notify).not.toHaveBeenCalled();
+  });
+});
+
+describe("Mark Balance Paid with the day the money arrived", () => {
+  it("defaults to now; a chosen past day is stored as that day (appointment time on the appointment day)", async () => {
+    const { result } = await setup([booking({ status: "completed", created_at: "2026-10-01T09:00:00Z" })]);
+    const before = Date.now();
+    await act(async () => { await result.current.markBalancePaid("b1"); });
+    expect(Date.parse(state.upserts[0].values.received_at as string)).toBeGreaterThanOrEqual(before);
+
+    state.upserts = []; state.updates = [];
+    const again = await setup([booking({ status: "completed", created_at: "2026-10-01T09:00:00Z" })]);
+    await act(async () => { await again.result.current.markBalancePaid("b1", "2026-10-20"); });
+    expect(state.upserts[0].values).toMatchObject({ kind: "balance", amount: 25000, received_at: "2026-10-20T09:00:00.000Z" });
+    expect(state.updates[0].values.balance_paid_at).toBe("2026-10-20T09:00:00.000Z");
+  });
+
+  it("refuses a future date or one before the booking was made", async () => {
+    const { result } = await setup([booking({ status: "completed", created_at: "2026-10-01T09:00:00Z" })]);
+    await expect(result.current.markBalancePaid("b1", "2099-01-01")).rejects.toThrow(/future/);
+    await expect(result.current.markBalancePaid("b1", "2026-09-30")).rejects.toThrow(/before the booking was made/);
+    expect(state.upserts).toEqual([]);
   });
 });

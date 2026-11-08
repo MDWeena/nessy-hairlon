@@ -2,6 +2,8 @@ import { useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { GoldSpinner } from "../ui/GoldSpinner";
 import { ProductCostField } from "./ProductCostField";
+import { dayLabel, defaultPaidOnDay, earliestPaymentDay, paymentDayError } from "../../lib/paymentDates";
+import { watDateOf } from "../../lib/reminders";
 
 interface MarkCompletedPanelProps {
   clientName: string;
@@ -17,8 +19,9 @@ interface MarkCompletedPanelProps {
    * Set for a past booking that was never confirmed ("quoted" / "deposit_paid"): offers "Client paid
    * in full on the day" (ticked by default) and passes the choice as onConfirm's third argument.
    */
-  unconfirmed?: { status: "quoted" | "deposit_paid"; fullPrice: number | null };
-  onConfirm: (sendThankYou: boolean, productCost: number | null, paidInFull?: boolean) => void;
+  unconfirmed?: { status: "quoted" | "deposit_paid"; fullPrice: number | null; appointmentDate: string; createdAt?: string | null };
+  /** paidInFull / receivedOn (Lagos date the money arrived) are passed only for an unconfirmed booking. */
+  onConfirm: (sendThankYou: boolean, productCost: number | null, paidInFull?: boolean, receivedOn?: string) => void;
   onCancel: () => void;
 }
 
@@ -28,6 +31,10 @@ export function MarkCompletedPanel({
 }: MarkCompletedPanelProps) {
   const [sendThankYou, setSendThankYou] = useState(true);
   const [paidInFull, setPaidInFull] = useState(true);
+  const [now] = useState(() => Date.now());
+  const [paidOn, setPaidOn] = useState(() => unconfirmed ? defaultPaidOnDay(unconfirmed.appointmentDate, now) : "");
+  const [editingDate, setEditingDate] = useState(false);
+  const dateError = unconfirmed && paidInFull ? paymentDayError(paidOn, unconfirmed.createdAt, now) : null;
   const price = unconfirmed?.fullPrice ?? null;
   const naira = (n: number) => `₦${n.toLocaleString()}`;
   // Adjust to what was actually used; prefilled from the quote, else the category's typical cost.
@@ -49,9 +56,28 @@ export function MarkCompletedPanel({
             {price == null
               ? "No price set yet, so no payment can be recorded — set a price first, or complete it with nothing paid."
               : paidInFull
-                ? `Records ${naira(price)} as received today in Finances and completes the booking — no deposit step needed.`
+                ? `Records ${naira(price)} as received in Finances and completes the booking — no deposit step needed.`
                 : `Completes the booking with ${naira(price)} still owed. You can mark the balance paid later.`}
           </p>
+          {price != null && paidInFull && (
+            <div data-testid="paid-on" className="grid gap-1 text-[12px]">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-text">Recorded as received on <strong>{/^\d{4}-\d{2}-\d{2}$/.test(paidOn) ? dayLabel(paidOn) : "—"}</strong></span>
+                {!editingDate && (
+                  <button type="button" onClick={() => setEditingDate(true)}
+                    className="bg-transparent border-none p-0 text-[11px] text-gold underline cursor-pointer min-h-11 md:min-h-0">Paid on another date?</button>
+                )}
+              </div>
+              {editingDate && (
+                <label className="text-[11px] text-text-muted font-semibold grid gap-1 max-w-[220px]">Date received
+                  <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)}
+                    min={earliestPaymentDay(unconfirmed.createdAt) ?? undefined} max={watDateOf(now)}
+                    className="w-full py-2 px-2.5 rounded-md border border-border bg-bg-alt text-[13px] text-text outline-none box-border min-h-11 md:min-h-0" />
+                </label>
+              )}
+              {dateError && <p role="alert" className="m-0 text-[11px] text-[#EF4444]">{dateError}</p>}
+            </div>
+          )}
           {unconfirmed.status === "deposit_paid" && paidInFull && (
             <p className="m-0 text-[11px] text-[#B45309]">The client said they paid a deposit earlier. If they did, use ⋯ → Verify deposit payment first, so it isn't counted twice.</p>
           )}
@@ -81,8 +107,8 @@ export function MarkCompletedPanel({
         >Cancel</button>
         <button
           onClick={() => unconfirmed
-            ? onConfirm(hasEmail && sendThankYou, cost, paidInFull && price != null)
-            : onConfirm(hasEmail && sendThankYou, cost)} disabled={busy}
+            ? onConfirm(hasEmail && sendThankYou, cost, paidInFull && price != null, paidInFull && price != null ? paidOn : undefined)
+            : onConfirm(hasEmail && sendThankYou, cost)} disabled={busy || !!dateError}
           className={`flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 ${busy ? "cursor-wait" : "cursor-pointer"}`}
         >
           {busy ? <GoldSpinner size={12} color="#0A0A0A" /> : <CheckCircle2 size={13} />}

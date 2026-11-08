@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { defaultPaidOnDay, paymentDayError, paymentInstant } from "../lib/paymentDates";
 import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { getMonthRange, getWeekRange } from "../lib/date";
@@ -51,10 +52,10 @@ function toDepositInput(r: BookingRow) {
  * can't rewrite history. One deposit / one balance per booking (re-confirming is a no-op).
  * The booking change itself has already saved; if only this fails, say so plainly.
  */
-async function recordPayment(bookingId: string, kind: "deposit" | "balance", amount: number | null): Promise<void> {
+async function recordPayment(bookingId: string, kind: "deposit" | "balance", amount: number | null, receivedAt: string = new Date().toISOString()): Promise<void> {
   if (!amount || amount <= 0) return;
   const { error } = await supabase.from("payments")
-    .upsert({ booking_id: bookingId, kind, amount, received_at: new Date().toISOString(), source: "app" }, { onConflict: "booking_id,kind", ignoreDuplicates: true });
+    .upsert({ booking_id: bookingId, kind, amount, received_at: receivedAt, source: "app" }, { onConflict: "booking_id,kind", ignoreDuplicates: true });
   if (error) {
     console.error(`recordPayment: couldn't record ${kind} for ${bookingId}`, error);
     throw new Error(`Saved — but the ${kind} couldn't be added to Finances. Please refresh and try again.`);
@@ -185,6 +186,7 @@ export function rowToOrder(row: BookingRow, nameById: Map<string, string>): Orde
     hairServiceCost: row.hair_service_cost ?? null,
     depositConfirmedAt: row.deposit_confirmed_at,
     balancePaidAt: row.balance_paid_at,
+    createdAt: row.created_at,
     balanceReminderSentAt: row.balance_reminder_sent_at,
   };
 }
@@ -227,10 +229,11 @@ interface UseBookingsResult {
   markCompleted: (id: string, sendThankYou: boolean, productCost?: number | null) => Promise<NotifyResult | null>;
   /**
    * Completes a past "quoted" / "deposit_paid" booking without the deposit step. paidInFull records
-   * the full price as the balance in the payments ledger, dated today; otherwise the booking is
+   * the full price as the balance in the payments ledger, dated receivedOn (default: the
+   * appointment day, so Money received lands in the right month); otherwise the booking is
    * completed with the balance still outstanding (collectable later with "Mark Balance Paid").
    */
-  completeWithoutConfirming: (id: string, options: { paidInFull: boolean; sendThankYou: boolean; productCost?: number | null }) => Promise<NotifyResult | null>;
+  completeWithoutConfirming: (id: string, options: { paidInFull: boolean; sendThankYou: boolean; productCost?: number | null; receivedOn?: string }) => Promise<NotifyResult | null>;
   /** Cancels a booking (e.g. a quoted appointment that never happened). No email to the client. */
   cancelBooking: (id: string) => Promise<void>;
   /** completed → confirmed, to undo a mistaken "Mark Completed". Never emails. */
@@ -244,7 +247,8 @@ interface UseBookingsResult {
   ) => Promise<NotifyResult | null>;
   confirmDepositPayment: (id: string) => Promise<NotifyResult | null>;
   rejectDepositPayment: (id: string) => Promise<NotifyResult | null>;
-  markBalancePaid: (id: string) => Promise<void>;
+  /** receivedOn: the Lagos date the money arrived (default today); not in the future or before the booking was made. */
+  markBalancePaid: (id: string, receivedOn?: string) => Promise<void>;
   sendBalanceReminder: (id: string) => Promise<void>;
 }
 
@@ -386,16 +390,23 @@ export function useBookings(): UseBookingsResult {
   }, [rows, fetchBookings]);
 
   /** Admin marks the remaining balance as collected — whether that was a deposit top-up or, for a booking confirmed without one, the full amount taken in person. */
-  const markBalancePaid = useCallback(async (id: string) => {
+  const markBalancePaid = useCallback(async (id: string, receivedOn?: string) => {
     await assertAuthenticated();
     const existing = rows.find(r => r.id === id);
-    const nowIso = new Date().toISOString();
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    let paidAt = nowIso;
+    if (receivedOn) {
+      const problem = paymentDayError(receivedOn, existing?.created_at, now);
+      if (problem) throw new Error(problem);
+      paidAt = paymentInstant(receivedOn, now, existing ? { date: existing.booking_date, time: existing.booking_time } : undefined);
+    }
     const { error: updateError } = await supabase.from("bookings")
-      .update({ balance_paid_at: nowIso, updated_at: nowIso }).eq("id", id);
+      .update({ balance_paid_at: paidAt, updated_at: nowIso }).eq("id", id);
     if (updateError) await handleWriteError(updateError);
     if (existing) {
       await recordPayment(id, "balance", calculateBalanceAmount(
-        { ...toDepositInput(existing), depositConfirmedAt: existing.deposit_confirmed_at }, settings.deposit_percentage ?? null));
+        { ...toDepositInput(existing), depositConfirmedAt: existing.deposit_confirmed_at }, settings.deposit_percentage ?? null), paidAt);
     }
     await fetchBookings();
   }, [rows, fetchBookings, settings.deposit_percentage]);
@@ -433,23 +444,31 @@ export function useBookings(): UseBookingsResult {
       }
       return updateBookingStatus(id, "completed", { notifyClient: sendThankYou });
     },
-    completeWithoutConfirming: async (id: string, { paidInFull, sendThankYou, productCost }) => {
+    completeWithoutConfirming: async (id: string, { paidInFull, sendThankYou, productCost, receivedOn }) => {
       await assertAuthenticated();
       const existing = rows.find(r => r.id === id);
       if (!existing || (existing.status !== "quoted" && existing.status !== "deposit_paid")) {
         throw new Error("This booking can't be completed this way any more. Please refresh.");
       }
       if (paidInFull && existing.quoted_price == null) throw new Error("Set a price first, so the payment can be recorded.");
-      const nowIso = new Date().toISOString();
+      const now = Date.now();
+      const nowIso = new Date(now).toISOString();
+      // Paid on the appointment day unless she says otherwise — never in the future, never before the booking.
+      const paidDay = receivedOn ?? defaultPaidOnDay(existing.booking_date, now);
+      if (paidInFull) {
+        const problem = paymentDayError(paidDay, existing.created_at, now);
+        if (problem) throw new Error(problem);
+      }
+      const paidAt = paymentInstant(paidDay, now, { date: existing.booking_date, time: existing.booking_time });
       const patch: { updated_at: string; product_cost?: number | null; balance_paid_at?: string } = { updated_at: nowIso };
       if (productCost !== undefined) patch.product_cost = productCost;
       // No deposit was confirmed, so the balance is the full price (calculateBalanceAmount agrees).
-      if (paidInFull) patch.balance_paid_at = nowIso;
+      if (paidInFull) patch.balance_paid_at = paidAt;
       const { error: patchError } = await supabase.from("bookings").update(patch).eq("id", id);
       if (patchError) await handleWriteError(patchError);
       if (paidInFull) {
         await recordPayment(id, "balance", calculateBalanceAmount(
-          { ...toDepositInput(existing), depositConfirmedAt: null }, settings.deposit_percentage ?? null));
+          { ...toDepositInput(existing), depositConfirmedAt: null }, settings.deposit_percentage ?? null), paidAt);
       }
       return updateBookingStatus(id, "completed", { notifyClient: sendThankYou });
     },

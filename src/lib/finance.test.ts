@@ -436,3 +436,23 @@ describe("kept payments and stuck bookings", () => {
     expect(oct.earned).toBe(30000);
   });
 });
+
+describe("Tolu-style: paid in full on the appointment day", () => {
+  it("a payment dated the appointment day (18 Oct) is October's money received, even if recorded in November", () => {
+    const tolu = bk({ date: "2026-10-18", status: "completed", clientName: "Tolu", quotedPrice: 5000 });
+    const i = input({ bookings: [tolu], payments: [pay(tolu.id, "balance", 5000, "2026-10-18T10:00:00Z")] });
+    expect(computeMonth(i, "2026-10").moneyReceived).toBe(5000);
+    expect(computeMonth(i, "2026-10").collected).toBe(5000);
+    expect(computeMonth(i, "2026-11").moneyReceived).toBe(0);
+  });
+
+  it("'Updated since closed' uses the same adaptive kept wording (display only)", () => {
+    const melody = bk({ date: "2026-10-20", status: "cancelled", clientName: "Melody" });
+    const closed = snapshotOf(computeMonth(input({ bookings: [melody] }), "2026-10"));
+    const live = computeMonth(input({ bookings: [melody], payments: [pay(melody.id, "balance", 14000, "2026-10-21T10:00:00Z")] }), "2026-10");
+    const change = changesSinceClose(closed, live).find(c => c.field === "keptDeposits")!;
+    expect(change.label).toBe("Kept payments");
+    expect(change.display).toBe("Kept payments: ₦0 → ₦14,000");
+    expect(Object.keys(snapshotOf(live))).toContain("keptDeposits");
+  });
+});
