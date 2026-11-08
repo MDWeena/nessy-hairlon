@@ -214,6 +214,11 @@ export function netReceived(payments: ReceivedPayment[]): number {
   return payments.reduce((s, p) => s + (p.kind === "refund" ? -p.amount : p.amount), 0);
 }
 
+function hasStarted(b: Pick<FinBooking, "date" | "time">, now: number): boolean {
+  const start = watSlotInstant(b.date, b.time);
+  return start !== null ? start <= now : b.date < watDateOf(now);
+}
+
 /** Rule 2: the appointment has happened (completed, or confirmed and its start time has passed). */
 export function isEarned(b: FinBooking, now: number): boolean {
   if (b.status === "completed") return true;
@@ -229,7 +234,22 @@ export function materialsCost(b: FinBooking): number {
 // ─── Month figures ──────────────────────────────────────────────────────────────────────────
 
 export interface UnpaidBooking { bookingId: string; clientName: string; date: string; price: number; paid: number; owed: number }
-export interface KeptDeposit { bookingId: string; clientName: string; date: string; amount: number }
+export interface KeptDeposit {
+  bookingId: string; clientName: string; date: string; amount: number;
+  /** "payment" when more than a deposit was paid (e.g. paid in full) before the cancellation. */
+  kind: "deposit" | "payment";
+}
+
+/** A past appointment never moved on from "quoted" / "deposit_paid" — not counted as Earned. */
+export interface StuckBooking { bookingId: string; clientName: string; date: string; time: string; status: "quoted" | "deposit_paid"; price: number | null }
+
+/** "Kept deposit" / "Kept payment" for one kept item; the section title for a list of them. */
+export function keptLabel(kinds: KeptDeposit["kind"][], plural = false): string {
+  const has = new Set(kinds);
+  if (has.size === 0 || (has.size === 1 && has.has("deposit"))) return plural ? "Kept deposits" : "Kept deposit";
+  if (has.size === 1) return plural ? "Kept payments" : "Kept payment";
+  return "Kept deposits & payments";
+}
 
 export interface CategoryFigures {
   category: string;
@@ -289,6 +309,8 @@ export interface MonthFigures {
   collected: number;
   outstanding: number;
   unpaid: UnpaidBooking[];
+  /** Past appointments still "quoted" / "deposit_paid" — Nessy should complete or cancel them. */
+  stuck: StuckBooking[];
   /** Cash in: payments whose received date (Lagos) falls in this month, whatever the
    * appointment's month — deposits + balances − refunds. Not the same as `collected`, which is
    * what this month's appointments have paid (possibly in an earlier or later month). */
@@ -364,13 +386,21 @@ export function computeMonth(input: FinanceInput, month: string): MonthFigures {
   // Rule 4: kept deposits on cancelled bookings, in the original appointment's month
   const keptDepositList: KeptDeposit[] = [];
   for (const b of input.bookings.filter(b => inMonth(b) && b.status === "cancelled")) {
-    const kept = netReceived(paymentsFor(b, input.payments, input.depositPercentage));
+    const pays = paymentsFor(b, input.payments, input.depositPercentage);
+    const kept = netReceived(pays);
     if (kept > 0) {
-      keptDepositList.push({ bookingId: b.id, clientName: b.clientName, date: b.date, amount: kept });
-      transactions.push({ date: b.date, direction: "in", kind: "kept_deposit", label: `Kept deposit · ${b.clientName} (cancelled)`, amount: kept, bookingId: b.id });
+      const kind = pays.some(p => p.kind === "balance") ? "payment" : "deposit";
+      keptDepositList.push({ bookingId: b.id, clientName: b.clientName, date: b.date, amount: kept, kind });
+      transactions.push({ date: b.date, direction: "in", kind: "kept_deposit", label: `${keptLabel([kind])} · ${b.clientName} (cancelled)`, amount: kept, bookingId: b.id });
     }
   }
   const keptDeposits = sum(keptDepositList.map(k => k.amount));
+
+  // Past appointments still "quoted" / "deposit_paid": not Earned until completed (or cancelled).
+  const stuck: StuckBooking[] = input.bookings
+    .filter(b => inMonth(b) && (b.status === "quoted" || b.status === "deposit_paid") && hasStarted(b, input.now))
+    .map(b => ({ bookingId: b.id, clientName: b.clientName, date: b.date, time: b.time, status: b.status as StuckBooking["status"], price: b.quotedPrice }))
+    .sort((a, z) => a.date.localeCompare(z.date));
 
   // Money received this month: by the payment's received date, for any booking.
   const moneyReceivedBreakdown = { deposits: 0, balances: 0, refunds: 0, payments: 0 };
@@ -475,7 +505,7 @@ export function computeMonth(input: FinanceInput, month: string): MonthFigures {
     daysCounted: countedDays.length, daysInMonth: dim, firstDayCounted, lastDayCounted,
     appointments: earnedBookings.length, workingDays: transportDays.length,
     earned, keptDeposits, keptDepositList, collected, outstanding: sum(unpaid.map(u => u.owed)), unpaid,
-    moneyReceived, moneyReceivedBreakdown,
+    moneyReceived, moneyReceivedBreakdown, stuck,
     costs: {
       products, productBookings: earnedBookings.length - productsMissingIds.length, productsMissing: productsMissingIds.length, productsMissingIds,
       materials, materialBookings: earnedBookings.filter(b => materialsCost(b) > 0).length,
@@ -576,7 +606,9 @@ export function changesSinceClose(snapshot: Partial<MonthSnapshot>, live: MonthF
     const before = snapshot[field];
     if (typeof before !== "number" || before === now[field]) continue;
     const fmt = (n: number) => (COUNT_FIELDS.has(field) ? String(n) : formatNaira(n));
-    out.push({ field, label: SNAPSHOT_LABELS[field], before, after: now[field], display: `${SNAPSHOT_LABELS[field]}: ${fmt(before)} → ${fmt(now[field])}` });
+    // Display only: the stored field stays "keptDeposits"; the label follows what was kept.
+    const label = field === "keptDeposits" ? keptLabel(live.keptDepositList.map(k => k.kind), true) : SNAPSHOT_LABELS[field];
+    out.push({ field, label, before, after: now[field], display: `${label}: ${fmt(before)} → ${fmt(now[field])}` });
   }
   return out;
 }
@@ -595,4 +627,12 @@ export function reportNoticeVisible(today: string, closedAt: string | null | und
   if (!closedAt) return false;
   const closedDay = watDateOf(Date.parse(closedAt));
   return closedDay <= today && today < addDaysToDate(closedDay, 7);
+}
+
+/** "4 past bookings still quoted — complete or cancel them" (Finances month report). */
+export function stuckHeadline(m: Pick<MonthFigures, "stuck">): string {
+  const n = m.stuck.length;
+  const kinds = new Set(m.stuck.map(s => s.status));
+  const state = kinds.size === 2 ? "still quoted or awaiting a deposit check" : kinds.has("quoted") ? "still quoted" : "still awaiting a deposit check";
+  return `${n} past booking${n === 1 ? "" : "s"} ${state} — complete or cancel ${n === 1 ? "it" : "them"}`;
 }

@@ -91,6 +91,8 @@ export interface Order {
   hairServiceCost: number | null;
   depositConfirmedAt: string | null;
   balancePaidAt: string | null;
+  /** When the booking was made — payments can't be dated before it. */
+  createdAt?: string;
   balanceReminderSentAt: string | null;
   serviceIds: string[];
   /** Admin-only: products used (naira); null = not entered yet. */
