@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { assertAuthenticated, handleWriteError } from "../lib/authGuard";
 import { computeAll, type ExpenseCategory, type MonthFigures, type MonthSnapshot, type RateKind } from "../lib/finance";
 import { generateInsights, type Insight } from "../lib/financeInsights";
-import { TRACKING_START_KEY, earliestBookings, toFinanceInput, trackingStartConfirmed, type EarlyBooking, type FinanceRows } from "../lib/financeData";
+import { TRACKING_START_KEY, cannotCloseReason, earliestBookings, monthReportFor, toFinanceInput, trackingStartConfirmed, type EarlyBooking, type FinanceRows } from "../lib/financeData";
 import type { Database } from "../types/database";
 
 type Tables = Database["public"]["Tables"];
@@ -43,6 +43,10 @@ export interface FinanceState {
   setCategoryCost: (category: string, typicalCost: number) => Promise<void>;
   setProductCost: (bookingId: string, cost: number | null) => Promise<void>;
   recordRefund: (bookingId: string, amount: number) => Promise<void>;
+  /** Why this month can't be closed by hand right now (null = it can). */
+  closeBlocker: (month: string) => string | null;
+  /** "Close this month now": stores the month's report exactly as the 1st-of-month cron would. Never overwrites. */
+  closeMonth: (month: string) => Promise<void>;
 }
 
 async function check<T>(p: PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>): Promise<T> {
@@ -134,6 +138,21 @@ export function useFinances(): FinanceState {
     setTrackingStart: (date) => write(() => check(supabase.from("finance_config").upsert({ key: TRACKING_START_KEY, value: date, updated_at: new Date().toISOString() }))),
     setCategoryCost: (category, typicalCost) => write(() => check(supabase.from("category_product_costs").upsert({ category, typical_cost: typicalCost, updated_at: new Date().toISOString() }))),
     setProductCost: (bookingId, cost) => write(() => check(supabase.from("bookings").update({ product_cost: cost }).eq("id", bookingId))),
+    closeBlocker: (month) => rows
+      ? cannotCloseReason(month, { trackingStart: computed?.trackingStart ?? "", now: Date.now() }, trackingStartConfirmed(rows.config), reports.has(month))
+      : "Loading…",
+    closeMonth: (month) => write(async () => {
+      // Fresh data and a fresh "now", so the snapshot is what the month looks like at this moment.
+      if (!rows) throw new Error("Finance data not loaded");
+      const input = toFinanceInput(rows, Date.now());
+      const blocker = cannotCloseReason(month, input, trackingStartConfirmed(rows.config), reports.has(month));
+      if (blocker) throw new Error(blocker);
+      const { figures, insights } = monthReportFor(input, month);
+      await check(supabase.from("monthly_reports").upsert(
+        { month: `${month}-01`, figures: figures as never, insights: insights as never },
+        { onConflict: "month", ignoreDuplicates: true },
+      ));
+    }),
     recordRefund: (bookingId, amount) => write(() => check(supabase.from("payments").insert({ booking_id: bookingId, kind: "refund", amount, note: "Deposit refunded on cancellation" }))),
   };
 }

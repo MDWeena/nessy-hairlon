@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { earliestBookings, trackingStartConfirmed, trackingStartFrom } from "./financeData";
+import { autoCloseFrom, cannotCloseReason, earliestBookings, trackingStartConfirmed, trackingStartFrom } from "./financeData";
 
 const row = (id: string, created_at: string, client_name: string, booking_date: string, status = "completed") =>
   ({ id, created_at, client_name, booking_date, status }) as never;
@@ -24,5 +24,21 @@ describe("tracking start", () => {
       { id: "a", firstName: "Test", createdDate: "2026-10-14", createdTime: "00:30", appointmentDate: "2026-10-14", status: "cancelled" },
       { id: "b", firstName: "Ngozi", createdDate: "2026-10-15", createdTime: "09:00", appointmentDate: "2026-10-20", status: "completed" },
     ]);
+  });
+});
+
+describe("closing a month by hand", () => {
+  const input = { trackingStart: "2026-10-14", now: Date.parse("2026-11-08T11:00:00Z") };
+  it("only finished, unclosed months on or after the tracking start, once the start is chosen", () => {
+    expect(cannotCloseReason("2026-10", input, true, false)).toBeNull();
+    expect(cannotCloseReason("2026-10", input, true, true)).toBe("Already closed");
+    expect(cannotCloseReason("2026-10", input, false, false)).toMatch(/tracking start/);
+    expect(cannotCloseReason("2026-11", input, true, false)).toBe("This month isn't over yet");
+    expect(cannotCloseReason("2026-09", input, true, false)).toBe("Before your tracking start");
+  });
+  it("reads the auto-close cutoff only when it's a valid month", () => {
+    expect(autoCloseFrom([{ key: "month_close_auto_from", value: "2026-11", updated_at: "" }])).toBe("2026-11");
+    expect(autoCloseFrom([{ key: "month_close_auto_from", value: "Nov", updated_at: "" }])).toBeNull();
+    expect(autoCloseFrom([])).toBeNull();
   });
 });
