@@ -12,51 +12,6 @@ interface MonthReportProps {
   onBack: () => void;
   onFillProductCosts: (month: string) => void;
   onRecordRefund: (bookingId: string, amount: number) => Promise<void>;
-  /** Why "Close this month now" isn't available (null = it is). */
-  closeBlocker?: string | null;
-  onCloseMonth?: () => Promise<void>;
-}
-
-/** Past months with no stored report: let the admin close them once the figures are complete. */
-function CloseMonthCard({ m, blocker, onClose, onFill }: { m: MonthFigures; blocker: string | null; onClose: () => Promise<void>; onFill: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const name = m.label.split(" ")[0];
-  const missing = m.costs.productsMissing;
-  const close = async () => {
-    setBusy(true); setError(null);
-    try { await onClose(); setConfirming(false); }
-    catch (err) { console.error(err); setError(err instanceof Error && err.message ? err.message : "Couldn't close the month. Please try again."); }
-    finally { setBusy(false); }
-  };
-  return (
-    <Card title={`${name} isn't closed yet`} testId="close-month">
-      <p className="m-0 text-[13px] text-text-soft">
-        Closing saves {name}'s figures and tips as its report. Anything that changes afterwards (a late payment, a product cost) still updates the live figures and is listed as "Updated since this report was closed".
-      </p>
-      {missing > 0 && (
-        <p className="m-0 mt-2 text-[12px] text-text">
-          {missing} booking{missing === 1 ? " is" : "s are"} still missing a product cost —{" "}
-          <button type="button" onClick={onFill} className="bg-transparent border-none p-0 text-[12px] text-gold underline cursor-pointer min-h-11 md:min-h-0">fill {missing === 1 ? "it" : "them"} in first</button>.
-        </p>
-      )}
-      {error && <p role="alert" className="m-0 mt-2 text-[12px] text-[#EF4444]">{error}</p>}
-      {blocker ? (
-        <p className="m-0 mt-3 text-[12px] text-text-muted">{blocker}</p>
-      ) : confirming ? (
-        <div className="flex flex-wrap gap-2 mt-3">
-          <button type="button" disabled={busy} onClick={close}
-            className="bg-gold text-theme-black border-none rounded-md py-2 px-3.5 text-xs font-bold cursor-pointer min-h-11 md:min-h-0">{busy ? "Closing…" : `Yes, close ${name}`}</button>
-          <button type="button" disabled={busy} onClick={() => setConfirming(false)}
-            className="bg-transparent border border-border rounded-md py-2 px-3.5 text-xs cursor-pointer min-h-11 md:min-h-0">Not yet</button>
-        </div>
-      ) : (
-        <button type="button" onClick={() => setConfirming(true)}
-          className="mt-3 bg-gold text-theme-black border-none rounded-md py-2 px-3.5 text-xs font-bold cursor-pointer min-h-11 md:min-h-0">Close this month now</button>
-      )}
-    </Card>
-  );
 }
 
 function transportExplanation(m: MonthFigures): string {
@@ -67,7 +22,7 @@ function transportExplanation(m: MonthFigures): string {
     : `${m.workingDays} days (rate changed: ${rates.map(formatNaira).join(" → ")} a day)`;
 }
 
-export function MonthReport({ month: m, insights, report, onBack, onFillProductCosts, onRecordRefund, closeBlocker = null, onCloseMonth }: MonthReportProps) {
+export function MonthReport({ month: m, insights, report, onBack, onFillProductCosts, onRecordRefund }: MonthReportProps) {
   const [filter, setFilter] = useState<"all" | "in" | "out">("all");
   const [refunding, setRefunding] = useState<string | null>(null);
   const changes = report ? changesSinceClose(report.figures, m) : [];
@@ -101,9 +56,6 @@ export function MonthReport({ month: m, insights, report, onBack, onFillProductC
       </Card>
 
       {report && <UpdatedSinceClose closedAt={report.closedAt} changes={changes} />}
-      {!report && !m.isCurrent && onCloseMonth && (
-        <CloseMonthCard m={m} blocker={closeBlocker} onClose={onCloseMonth} onFill={() => onFillProductCosts(m.month)} />
-      )}
 
       {/* Income */}
       <Card title="Income" testId="income-section">

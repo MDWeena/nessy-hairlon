@@ -1,7 +1,7 @@
 import { Calendar, Eye, TrendingUp, TrendingDown, Users, Clock, AlertCircle, CheckCircle, FileText, X } from "lucide-react";
 import { useState } from "react";
 import { OPEN_MONTH_KEY, useFinances } from "../../hooks/useFinances";
-import { formatNaira, monthLabel, monthOf, previousMonth } from "../../lib/finance";
+import { formatNaira, monthLabel, monthOf, previousMonth, reportNoticeVisible } from "../../lib/finance";
 import { watDateOf } from "../../lib/reminders";
 import { scheduledBetween, todaysSchedule } from "../../lib/dashboardSchedule";
 import { useTheme } from "../../context/ThemeContext";
@@ -52,11 +52,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const fin = useFinances();
   const [todayWat] = useState(() => watDateOf(Date.now()));
   const thisMonth = fin.months.find(m => m.month === monthOf(todayWat)) ?? null;
-  // "Your October report is ready": from the 1st until she opens it (or the 7th).
+  // "Your October report is ready": for 7 days from the day it closed (normally the 1st–7th),
+  // until she opens or dismisses it.
   const lastMonth = previousMonth(monthOf(todayWat));
   const reportSeenKey = `nessy_report_seen_${lastMonth}`;
   const [reportDismissed, setReportDismissed] = useState(() => { try { return localStorage.getItem(reportSeenKey) === "1"; } catch { return false; } });
-  const showReportNotice = !reportDismissed && Number(todayWat.slice(8, 10)) <= 7 && fin.reports.has(lastMonth);
+  const showReportNotice = !reportDismissed && reportNoticeVisible(todayWat, fin.reports.get(lastMonth)?.closedAt);
   const dismissReport = () => { try { localStorage.setItem(reportSeenKey, "1"); } catch { /* ignore */ } setReportDismissed(true); };
   const openReport = () => {
     try { sessionStorage.setItem(OPEN_MONTH_KEY, lastMonth); } catch { /* ignore */ }
