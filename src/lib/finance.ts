@@ -606,7 +606,9 @@ export function changesSinceClose(snapshot: Partial<MonthSnapshot>, live: MonthF
     const before = snapshot[field];
     if (typeof before !== "number" || before === now[field]) continue;
     const fmt = (n: number) => (COUNT_FIELDS.has(field) ? String(n) : formatNaira(n));
-    out.push({ field, label: SNAPSHOT_LABELS[field], before, after: now[field], display: `${SNAPSHOT_LABELS[field]}: ${fmt(before)} → ${fmt(now[field])}` });
+    // Display only: the stored field stays "keptDeposits"; the label follows what was kept.
+    const label = field === "keptDeposits" ? keptLabel(live.keptDepositList.map(k => k.kind), true) : SNAPSHOT_LABELS[field];
+    out.push({ field, label, before, after: now[field], display: `${label}: ${fmt(before)} → ${fmt(now[field])}` });
   }
   return out;
 }

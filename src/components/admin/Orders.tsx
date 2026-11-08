@@ -1,3 +1,4 @@
+import { dayLabel, earliestPaymentDay, paymentDayError } from "../../lib/paymentDates";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { statusColors } from "../../constants/statusColors";
 import { useBookings, rowToOrder } from "../../hooks/useBookings";
@@ -166,6 +167,8 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const [completingId, setCompletingId] = useState<string | null>(null);
   // "⋯ → Cancel booking" (a past quoted appointment that never happened) asks before cancelling.
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  // Mark Balance Paid after the appointment asks which day the money came (default today).
+  const [balanceDate, setBalanceDate] = useState<{ id: string; day: string } | null>(null);
   // Captured once so render stays pure; drives the "Rescheduled" badge, "Today" marker, the
   // Past divider and which actions each card offers (today/past vs upcoming, in WAT).
   const [renderNow] = useState(() => Date.now());
@@ -435,11 +438,12 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     }
   };
 
-  const handleMarkBalancePaid = async (id: string) => {
+  const handleMarkBalancePaid = async (id: string, receivedOn?: string) => {
     setActionError(null);
     setBalanceActionId(id);
     try {
-      await markBalancePaid(id);
+      await markBalancePaid(id, receivedOn);
+      setBalanceDate(null);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to mark balance as paid");
@@ -461,13 +465,13 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     }
   };
 
-  const handleMarkCompleted = async (id: string, sendThankYou: boolean, productCost?: number | null, paidInFull?: boolean) => {
+  const handleMarkCompleted = async (id: string, sendThankYou: boolean, productCost?: number | null, paidInFull?: boolean, receivedOn?: string) => {
     setActionError(null);
     setBusyId(id);
     try {
       const order = bookings.find(o => o.id === id);
       const result = order && (order.status === "quoted" || order.status === "deposit_paid")
-        ? await completeWithoutConfirming(id, { paidInFull: !!paidInFull, sendThankYou, productCost })
+        ? await completeWithoutConfirming(id, { paidInFull: !!paidInFull, sendThankYou, productCost, receivedOn })
         : await markCompleted(id, sendThankYou, productCost);
       reportNotification(result, order?.client);
       setCompletingId(null);
@@ -827,8 +831,8 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               productCost={o.productCost}
               typicalProductCost={typicalFor(categoryOf(o))}
               category={categoryOf(o)}
-              unconfirmed={o.status === "quoted" || o.status === "deposit_paid" ? { status: o.status, fullPrice: o.quotedPrice } : undefined}
-              onConfirm={(sendThankYou, productCost, paidInFull) => handleMarkCompleted(o.id, sendThankYou, productCost, paidInFull)}
+              unconfirmed={o.status === "quoted" || o.status === "deposit_paid" ? { status: o.status, fullPrice: o.quotedPrice, appointmentDate: o.date, createdAt: o.createdAt } : undefined}
+              onConfirm={(sendThankYou, productCost, paidInFull, receivedOn) => handleMarkCompleted(o.id, sendThankYou, productCost, paidInFull, receivedOn)}
               onCancel={() => setCompletingId(null)}
             />
           )}
@@ -906,14 +910,35 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
                         ><MessageCircle size={12} /> WhatsApp Reminder</a>
                       )
                     )}
-                    <button
-                      onClick={() => handleMarkBalancePaid(o.id)} disabled={balanceActionId === o.id}
+                    {balanceDate?.id !== o.id && <button
+                      onClick={() => datePassed ? setBalanceDate({ id: o.id, day: watDateOf(Date.now()) }) : handleMarkBalancePaid(o.id)} disabled={balanceActionId === o.id}
                       className={`flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 justify-center whitespace-nowrap bg-gold text-theme-black border-none py-1.5 px-3.5 rounded-md text-[11px] font-bold flex items-center gap-1.5 ${balanceActionId === o.id ? "cursor-wait" : "cursor-pointer"}`}
                     >
                       {balanceActionId === o.id && <GoldSpinner size={12} color="#0A0A0A" />}
                       {balanceActionId === o.id ? "Marking…" : "Mark Balance Paid"}
-                    </button>
+                    </button>}
                   </div>
+                  {balanceDate?.id === o.id && (() => {
+                    const err = paymentDayError(balanceDate.day, o.createdAt, Date.now());
+                    return (
+                      <div data-testid="balance-date" className="w-full grid gap-2 p-3 rounded-lg border border-border bg-bg-alt">
+                        <label className="text-[11px] text-text-muted font-semibold grid gap-1 max-w-[220px]">Date the balance was received
+                          <input type="date" value={balanceDate.day} onChange={(e) => setBalanceDate({ id: o.id, day: e.target.value })}
+                            min={earliestPaymentDay(o.createdAt) ?? undefined} max={watDateOf(Date.now())}
+                            className="w-full py-2 px-2.5 rounded-md border border-border bg-surface text-[13px] text-text outline-none box-border min-h-11 md:min-h-0" />
+                        </label>
+                        <p className="m-0 text-[11px] text-text-muted">Counted in "Money received" for {/^\d{4}-\d{2}-\d{2}$/.test(balanceDate.day) ? dayLabel(balanceDate.day) : "that day"}'s month.</p>
+                        {err && <p role="alert" className="m-0 text-[11px] text-[#EF4444]">{err}</p>}
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => setBalanceDate(null)} disabled={balanceActionId === o.id}
+                            className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer">Cancel</button>
+                          <button onClick={() => handleMarkBalancePaid(o.id, balanceDate.day)} disabled={balanceActionId === o.id || !!err}
+                            className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-gold text-theme-black border-none rounded-md py-1.5 px-3.5 text-xs font-bold cursor-pointer">
+                            {balanceActionId === o.id ? "Marking…" : "Mark Balance Paid"}</button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
