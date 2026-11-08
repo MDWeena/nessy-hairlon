@@ -63,3 +63,42 @@ describe("MarkCompletedPanel", () => {
     expect(screen.getByLabelText(/Products used \(private\)/)).toHaveValue("2,500");
   });
 });
+
+describe("MarkCompletedPanel on a past quoted / deposit-paid booking", () => {
+  const unconfirmed = { status: "quoted" as const, fullPrice: 20000 };
+
+  it("'Client paid in full on the day' is ticked by default and records the payment", () => {
+    const onConfirm = vi.fn();
+    render(<MarkCompletedPanel {...base} hasEmail balancePaid={false} unconfirmed={unconfirmed} onConfirm={onConfirm} />);
+    const box = screen.getByRole("checkbox", { name: /Client paid in full on the day \(₦20,000\)/ });
+    expect(box).toBeChecked();
+    expect(screen.getByTestId("paid-in-full-hint")).toHaveTextContent("Records ₦20,000 as received today");
+    expect(screen.queryByRole("alert")).toBeNull(); // no "balance not paid" warning in this mode
+    fireEvent.click(screen.getByRole("button", { name: "Mark Completed" }));
+    expect(onConfirm).toHaveBeenCalledWith(true, null, true);
+  });
+
+  it("unticked: completes with the balance still owed", () => {
+    const onConfirm = vi.fn();
+    render(<MarkCompletedPanel {...base} hasEmail={false} balancePaid={false} unconfirmed={unconfirmed} onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Client paid in full/ }));
+    expect(screen.getByTestId("paid-in-full-hint")).toHaveTextContent("₦20,000 still owed");
+    fireEvent.click(screen.getByRole("button", { name: "Mark Completed" }));
+    expect(onConfirm).toHaveBeenCalledWith(false, null, false);
+  });
+
+  it("with no price there's nothing to record", () => {
+    const onConfirm = vi.fn();
+    render(<MarkCompletedPanel {...base} hasEmail={false} balancePaid={false} unconfirmed={{ status: "quoted", fullPrice: null }} onConfirm={onConfirm} />);
+    const box = screen.getByRole("checkbox", { name: /Client paid in full/ });
+    expect(box).not.toBeChecked();
+    expect(box).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Mark Completed" }));
+    expect(onConfirm).toHaveBeenCalledWith(false, null, false);
+  });
+
+  it("deposit paid: warns to verify the deposit first so it isn't counted twice", () => {
+    render(<MarkCompletedPanel {...base} hasEmail balancePaid={false} unconfirmed={{ status: "deposit_paid", fullPrice: 20000 }} onConfirm={vi.fn()} />);
+    expect(screen.getByText(/Verify deposit payment first/)).toBeInTheDocument();
+  });
+});

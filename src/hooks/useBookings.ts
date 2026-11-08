@@ -225,6 +225,14 @@ interface UseBookingsResult {
   /** confirmed → completed; the thank-you + review email (send-notification's "completed"
    * status_change) goes out only if `sendThankYou` and the client has an email. */
   markCompleted: (id: string, sendThankYou: boolean, productCost?: number | null) => Promise<NotifyResult | null>;
+  /**
+   * Completes a past "quoted" / "deposit_paid" booking without the deposit step. paidInFull records
+   * the full price as the balance in the payments ledger, dated today; otherwise the booking is
+   * completed with the balance still outstanding (collectable later with "Mark Balance Paid").
+   */
+  completeWithoutConfirming: (id: string, options: { paidInFull: boolean; sendThankYou: boolean; productCost?: number | null }) => Promise<NotifyResult | null>;
+  /** Cancels a booking (e.g. a quoted appointment that never happened). No email to the client. */
+  cancelBooking: (id: string) => Promise<void>;
   /** completed → confirmed, to undo a mistaken "Mark Completed". Never emails. */
   moveBackToConfirmed: (id: string) => Promise<void>;
   setQuotedPrice: (
@@ -425,6 +433,27 @@ export function useBookings(): UseBookingsResult {
       }
       return updateBookingStatus(id, "completed", { notifyClient: sendThankYou });
     },
+    completeWithoutConfirming: async (id: string, { paidInFull, sendThankYou, productCost }) => {
+      await assertAuthenticated();
+      const existing = rows.find(r => r.id === id);
+      if (!existing || (existing.status !== "quoted" && existing.status !== "deposit_paid")) {
+        throw new Error("This booking can't be completed this way any more. Please refresh.");
+      }
+      if (paidInFull && existing.quoted_price == null) throw new Error("Set a price first, so the payment can be recorded.");
+      const nowIso = new Date().toISOString();
+      const patch: { updated_at: string; product_cost?: number | null; balance_paid_at?: string } = { updated_at: nowIso };
+      if (productCost !== undefined) patch.product_cost = productCost;
+      // No deposit was confirmed, so the balance is the full price (calculateBalanceAmount agrees).
+      if (paidInFull) patch.balance_paid_at = nowIso;
+      const { error: patchError } = await supabase.from("bookings").update(patch).eq("id", id);
+      if (patchError) await handleWriteError(patchError);
+      if (paidInFull) {
+        await recordPayment(id, "balance", calculateBalanceAmount(
+          { ...toDepositInput(existing), depositConfirmedAt: null }, settings.deposit_percentage ?? null));
+      }
+      return updateBookingStatus(id, "completed", { notifyClient: sendThankYou });
+    },
+    cancelBooking: async (id: string) => { await updateBookingStatus(id, "cancelled", { notifyClient: false }); },
     moveBackToConfirmed: async (id: string) => { await updateBookingStatus(id, "confirmed", { notifyClient: false }); },
     confirmDepositPayment, rejectDepositPayment, markBalancePaid, sendBalanceReminder,
   };

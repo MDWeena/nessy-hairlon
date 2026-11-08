@@ -163,6 +163,45 @@ describe("closing is automatic", () => {
   });
 });
 
+describe("stuck bookings and kept payments on the month report", () => {
+  it("shows '4 past bookings still quoted — complete or cancel them' with the list", () => {
+    const base = makeState();
+    const extra = ["2026-10-18", "2026-10-27", "2026-10-31", "2026-10-30"].map((date, i) =>
+      bk({ date, status: "quoted", clientName: `Stuck ${i}`, quotedPrice: 5000 }));
+    const input: FinanceInput = {
+      bookings: [...extra, bk({ date: "2026-10-20", clientName: "Ngozi" })],
+      payments: [], rates: [{ kind: "staff_salary", amount: 30000, effectiveFrom: "2000-01-01" }, { kind: "transport_daily", amount: 1500, effectiveFrom: "2000-01-01" }],
+      expenses: [], recurring: [], trackingStart: "2026-10-14", depositPercentage: 50, now: NOW,
+    };
+    const all = computeAll(input);
+    fin.state = { ...base, months: all.months, totals: all.totals, reports: new Map(),
+      insightsByMonth: new Map(all.months.map((m, i) => [m.month, generateInsights(m, i ? all.months[i - 1] : null)])) };
+    render(<Finances />);
+    expect(screen.getByTestId("month-card-2026-10")).toHaveTextContent("4 past bookings to complete or cancel");
+    fireEvent.click(screen.getByTestId("month-card-2026-10"));
+    const box = screen.getByTestId("stuck-bookings");
+    expect(box).toHaveTextContent("4 past bookings still quoted — complete or cancel them");
+    expect(within(box).getAllByRole("listitem")).toHaveLength(4);
+  });
+
+  it("labels a full payment kept from a cancelled booking as a kept payment", () => {
+    const base = makeState();
+    const melody = bk({ date: "2026-10-10", status: "cancelled", clientName: "Melody", quotedPrice: 14000 });
+    const input: FinanceInput = {
+      bookings: [melody], payments: [{ bookingId: melody.id, kind: "balance", amount: 14000, receivedAt: "2026-10-11T20:00:00Z", source: "backfill" }],
+      rates: [], expenses: [], recurring: [], trackingStart: "2026-10-06", depositPercentage: 50, now: NOW,
+    };
+    const all = computeAll(input);
+    fin.state = { ...base, months: all.months, totals: all.totals, reports: new Map(), insightsByMonth: new Map() };
+    render(<Finances />);
+    fireEvent.click(screen.getByTestId("month-card-2026-10"));
+    const income = screen.getByTestId("income-section");
+    expect(income).toHaveTextContent("Kept payments");
+    expect(within(income).getByTestId("kept-item")).toHaveTextContent("Kept payment: Melody · 10 Oct · ₦14,000");
+    expect(income).not.toHaveTextContent("Kept deposits");
+  });
+});
+
 describe("Expenses", () => {
   it("adds an expense", async () => {
     render(<Finances />);

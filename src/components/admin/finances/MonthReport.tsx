@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronLeft, ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import { changesSinceClose, formatNaira, shortDate, type MonthFigures } from "../../../lib/finance";
+import { changesSinceClose, formatNaira, keptLabel, shortDate, stuckHeadline, type MonthFigures } from "../../../lib/finance";
 import type { Insight } from "../../../lib/financeInsights";
 import type { ClosedReport } from "../../../hooks/useFinances";
 import { Badge, Card, InsightCard, Line, ProfitLoss, Stat, UpdatedSinceClose } from "./parts";
@@ -12,6 +12,26 @@ interface MonthReportProps {
   onBack: () => void;
   onFillProductCosts: (month: string) => void;
   onRecordRefund: (bookingId: string, amount: number) => Promise<void>;
+}
+
+/** Past appointments that never moved on from quoted / deposit paid: not in Earned until sorted. */
+function StuckBookings({ m }: { m: MonthFigures }) {
+  return (
+    <div data-testid="stuck-bookings" role="status" className="mb-4 p-4 rounded-xl border border-[#F59E0B60] bg-[#F59E0B14]">
+      <p className="m-0 text-[13px] font-bold">{stuckHeadline(m)}</p>
+      <p className="m-0 mt-1 text-[12px] text-text-soft">
+        They aren't counted as Earned. In Bookings, use <strong>Mark Completed</strong> if the appointment happened (tick "Client paid in full on the day" if they did), or <strong>⋯ → Cancel booking</strong> if it never happened.
+      </p>
+      <ul className="m-0 mt-2 p-0 list-none grid gap-1">
+        {m.stuck.map(s => (
+          <li key={s.bookingId} className="flex justify-between gap-3 text-[12px]">
+            <span className="text-text-soft min-w-0">{s.clientName} · {shortDate(s.date)} · {s.status === "quoted" ? "quoted" : "deposit paid (not checked)"}</span>
+            <span className="font-semibold shrink-0">{s.price != null ? formatNaira(s.price) : "no price"}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function transportExplanation(m: MonthFigures): string {
@@ -57,13 +77,16 @@ export function MonthReport({ month: m, insights, report, onBack, onFillProductC
 
       {report && <UpdatedSinceClose closedAt={report.closedAt} changes={changes} />}
 
+      {m.stuck.length > 0 && <StuckBookings m={m} />}
+
       {/* Income */}
       <Card title="Income" testId="income-section">
         <Line label="Earned" value={formatNaira(m.earned)} hint={`The full price of the ${m.appointments} appointment${m.appointments === 1 ? "" : "s"} that took place`} />
-        <Line label="Kept deposits" value={formatNaira(m.keptDeposits)} hint={m.keptDepositList.length ? "Deposits kept from cancelled bookings" : "None this month"}>
+        <Line label={keptLabel(m.keptDepositList.map(k => k.kind), true)} value={formatNaira(m.keptDeposits)}
+          hint={m.keptDepositList.length ? `Money kept from cancelled bookings${m.keptDepositList.some(k => k.kind === "payment") ? " — a kept payment means more than a deposit was paid" : ""}` : "None this month"}>
           {m.keptDepositList.map(k => (
-            <div key={k.bookingId} className="flex items-center justify-between gap-2 mt-1.5 text-[12px]">
-              <span className="text-text-soft min-w-0">{k.clientName} · {shortDate(k.date)} · {formatNaira(k.amount)}</span>
+            <div key={k.bookingId} data-testid="kept-item" className="flex items-center justify-between gap-2 mt-1.5 text-[12px]">
+              <span className="text-text-soft min-w-0">{keptLabel([k.kind])}: {k.clientName} · {shortDate(k.date)} · {formatNaira(k.amount)}</span>
               {refunding === k.bookingId ? (
                 <span className="flex gap-1.5 shrink-0">
                   <button type="button" onClick={async () => { await onRecordRefund(k.bookingId, k.amount); setRefunding(null); }}
