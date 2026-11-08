@@ -379,3 +379,21 @@ describe("money received this month (cash in, by received date)", () => {
     expect(changesSinceClose(closed, later).map(c => c.display)).toContain("Money received: ₦0 → ₦30,000");
   });
 });
+
+describe("dashboard 'report is ready' notice", () => {
+  it("normally shows from the 1st to the 7th (closed on the 1st at 02:00 WAT)", async () => {
+    const { reportNoticeVisible } = await import("./finance");
+    const closedAt = "2026-12-01T01:00:00Z";
+    expect(reportNoticeVisible("2026-11-30", closedAt)).toBe(false);
+    expect(reportNoticeVisible("2026-12-01", closedAt)).toBe(true);
+    expect(reportNoticeVisible("2026-12-07", closedAt)).toBe(true);
+    expect(reportNoticeVisible("2026-12-08", closedAt)).toBe(false);
+  });
+  it("for a catch-up close (October on 9 Nov) shows for 7 days from that day", async () => {
+    const { reportNoticeVisible } = await import("./finance");
+    expect(reportNoticeVisible("2026-11-09", "2026-11-09T01:00:00Z")).toBe(true);
+    expect(reportNoticeVisible("2026-11-15", "2026-11-09T01:00:00Z")).toBe(true);
+    expect(reportNoticeVisible("2026-11-16", "2026-11-09T01:00:00Z")).toBe(false);
+    expect(reportNoticeVisible("2026-11-09", null)).toBe(false);
+  });
+});

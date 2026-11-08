@@ -586,3 +586,13 @@ export function monthsToClose(input: Pick<FinanceInput, "trackingStart" | "now">
   const current = monthOf(watDateOf(input.now));
   return trackedMonths(input).filter(m => m < current && !closed.includes(m));
 }
+
+/**
+ * The dashboard's "Your <month> report is ready" notice: shown for 7 days starting the day the
+ * report was closed (Lagos) — normally the 1st to the 7th; a catch-up close shows it from that day.
+ */
+export function reportNoticeVisible(today: string, closedAt: string | null | undefined): boolean {
+  if (!closedAt) return false;
+  const closedDay = watDateOf(Date.parse(closedAt));
+  return closedDay <= today && today < addDaysToDate(closedDay, 7);
+}

@@ -5,8 +5,8 @@ import { closeMonths, supabaseMonthCloseRepo } from "./_lib/monthClose.js";
 
 /**
  * Month close for the Finances module (vercel.json cron, daily 01:00 UTC = 02:00 WAT). On the
- * 1st it stores last month's figures and insights in monthly_reports; on any other day there's
- * nothing to do unless a run was missed. `?dryRun=1` reports what it would close without
+ * 1st it stores last month's figures and insights in monthly_reports ("on schedule"); on any other
+ * day there's nothing to do unless a month is still unclosed ("catch-up"). `?dryRun=1` reports what it would close without
  * writing. Same CRON_SECRET guard as the other cron routes; writes with the service role.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -30,6 +30,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       Date.now(),
       req.query?.dryRun === "1" || req.query?.dryRun === "true",
     );
+    if (result.skipped) console.log(`close-month: nothing closed — ${result.skipped}`);
+    else if (result.closed.length === 0) console.log(`close-month: nothing due (closed already: ${result.alreadyClosed.join(", ") || "none"})`);
+    for (const c of result.closed) {
+      console.log(`close-month: ${result.dryRun ? "[dry run] would close" : "closed"} ${c.month} (${c.reason}) — profit ${c.profit}, ${c.insights} insights, ${c.productsMissing} bookings missing product cost`);
+    }
     res.status(200).json(result);
   } catch (err) {
     console.error("close-month: run failed", err);

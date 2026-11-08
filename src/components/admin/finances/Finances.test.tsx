@@ -49,7 +49,6 @@ function makeState(over: Partial<FinanceState> = {}): FinanceState {
     refetch: vi.fn(), addExpense: vi.fn(async () => {}), updateExpense: vi.fn(async () => {}), deleteExpense: vi.fn(async () => {}),
     addRecurring: vi.fn(async () => {}), stopRecurring: vi.fn(async () => {}), setRate: vi.fn(async () => {}), setTrackingStart: vi.fn(async () => {}),
     setCategoryCost: vi.fn(async () => {}), setProductCost: vi.fn(async () => {}), recordRefund: vi.fn(async () => {}),
-    closeBlocker: vi.fn(() => null), closeMonth: vi.fn(async () => {}),
     ...over,
   };
 }
@@ -153,40 +152,14 @@ describe("Month report", () => {
   });
 });
 
-describe("Close this month now", () => {
-  const withoutOctoberReport = () => makeState({ reports: new Map() });
-
-  it("past unclosed months get a 'Not closed' badge and a close card; closing asks to confirm first", async () => {
-    fin.state = withoutOctoberReport();
+describe("closing is automatic", () => {
+  it("a past month with no report yet offers no manual close step", () => {
+    fin.state = makeState({ reports: new Map() });
     render(<Finances />);
-    expect(within(screen.getByTestId("month-card-2026-10")).getByText("Not closed")).toBeInTheDocument();
-    expect(within(screen.getByTestId("month-card-2026-11")).queryByText("Not closed")).toBeNull();
+    expect(within(screen.getByTestId("month-card-2026-10")).queryByText(/not closed/i)).toBeNull();
     fireEvent.click(screen.getByTestId("month-card-2026-10"));
-    const card = screen.getByTestId("close-month");
-    expect(card).toHaveTextContent("October isn't closed yet");
-    expect(card).toHaveTextContent("1 booking is still missing a product cost");
-    fireEvent.click(within(card).getByRole("button", { name: "Close this month now" }));
-    expect(fin.state.closeMonth).not.toHaveBeenCalled();
-    fireEvent.click(within(card).getByRole("button", { name: "Yes, close October" }));
-    await vi.waitFor(() => expect(fin.state.closeMonth).toHaveBeenCalledWith("2026-10"));
-  });
-
-  it("is not offered for a closed month or the current month, and explains when it's blocked", () => {
-    render(<Finances />);
-    fireEvent.click(screen.getByTestId("month-card-2026-10"));
-    expect(screen.queryByTestId("close-month")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "All months" }));
-    fireEvent.click(screen.getByTestId("month-card-2026-11"));
-    expect(screen.queryByTestId("close-month")).toBeNull();
-  });
-
-  it("shows why it can't close yet (tracking start not chosen)", () => {
-    fin.state = makeState({ reports: new Map(), closeBlocker: vi.fn(() => "Choose your tracking start in Settings → Business costs first") });
-    render(<Finances />);
-    fireEvent.click(screen.getByTestId("month-card-2026-10"));
-    const card = screen.getByTestId("close-month");
-    expect(card).toHaveTextContent("Choose your tracking start");
-    expect(within(card).queryByRole("button", { name: "Close this month now" })).toBeNull();
+    expect(screen.getByTestId("month-report")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /close this month/i })).toBeNull();
   });
 });
 
