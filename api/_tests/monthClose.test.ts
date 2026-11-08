@@ -79,3 +79,42 @@ describe("month close before the tracking start is chosen", () => {
     expect(r.inserted).toEqual([]);
   });
 });
+
+describe("month_close_auto_from: months before it wait for the admin", () => {
+  const withAutoFrom = (from: string) => {
+    const r = repo();
+    const load = r.load;
+    r.load = async () => { const x = await load(); return { ...x, rows: { ...x.rows, config: [...x.rows.config, { key: "month_close_auto_from", value: from, updated_at: "" }] } }; };
+    return r;
+  };
+
+  it("on 9 Nov with auto-close from November: October is held back, nothing written", async () => {
+    const r = withAutoFrom("2026-11");
+    const res = await closeMonths(r, Date.parse("2026-11-09T01:00:00Z"), false);
+    expect(res.closed).toEqual([]);
+    expect(res.heldBack).toEqual(["2026-10"]);
+    expect(r.inserted).toEqual([]);
+  });
+
+  it("on 1 Dec it closes November but still not October", async () => {
+    const r = withAutoFrom("2026-11");
+    const res = await closeMonths(r, Date.parse("2026-12-01T01:00:00Z"), false);
+    expect(res.closed.map(c => c.month)).toEqual(["2026-11"]);
+    expect(res.heldBack).toEqual(["2026-10"]);
+  });
+
+  it("once the admin has closed October, it's simply already closed", async () => {
+    const r = withAutoFrom("2026-11");
+    r.load = (orig => async () => { const x = await orig(); return { ...x, closedMonths: ["2026-10"] }; })(r.load);
+    const res = await closeMonths(r, Date.parse("2026-12-01T01:00:00Z"), false);
+    expect(res.closed.map(c => c.month)).toEqual(["2026-11"]);
+    expect(res.heldBack).toEqual([]);
+  });
+
+  it("moving the setting back makes the next run catch October up", async () => {
+    const r = withAutoFrom("2026-10");
+    const res = await closeMonths(r, Date.parse("2026-11-09T01:00:00Z"), false);
+    expect(res.closed.map(c => c.month)).toEqual(["2026-10"]);
+    expect(res.heldBack).toEqual([]);
+  });
+});

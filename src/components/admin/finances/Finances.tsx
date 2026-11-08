@@ -21,7 +21,7 @@ function readOpenMonth(): string | null {
   }
 }
 
-function MonthCard({ m, onOpen }: { m: MonthFigures; onOpen: () => void }) {
+function MonthCard({ m, closed, onOpen }: { m: MonthFigures; closed: boolean; onOpen: () => void }) {
   return (
     <button type="button" onClick={onOpen} data-testid={`month-card-${m.month}`}
       className="w-full text-left bg-surface border border-border rounded-xl p-4 cursor-pointer flex items-center gap-3 hover-lift min-h-11">
@@ -30,6 +30,7 @@ function MonthCard({ m, onOpen }: { m: MonthFigures; onOpen: () => void }) {
           <span className="text-[15px] font-bold text-text">{m.label}</span>
           {m.isCurrent && <Badge tone="info">Month to date</Badge>}
           {m.isLaunchPartial && <Badge tone="gold">Part month</Badge>}
+          {!m.isCurrent && !closed && <Badge>Not closed</Badge>}
         </div>
         <div className="text-[13px] mt-1"><ProfitLoss value={m.profit} /></div>
         <div className="text-[12px] text-text-muted mt-0.5">
@@ -68,6 +69,7 @@ export function Finances() {
         <MonthReport
           month={selected} insights={fin.insightsByMonth.get(selected.month) ?? []} report={fin.reports.get(selected.month) ?? null}
           onBack={() => setOpenMonth(null)} onFillProductCosts={(m) => setFillMonth(m)} onRecordRefund={fin.recordRefund}
+          closeBlocker={fin.closeBlocker(selected.month)} onCloseMonth={() => fin.closeMonth(selected.month)}
         />
         {fillSheet}
       </>
@@ -125,7 +127,7 @@ export function Finances() {
 
           <h3 className="text-[15px] font-bold mt-6 mb-2.5">Months</h3>
           <div className="grid gap-2.5">
-            {[...months].reverse().map(m => <MonthCard key={m.month} m={m} onOpen={() => setOpenMonth(m.month)} />)}
+            {[...months].reverse().map(m => <MonthCard key={m.month} m={m} closed={fin.reports.has(m.month)} onOpen={() => setOpenMonth(m.month)} />)}
           </div>
         </>
       )}

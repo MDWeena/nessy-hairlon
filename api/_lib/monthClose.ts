@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../src/types/database.js";
-import { computeMonth, monthsToClose, previousMonth, snapshotOf, type MonthSnapshot } from "../../src/lib/finance.js";
-import { generateInsights, type Insight } from "../../src/lib/financeInsights.js";
-import { toFinanceInput, trackingStartConfirmed, type FinanceRows } from "../../src/lib/financeData.js";
+import { monthsToClose, type MonthSnapshot } from "../../src/lib/finance.js";
+import type { Insight } from "../../src/lib/financeInsights.js";
+import { autoCloseFrom, monthReportFor, toFinanceInput, trackingStartConfirmed, type FinanceRows } from "../../src/lib/financeData.js";
 
 export interface MonthReportRow {
   month: string; // "2026-10-01"
@@ -24,33 +24,38 @@ export interface MonthCloseResult {
   alreadyClosed: string[];
   /** Set when nothing was closed on purpose (e.g. the tracking start hasn't been chosen yet). */
   skipped?: string;
+  /** Finished, unclosed months before month_close_auto_from: left for the admin to close. */
+  heldBack: string[];
 }
 
 /**
  * Closes every finished month (Africa/Lagos) since the tracking start that has no report yet —
- * normally just last month, on the 1st; a missed run catches up the next day. Stores a snapshot
+ * normally just last month, on the 1st; a missed run catches up the next day. Months before
+ * finance_config.month_close_auto_from are held back (reported in `heldBack`) for the admin to
+ * close by hand; moving that setting back makes the next run catch them up. Stores a snapshot
  * of the figures and that month's insights in monthly_reports. Idempotent.
  */
 export async function closeMonths(repo: MonthCloseRepo, now: number, dryRun: boolean): Promise<MonthCloseResult> {
   const { rows, closedMonths } = await repo.load();
   // Never snapshot a month against a guessed start date: wait until the admin has chosen it.
   if (!trackingStartConfirmed(rows.config)) {
-    return { success: true, dryRun, ranAt: new Date(now).toISOString(), closed: [], alreadyClosed: closedMonths, skipped: "Tracking start date not chosen yet (Settings → Business costs)" };
+    return { success: true, dryRun, ranAt: new Date(now).toISOString(), closed: [], alreadyClosed: closedMonths, heldBack: [], skipped: "Tracking start date not chosen yet (Settings → Business costs)" };
   }
   const input = toFinanceInput(rows, now);
-  const due = monthsToClose(input, closedMonths);
+  const from = autoCloseFrom(rows.config);
+  const finished = monthsToClose(input, closedMonths);
+  const heldBack = from ? finished.filter(m => m < from) : [];
+  const due = finished.filter(m => !heldBack.includes(m));
   const closed: MonthCloseResult["closed"] = [];
   for (const month of due) {
-    const figures = computeMonth(input, month);
-    const prev = month > input.trackingStart.slice(0, 7) ? computeMonth(input, previousMonth(month)) : null;
-    const insights = generateInsights(figures, prev);
+    const { figures, insights, profit } = monthReportFor(input, month);
     if (!dryRun) {
-      const inserted = await repo.insert({ month: `${month}-01`, figures: snapshotOf(figures), insights });
+      const inserted = await repo.insert({ month: `${month}-01`, figures, insights });
       if (!inserted) continue;
     }
-    closed.push({ month, profit: figures.profit, insights: insights.length });
+    closed.push({ month, profit, insights: insights.length });
   }
-  return { success: true, dryRun, ranAt: new Date(now).toISOString(), closed, alreadyClosed: closedMonths };
+  return { success: true, dryRun, ranAt: new Date(now).toISOString(), closed, alreadyClosed: closedMonths, heldBack };
 }
 
 export function supabaseMonthCloseRepo(db: SupabaseClient<Database>): MonthCloseRepo {

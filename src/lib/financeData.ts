@@ -1,6 +1,8 @@
 import type { Database } from "../types/database.js";
 import type { OrderStatus } from "../types/index.js";
-import { EXPENSE_CATEGORIES, type Expense, type ExpenseCategory, type FinBooking, type FinanceInput, type LedgerPayment, type RateEntry, type RecurringExpense } from "./finance.js";
+import { EXPENSE_CATEGORIES, computeMonth, monthOf, previousMonth, snapshotOf, type Expense, type ExpenseCategory, type FinBooking, type FinanceInput, type LedgerPayment, type MonthSnapshot, type RateEntry, type RecurringExpense } from "./finance.js";
+import { watDateOf } from "./reminders.js";
+import { generateInsights, type Insight } from "./financeInsights.js";
 
 /**
  * Turns database rows into FinanceInput — shared by the admin Finances page (src/hooks/
@@ -94,4 +96,32 @@ export function toFinanceInput(rows: FinanceRows, now: number): FinanceInput {
     depositPercentage: rows.depositPercentage,
     now,
   };
+}
+
+/**
+ * The automatic month close (cron) only closes months from this one (YYYY-MM) onwards; earlier
+ * finished months wait until the admin closes them ("Close this month now") or this setting is
+ * moved back — then the next cron run catches them up. Unset → every finished month is closed.
+ */
+export const AUTO_CLOSE_FROM_KEY = "month_close_auto_from";
+
+export function autoCloseFrom(config: Tables["finance_config"]["Row"][]): string | null {
+  const v = config.find(c => c.key === AUTO_CLOSE_FROM_KEY)?.value;
+  return typeof v === "string" && /^\d{4}-\d{2}$/.test(v) ? v : null;
+}
+
+/** The report stored when a month is closed — one implementation for the cron and the admin button. */
+export function monthReportFor(input: FinanceInput, month: string): { figures: MonthSnapshot; insights: Insight[]; profit: number } {
+  const m = computeMonth(input, month);
+  const prev = month > monthOf(input.trackingStart) ? computeMonth(input, previousMonth(month)) : null;
+  return { figures: snapshotOf(m), insights: generateInsights(m, prev), profit: m.profit };
+}
+
+/** Why a month can't be closed by hand right now, or null if it can. */
+export function cannotCloseReason(month: string, input: Pick<FinanceInput, "trackingStart" | "now">, confirmed: boolean, alreadyClosed: boolean): string | null {
+  if (alreadyClosed) return "Already closed";
+  if (!confirmed) return "Choose your tracking start in Settings → Business costs first";
+  if (month >= monthOf(watDateOf(input.now))) return "This month isn't over yet";
+  if (month < monthOf(input.trackingStart)) return "Before your tracking start";
+  return null;
 }
