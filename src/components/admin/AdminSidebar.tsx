@@ -1,4 +1,4 @@
-import { TrendingUp, Calendar, Clock, Scissors, Star, Image, Settings, LogOut, ExternalLink, X } from "lucide-react";
+import { TrendingUp, Calendar, Clock, Scissors, Star, Image, Settings, LogOut, ExternalLink, X, Wallet } from "lucide-react";
 import { LOGO_ICON } from "../../assets/logos";
 import { useTheme } from "../../context/ThemeContext";
 import { useTestimonials } from "../../hooks/useTestimonials";
@@ -16,6 +16,7 @@ interface AdminSidebarProps {
 const SIDEBAR_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: TrendingUp },
   { key: "orders", label: "Bookings", icon: Calendar },
+  { key: "finances", label: "Finances", icon: Wallet },
   { key: "availability", label: "Availability", icon: Clock },
   { key: "services", label: "Services", icon: Scissors },
   { key: "stories", label: "Client Stories", icon: Star },

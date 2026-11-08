@@ -1,4 +1,8 @@
-import { Calendar, Eye, TrendingUp, Users, Clock, AlertCircle, CheckCircle, PieChart } from "lucide-react";
+import { Calendar, Eye, TrendingUp, TrendingDown, Users, Clock, AlertCircle, CheckCircle, FileText, X } from "lucide-react";
+import { useState } from "react";
+import { OPEN_MONTH_KEY, useFinances } from "../../hooks/useFinances";
+import { formatNaira, monthLabel, monthOf, previousMonth, reportNoticeVisible } from "../../lib/finance";
+import { watDateOf } from "../../lib/reminders";
 import { scheduledBetween, todaysSchedule } from "../../lib/dashboardSchedule";
 import { useTheme } from "../../context/ThemeContext";
 import { useBookings } from "../../hooks/useBookings";
@@ -44,7 +48,22 @@ function BookingAvatar({ client, customStyleUrl, linked }: { client: string; cus
 
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { t } = useTheme();
-  const { bookings, stats, revenueBreakdown, loading, error } = useBookings();
+  const { bookings, stats, loading, error } = useBookings();
+  const fin = useFinances();
+  const [todayWat] = useState(() => watDateOf(Date.now()));
+  const thisMonth = fin.months.find(m => m.month === monthOf(todayWat)) ?? null;
+  // "Your October report is ready": for 7 days from the day it closed (normally the 1st–7th),
+  // until she opens or dismisses it.
+  const lastMonth = previousMonth(monthOf(todayWat));
+  const reportSeenKey = `nessy_report_seen_${lastMonth}`;
+  const [reportDismissed, setReportDismissed] = useState(() => { try { return localStorage.getItem(reportSeenKey) === "1"; } catch { return false; } });
+  const showReportNotice = !reportDismissed && reportNoticeVisible(todayWat, fin.reports.get(lastMonth)?.closedAt);
+  const dismissReport = () => { try { localStorage.setItem(reportSeenKey, "1"); } catch { /* ignore */ } setReportDismissed(true); };
+  const openReport = () => {
+    try { sessionStorage.setItem(OPEN_MONTH_KEY, lastMonth); } catch { /* ignore */ }
+    dismissReport();
+    onNavigate("finances");
+  };
 
   const today = toISODateString(new Date());
   const todaysBookings = todaysSchedule(bookings, today);
@@ -59,10 +78,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const statCards = [
     { label: "This week", value: String(stats.thisWeekCount), sub: "bookings", icon: Calendar, color: t.gold, onClick: () => onNavigate("orders") },
     { label: "Pending review", value: String(stats.pendingReviewCount), sub: "need attention", icon: Eye, color: "#F59E0B", onClick: () => onNavigate("orders", "pending_review") },
+    // Replaces the old "Revenue (week)", which re-derived payments from current prices.
     {
-      label: "Revenue (week)", value: `₦${stats.revenueThisWeek.toLocaleString()}`,
-      sub: `Deposits ₦${stats.depositsThisWeek.toLocaleString()} · Balance ₦${stats.balanceCollectedThisWeek.toLocaleString()}`,
-      icon: TrendingUp, color: "#10B981", onClick: () => onNavigate("orders", "this_week_confirmed"),
+      label: "This month so far",
+      value: thisMonth ? `${thisMonth.profit >= 0 ? "Profit" : "Loss"} ${formatNaira(Math.abs(thisMonth.profit))}` : "—",
+      sub: thisMonth ? `Earned ${formatNaira(thisMonth.earned)} · Costs ${formatNaira(thisMonth.costs.total)}` : "Loading…",
+      icon: thisMonth && thisMonth.profit < 0 ? TrendingDown : TrendingUp,
+      color: thisMonth && thisMonth.profit < 0 ? "#DC2626" : "#0E9F6E",
+      onClick: () => onNavigate("finances"),
     },
     { label: "Clients (month)", value: String(stats.clientsThisMonthCount), sub: "unique clients", icon: Users, color: "#6366F1" },
   ];
@@ -72,6 +95,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   return (
     <>
       {error && <ErrorNotice message={error} />}
+
+      {showReportNotice && (
+        <div role="status" data-testid="report-ready" className="flex items-center gap-3 bg-gold-bg border border-[#C49A6C40] rounded-xl p-4 mb-5">
+          <FileText size={18} className="text-gold shrink-0" aria-hidden="true" />
+          <p className="m-0 flex-1 text-[13px]"><strong>Your {monthLabel(lastMonth).split(" ")[0]} report is ready.</strong> See how the month went and what to do next.</p>
+          <button type="button" onClick={openReport} className="bg-gold text-theme-black border-none rounded-md py-1.5 px-3 text-xs font-bold cursor-pointer shrink-0 min-h-11 md:min-h-0">View</button>
+          <button type="button" onClick={dismissReport} aria-label="Dismiss" className="tap-target-sm bg-transparent border-none p-1 cursor-pointer text-text-muted shrink-0"><X size={16} /></button>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-7">
@@ -92,61 +124,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <div className="text-xs text-text-muted mt-1">{s.sub}</div>
           </div>
         ))}
-      </div>
-
-      {/* Revenue breakdown — all-time audit view, independent of the weekly stat card above */}
-      <div className="bg-surface rounded-xl p-6 border border-border mb-5">
-        <div className="flex items-center gap-2 mb-4">
-          <PieChart size={18} color={t.gold} />
-          <h3 className="text-base font-bold m-0">Revenue Breakdown</h3>
-          <span className="text-[11px] text-text-muted ml-auto">All-time · received payments only</span>
-        </div>
-
-        {/* Primary: Payments Received */}
-        <div className="text-[10px] font-bold text-text-muted tracking-[0.5px] uppercase mb-2.5">
-          Payments Received
-        </div>
-        <div className="grid gap-2.5">
-          {[
-            { label: "Deposits received", value: revenueBreakdown.depositsReceived, color: t.gold },
-            { label: "Balance received", value: revenueBreakdown.balanceReceived, color: "#10B981" },
-          ].map(row => (
-            <div key={row.label} className="flex justify-between items-center">
-              <span className="text-[13px] text-text-soft flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
-                {row.label}
-              </span>
-              <span className="text-[13px] font-semibold">₦{row.value.toLocaleString()}</span>
-            </div>
-          ))}
-          <div className="flex justify-between items-center border-t border-border pt-2.5 mt-0.5">
-            <span className="text-[13px] font-bold">Total received</span>
-            <span className="text-sm font-bold text-gold">₦{revenueBreakdown.totalReceived.toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* Secondary: Material Costs (Nessy-supplied) — only when relevant */}
-        {(revenueBreakdown.attachmentMaterialCosts > 0 || revenueBreakdown.accessoryMaterialCosts > 0) && (
-          <div className="mt-5 pt-4 border-t border-dashed border-border">
-            <div className="text-[10px] font-bold text-text-muted tracking-[0.5px] uppercase mb-2.5">
-              Material costs (Nessy-supplied)
-            </div>
-            <div className="grid gap-2.5">
-              {[
-                { label: "Attachments (wigs, extensions)", value: revenueBreakdown.attachmentMaterialCosts, color: "#6366F1" },
-                { label: "Accessories (clips, pins)", value: revenueBreakdown.accessoryMaterialCosts, color: "#F59E0B" },
-              ].map(row => (
-                <div key={row.label} className="flex justify-between items-center">
-                  <span className="text-[13px] text-text-soft flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
-                    {row.label}
-                  </span>
-                  <span className="text-[13px] font-semibold">₦{row.value.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Needs Attention section */}

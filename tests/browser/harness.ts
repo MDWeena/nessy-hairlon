@@ -56,7 +56,7 @@ function booking(id: string, overrides: Row): Row {
     attachment_preference: null, attachment_items: [], accessory_items: [], hair_service_cost: null,
     balance_paid_at: null, balance_reminder_sent_at: null, style_reference_urls: [], client_notes: null,
     custom_style_category: null, reference_code: id.replace(/-/g, "").slice(0, 8).toUpperCase(),
-    client_reschedule_count: 0, last_rescheduled_at: null,
+    client_reschedule_count: 0, last_rescheduled_at: null, product_cost: 3500, product_cost_note: null,
     ...overrides,
   };
 }
@@ -124,6 +124,27 @@ const FIXTURES: Record<string, Row[]> = {
   })),
   blocked_slots: [],
   booking_reschedules: [],
+  // Finances (024): ledger rows for the paid fixtures, rates with a mid-history change,
+  // expenses, a monthly cost, the tracking start and a closed report for last month.
+  payments: BOOKINGS.flatMap(b => {
+    const rows: Row[] = [];
+    if (b.deposit_confirmed_at) rows.push({ id: `p-${b.id}-d`, booking_id: b.id, kind: "deposit", amount: Math.round(Number(b.quoted_price) / 2), received_at: b.deposit_confirmed_at, source: "app" });
+    if (b.balance_paid_at) rows.push({ id: `p-${b.id}-b`, booking_id: b.id, kind: "balance", amount: Math.round(Number(b.quoted_price) / 2), received_at: b.balance_paid_at, source: "app" });
+    return rows;
+  }),
+  cost_rates: [
+    { id: "r1", kind: "staff_salary", amount: 30000, effective_from: "2000-01-01" },
+    { id: "r2", kind: "transport_daily", amount: 1500, effective_from: "2000-01-01" },
+    { id: "r3", kind: "transport_daily", amount: 2000, effective_from: day(-20) },
+  ],
+  expenses: [
+    { id: "x1", expense_date: day(-30), category: "Supplies (bulk)", amount: 18000, note: "Edge control and gels" },
+    { id: "x2", expense_date: day(-2), category: "Equipment & tools", amount: 25000, note: "Hooded dryer" },
+  ],
+  recurring_expenses: [{ id: "rc1", category: "Rent & utilities", amount: 20000, note: "Shared salon space", start_date: day(-25), end_date: null }],
+  finance_config: [{ key: "tracking_start_date", value: day(-40) }],
+  category_product_costs: [{ category: "Styling", typical_cost: 4000 }, { category: "Wigs", typical_cost: 3000 }],
+  monthly_reports: [],
   testimonials: [],
   gallery: [],
 };
