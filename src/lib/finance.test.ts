@@ -397,3 +397,42 @@ describe("dashboard 'report is ready' notice", () => {
     expect(reportNoticeVisible("2026-11-09", null)).toBe(false);
   });
 });
+
+describe("kept payments and stuck bookings", () => {
+  it("a full payment on a cancelled booking is a 'kept payment'; a deposit stays a 'kept deposit'", async () => {
+    const { keptLabel } = await import("./finance");
+    const paidInFull = bk({ date: "2026-10-20", status: "cancelled", clientName: "Melody" });
+    const deposit = bk({ date: "2026-10-22", status: "cancelled", clientName: "Ada" });
+    const m = computeMonth(input({ bookings: [paidInFull, deposit], payments: [
+      pay(paidInFull.id, "balance", 14000, "2026-10-11T20:00:00Z"), pay(deposit.id, "deposit", 5000, "2026-10-05T10:00:00Z"),
+    ] }), "2026-10");
+    expect(m.keptDepositList.map(k => [k.clientName, k.kind, k.amount])).toEqual([["Melody", "payment", 14000], ["Ada", "deposit", 5000]]);
+    expect(m.keptDeposits).toBe(19000);
+    expect(m.transactions.filter(t => t.kind === "kept_deposit").map(t => t.label)).toEqual(["Kept payment · Melody (cancelled)", "Kept deposit · Ada (cancelled)"]);
+    expect(keptLabel(["payment", "deposit"], true)).toBe("Kept deposits & payments");
+    expect(keptLabel(["payment"], true)).toBe("Kept payments");
+    expect(keptLabel(["deposit"], true)).toBe("Kept deposits");
+  });
+
+  it("lists past appointments still quoted / deposit paid (not future ones, not other statuses)", async () => {
+    const { stuckHeadline } = await import("./finance");
+    const bookings = [
+      bk({ date: "2026-10-18", status: "quoted", clientName: "Tolu", quotedPrice: 5000 }),
+      bk({ date: "2026-10-27", status: "quoted", clientName: "Vee", quotedPrice: 1000 }),
+      bk({ date: "2026-10-31", status: "quoted", clientName: "Melody", quotedPrice: 7000 }),
+      bk({ date: "2026-11-07", time: "10:00 AM", status: "quoted", clientName: "Jesu", quotedPrice: 20000 }), // 7 Nov 10:00 < now (12:00)
+      bk({ date: "2026-11-07", time: "4:00 PM", status: "quoted", clientName: "Later" }),                     // later today: not yet
+      bk({ date: "2026-11-20", status: "deposit_paid", clientName: "Future" }),
+      bk({ date: "2026-10-25", status: "completed", clientName: "Done" }),
+    ];
+    const i = input({ bookings });
+    const oct = computeMonth(i, "2026-10"), nov = computeMonth(i, "2026-11");
+    expect(oct.stuck.map(s => [s.clientName, s.date, s.status, s.price])).toEqual([["Tolu", "2026-10-18", "quoted", 5000], ["Vee", "2026-10-27", "quoted", 1000], ["Melody", "2026-10-31", "quoted", 7000]]);
+    expect(nov.stuck.map(s => s.clientName)).toEqual(["Jesu"]);
+    expect(stuckHeadline(oct)).toBe("3 past bookings still quoted — complete or cancel them");
+    expect(stuckHeadline({ stuck: [...oct.stuck, { ...oct.stuck[0], status: "deposit_paid" }] })).toBe("4 past bookings still quoted or awaiting a deposit check — complete or cancel them");
+    expect(stuckHeadline(nov)).toBe("1 past booking still quoted — complete or cancel it");
+    // Not Earned until completed.
+    expect(oct.earned).toBe(30000);
+  });
+});

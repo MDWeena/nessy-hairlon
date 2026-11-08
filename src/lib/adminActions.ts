@@ -8,7 +8,11 @@ import type { OrderStatus } from "../types/index.js";
  * the "⋯ More" menu (the WhatsApp icon and the balance section are separate and always shown).
  */
 export type PrimaryAction = "set_price" | "verify_payment" | "mark_completed";
-export type MenuAction = "reschedule" | "confirm_without_deposit" | "history" | "move_back_to_confirmed";
+export type MenuAction = "reschedule" | "confirm_without_deposit" | "verify_payment" | "cancel_booking" | "history" | "move_back_to_confirmed";
+
+/** Statuses that can be completed straight from the card once the day comes (clients often pay in
+ * full on the day, so a quote or an unchecked deposit isn't a reason to block completion). */
+export const COMPLETABLE_WITHOUT_CONFIRMING: readonly OrderStatus[] = ["quoted", "deposit_paid"];
 
 export interface CardActions {
   primary: PrimaryAction | null;
@@ -52,8 +56,10 @@ export function cardActions(b: CardBooking, now: number): CardActions {
   const t = bookingTiming(b.date, b.time, now);
   let primary: PrimaryAction | null = null;
   if (b.status === "pending_review") primary = "set_price";
-  else if (b.status === "deposit_paid") primary = "verify_payment";
   else if (b.status === "confirmed" && t.isDueOrPast) primary = "mark_completed";
+  // On or after the appointment day, an unconfirmed booking is completed directly.
+  else if (COMPLETABLE_WITHOUT_CONFIRMING.includes(b.status) && t.isDueOrPast) primary = "mark_completed";
+  else if (b.status === "deposit_paid") primary = "verify_payment";
 
   const menu: CardActions["menu"] = [];
   if (RESCHEDULABLE_STATUSES.includes(b.status)) {
@@ -62,6 +68,9 @@ export function cardActions(b: CardBooking, now: number): CardActions {
     else if (b.status === "confirmed") menu.push({ action: "reschedule", label: "Reschedule (missed appointment)" });
   }
   if (b.status === "quoted") menu.push({ action: "confirm_without_deposit", label: "Confirm without deposit" });
+  if (b.status === "deposit_paid" && t.isDueOrPast) menu.push({ action: "verify_payment", label: "Verify deposit payment" });
+  // For a quoted appointment that never happened.
+  if (b.status === "quoted" && t.isDueOrPast) menu.push({ action: "cancel_booking", label: "Cancel booking" });
   if (b.lastRescheduledAt) menu.push({ action: "history", label: "Reschedule history" });
   if (b.status === "completed") menu.push({ action: "move_back_to_confirmed", label: "Move back to Confirmed" });
   return { primary, menu };

@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   rows: [] as Record<string, unknown>[],
   updates: [] as { id: unknown; values: Record<string, unknown> }[],
   reminderInserts: [] as unknown[],
+  upserts: [] as { table: string; values: Record<string, unknown>; options: unknown }[],
 }));
 
 vi.mock("../lib/supabase", () => {
@@ -14,6 +15,7 @@ vi.mock("../lib/supabase", () => {
     const b = {
       select: () => b, order: () => b,
       update: (v: Record<string, unknown>) => { values = v; return b; },
+      upsert: (v: Record<string, unknown>, options: unknown) => { state.upserts.push({ table, values: v, options }); return Promise.resolve({ error: null }); },
       insert: (rows: unknown) => { if (table === "booking_reminders") state.reminderInserts.push(rows); return Promise.resolve({ error: null }); },
       eq: (_col: string, id: unknown) => {
         if (values) {
@@ -61,6 +63,7 @@ async function setup(rows: Record<string, unknown>[]) {
 beforeEach(() => {
   state.updates = [];
   state.reminderInserts = [];
+  state.upserts = [];
   notify.mockClear();
 });
 
@@ -101,5 +104,55 @@ describe("Move back to Confirmed", () => {
     expect(state.updates.map(u => u.values.status)).toEqual(["confirmed"]);
     expect(notify).not.toHaveBeenCalled();
     expect(state.reminderInserts).toEqual([]);
+  });
+});
+
+describe("Mark Completed on a past quoted / deposit-paid booking (no deposit step)", () => {
+  const quoted = (over: Record<string, unknown> = {}) => booking({ status: "quoted", deposit_confirmed_at: null, quoted_price: 20000, ...over });
+
+  it("'Client paid in full on the day': records the full price as today's balance in the ledger and completes it", async () => {
+    const { result } = await setup([quoted()]);
+    const before = Date.now();
+    await act(async () => { await result.current.completeWithoutConfirming("b1", { paidInFull: true, sendThankYou: true, productCost: 3000 }); });
+    const patch = state.updates[0].values;
+    expect(patch).toMatchObject({ product_cost: 3000 });
+    expect(Date.parse(patch.balance_paid_at as string)).toBeGreaterThanOrEqual(before);
+    expect(state.upserts).toHaveLength(1);
+    expect(state.upserts[0]).toMatchObject({ table: "payments", values: { booking_id: "b1", kind: "balance", amount: 20000, source: "app" }, options: { onConflict: "booking_id,kind", ignoreDuplicates: true } });
+    expect(Date.parse(state.upserts[0].values.received_at as string)).toBeGreaterThanOrEqual(before);
+    expect(state.updates.map(u => u.values.status).filter(Boolean)).toEqual(["completed"]);
+    expect(notify.mock.calls[0]).toEqual([expect.objectContaining({ type: "status_change", previousStatus: "quoted", booking: expect.objectContaining({ status: "completed" }) })]);
+  });
+
+  it("unticked: completes it with the balance still outstanding — no payment recorded", async () => {
+    const { result } = await setup([quoted()]);
+    await act(async () => { await result.current.completeWithoutConfirming("b1", { paidInFull: false, sendThankYou: false }); });
+    expect(state.upserts).toEqual([]);
+    expect(state.updates[0].values).not.toHaveProperty("balance_paid_at");
+    expect(state.updates.map(u => u.values.status).filter(Boolean)).toEqual(["completed"]);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("works for deposit_paid too (the unchecked deposit isn't counted — the full price is the balance)", async () => {
+    const { result } = await setup([quoted({ status: "deposit_paid" })]);
+    await act(async () => { await result.current.completeWithoutConfirming("b1", { paidInFull: true, sendThankYou: false }); });
+    expect(state.upserts[0].values).toMatchObject({ kind: "balance", amount: 20000 });
+  });
+
+  it("refuses a booking that's no longer quoted / deposit paid, and paid-in-full without a price", async () => {
+    const { result } = await setup([booking({ status: "confirmed" }), quoted({ id: "b2", quoted_price: null })]);
+    await expect(result.current.completeWithoutConfirming("b1", { paidInFull: true, sendThankYou: false })).rejects.toThrow(/can't be completed/);
+    await expect(result.current.completeWithoutConfirming("b2", { paidInFull: true, sendThankYou: false })).rejects.toThrow(/Set a price first/);
+    expect(state.updates).toEqual([]);
+    expect(state.upserts).toEqual([]);
+  });
+});
+
+describe("Cancel booking (a quoted appointment that never happened)", () => {
+  it("cancels without emailing the client", async () => {
+    const { result } = await setup([booking({ status: "quoted", deposit_confirmed_at: null })]);
+    await act(async () => { await result.current.cancelBooking("b1"); });
+    expect(state.updates.map(u => u.values.status)).toEqual(["cancelled"]);
+    expect(notify).not.toHaveBeenCalled();
   });
 });

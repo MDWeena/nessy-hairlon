@@ -157,12 +157,15 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
   const {
     bookings, setQuotedPrice, updateBookingStatus, confirmDepositPayment, rejectDepositPayment,
     markBalancePaid, sendBalanceReminder, markCompleted, moveBackToConfirmed, refetch: refetchBookings,
+    completeWithoutConfirming, cancelBooking,
   } = useBookings();
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   // "Verify Payment" reveals the payment check (screenshot + Confirm / Not found) for one card.
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   // "Mark Completed" opens an in-page confirmation for one card.
   const [completingId, setCompletingId] = useState<string | null>(null);
+  // "⋯ → Cancel booking" (a past quoted appointment that never happened) asks before cancelling.
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   // Captured once so render stays pure; drives the "Rescheduled" badge, "Today" marker, the
   // Past divider and which actions each card offers (today/past vs upcoming, in WAT).
   const [renderNow] = useState(() => Date.now());
@@ -458,15 +461,33 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     }
   };
 
-  const handleMarkCompleted = async (id: string, sendThankYou: boolean, productCost?: number | null) => {
+  const handleMarkCompleted = async (id: string, sendThankYou: boolean, productCost?: number | null, paidInFull?: boolean) => {
     setActionError(null);
     setBusyId(id);
     try {
-      reportNotification(await markCompleted(id, sendThankYou, productCost), bookings.find(o => o.id === id)?.client);
+      const order = bookings.find(o => o.id === id);
+      const result = order && (order.status === "quoted" || order.status === "deposit_paid")
+        ? await completeWithoutConfirming(id, { paidInFull: !!paidInFull, sendThankYou, productCost })
+        : await markCompleted(id, sendThankYou, productCost);
+      reportNotification(result, order?.client);
       setCompletingId(null);
       refreshList();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to mark as completed");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleCancelBooking = async (id: string) => {
+    setActionError(null);
+    setBusyId(id);
+    try {
+      await cancelBooking(id);
+      setCancellingId(null);
+      refreshList();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to cancel the booking");
     } finally {
       setBusyId(null);
     }
@@ -493,12 +514,15 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
     setVerifyingId(panel === "verify" ? id : null);
     setCompletingId(panel === "complete" ? id : null);
     setReschedulingId(panel === "reschedule" ? id : null);
+    setCancellingId(null);
     if (panel === "quote") startQuote(id);
   };
 
   const runMenuAction = (id: string, action: MenuAction) => {
     if (action === "reschedule") openPanel(id, "reschedule");
     else if (action === "confirm_without_deposit") confirmWithoutDeposit(id);
+    else if (action === "verify_payment") openPanel(id, "verify");
+    else if (action === "cancel_booking") { openPanel(id, null); setCancellingId(id); }
     else if (action === "history") toggleHistory(id);
     else if (action === "move_back_to_confirmed") handleMoveBackToConfirmed(id);
   };
@@ -803,14 +827,31 @@ export function Orders({ initialFilter = "all", highlightBookingId }: OrdersProp
               productCost={o.productCost}
               typicalProductCost={typicalFor(categoryOf(o))}
               category={categoryOf(o)}
-              onConfirm={(sendThankYou, productCost) => handleMarkCompleted(o.id, sendThankYou, productCost)}
+              unconfirmed={o.status === "quoted" || o.status === "deposit_paid" ? { status: o.status, fullPrice: o.quotedPrice } : undefined}
+              onConfirm={(sendThankYou, productCost, paidInFull) => handleMarkCompleted(o.id, sendThankYou, productCost, paidInFull)}
               onCancel={() => setCompletingId(null)}
             />
           )}
 
-          {o.status === "quoted" && quotingId !== o.id && (
+          {cancellingId === o.id && (
+            <div data-testid="cancel-booking-panel" className="mt-3 pt-3 border-t border-border grid gap-2.5">
+              <p className="m-0 text-[13px] font-semibold">Cancel {o.client}'s booking?</p>
+              <p className="m-0 text-xs text-text-soft">Use this when the appointment never happened. The client isn't emailed, and it won't count in Finances.</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setCancellingId(null)} disabled={busyId === o.id}
+                  className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-transparent border border-border rounded-md py-1.5 px-3 text-xs text-text-soft cursor-pointer">Keep it</button>
+                <button onClick={() => handleCancelBooking(o.id)} disabled={busyId === o.id}
+                  className="flex-1 basis-[120px] min-h-11 md:flex-none md:basis-auto md:min-h-0 bg-[#EF4444] text-white border-none rounded-md py-1.5 px-3.5 text-xs font-bold cursor-pointer">
+                  {busyId === o.id ? "Cancelling…" : "Yes, cancel booking"}</button>
+              </div>
+            </div>
+          )}
+
+          {o.status === "quoted" && quotingId !== o.id && completingId !== o.id && cancellingId !== o.id && (
             <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border text-xs text-text-muted">
-              {busyId === o.id ? <><GoldSpinner size={12} /> Confirming…</> : "Waiting for client deposit"}
+              {busyId === o.id ? <><GoldSpinner size={12} /> Confirming…</>
+                : actions.primary === "mark_completed" ? "Appointment day has come — mark it completed, or cancel it if it didn't happen"
+                : "Waiting for client deposit"}
             </div>
           )}
 

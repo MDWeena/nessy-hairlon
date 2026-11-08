@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, AlertTriangle } from "lucide-react";
 import { OPEN_MONTH_KEY, useFinances } from "../../../hooks/useFinances";
-import { formatNaira, shortDate, type MonthFigures } from "../../../lib/finance";
+import { formatNaira, keptLabel, shortDate, type MonthFigures } from "../../../lib/finance";
 import { LoadingNotice } from "../../ui/LoadingNotice";
 import { ErrorNotice } from "../../ui/ErrorNotice";
 import { Sheet } from "../../ui/Sheet";
@@ -35,6 +35,7 @@ function MonthCard({ m, onOpen }: { m: MonthFigures; onOpen: () => void }) {
         <div className="text-[12px] text-text-muted mt-0.5">
           {m.appointments} appointment{m.appointments === 1 ? "" : "s"} · {m.workingDays} hair day{m.workingDays === 1 ? "" : "s"}
           {m.costs.productsMissing > 0 && ` · ${m.costs.productsMissing} missing product cost`}
+          {m.stuck.length > 0 && ` · ${m.stuck.length} past booking${m.stuck.length === 1 ? "" : "s"} to complete or cancel`}
         </div>
         <div className="text-[12px] text-text-muted mt-0.5" data-testid="month-card-received">Money received in {m.label.split(" ")[0]}: {formatNaira(m.moneyReceived)}</div>
       </div>
@@ -104,7 +105,7 @@ export function Finances() {
           <Card title={`Since ${fin.trackingStart ? `${shortDate(fin.trackingStart)} ${fin.trackingStart.slice(0, 4)}` : "launch"}`} testId="finance-overview">
             <div className="mb-3"><ProfitLoss value={t.profit} className="text-2xl" /></div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-              <Stat label="Earned" value={formatNaira(t.earned)} sub={t.keptDeposits ? `+ ${formatNaira(t.keptDeposits)} kept deposits` : undefined} />
+              <Stat label="Earned" value={formatNaira(t.earned)} sub={t.keptDeposits ? `+ ${formatNaira(t.keptDeposits)} ${keptLabel(months.flatMap(m => m.keptDepositList.map(k => k.kind)), true).toLowerCase()}` : undefined} />
               <Stat label="Collected" value={formatNaira(t.collected)} />
               <Stat label="Outstanding" value={formatNaira(t.outstanding)} />
               <Stat label="Total costs" value={formatNaira(t.costs.total)} />
